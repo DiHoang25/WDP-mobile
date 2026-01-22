@@ -1,50 +1,109 @@
-# Welcome to your Expo app 👋
+# EcoCollect - Ứng dụng Thu Gom Rác Thông Minh 🌱♻️
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Ứng dụng mobile React Native với Expo giúp bảo vệ môi trường thông qua dịch vụ thu gom rác thông minh.
 
-## Get started
+## 🚀 Cài Đặt và Chạy
 
-1. Install dependencies
+1. Cài đặt dependencies
 
    ```bash
    npm install
    ```
 
-2. Start the app
+2. Chạy app
 
    ```bash
-   npx expo start
+   npm start
    ```
 
-In the output, you'll find options to open the app in a
+3. Quét QR code bằng Expo Go (Android) hoặc Camera app (iOS)
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 🎯 Tính Năng
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### 👤 Công Dân (Citizens)
 
-## Get a fresh project
+- Tạo báo cáo rác với 8 loại phân loại
+- Tích điểm từ việc báo cáo rác
+- Bảng xếp hạng theo khu vực
+- Đổi điểm lấy voucher
+- Theo dõi lịch sử báo cáo
 
-When you're ready, run:
+### 🚚 Shipper
 
-```bash
-npm run reset-project
+- Nhận và xử lý đơn hàng thu gom
+- Theo dõi trạng thái đơn hàng
+- Lịch sử công việc
+- Quản lý thông tin phương tiện
+
+## 🔐 Tài Khoản Test
+
+**Công dân:**
+
+- Email: `citizen@test.com`
+- Password: `123456`
+
+**Shipper:**
+
+- Email: `shipper@test.com`
+- Password: `123456`
+
+## 🎨 Công Nghệ
+
+- React Native 0.81.5
+- Expo SDK 54
+- Expo Router 6 (file-based routing)
+- TypeScript
+- React Native Reanimated
+
+## 📂 Cấu Trúc Dự Án
+
+```
+app/
+  (citizen)/     # Screens cho Citizens
+  (shipper)/     # Screens cho Shipper
+  index.tsx      # Entry point
+  login.tsx      # Màn hình đăng nhập
+  register.tsx   # Màn hình đăng ký
+  _layout.tsx    # Root layout
+
+components/      # Reusable components
+constants/       # Theme, colors
+contexts/        # AuthContext
+data/           # Mock data
+hooks/          # Custom hooks
+types/          # TypeScript types
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 🔄 Tích Hợp Backend
 
-## Learn more
+Để tích hợp với backend, chỉnh sửa file `contexts/AuthContext.tsx`:
 
-To learn more about developing your project with Expo, look at the following resources:
+```typescript
+const login = async (email: string, password: string): Promise<boolean> => {
+  const response = await fetch("/api/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+  const data = await response.json();
+  if (data.success) {
+    setUser(data.user);
+    return true;
+  }
+  return false;
+};
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Backend API cần trả về:
 
-## Join the community
+- `user` object với `role` field ('citizen' hoặc 'shipper')
+- App sẽ tự động chuyển hướng dựa trên role
 
-Join our community of developers creating universal apps.
+## 📱 Build Production
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+# Build Android APK
+eas build --platform android
+
+# Build iOS
+eas build --platform ios
+```
