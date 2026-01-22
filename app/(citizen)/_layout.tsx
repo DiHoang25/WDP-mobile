@@ -23,21 +23,21 @@ export default function CitizenLayout() {
         name="index"
         options={{
           title: "Trang chủ",
-          tabBarIcon: ({ color }) => <TabIcon emoji="🏠" color={color} />,
+          tabBarIcon: ({ color }) => <TabIcon name="home" color={color} />,
         }}
       />
       <Tabs.Screen
         name="leaderboard"
         options={{
           title: "Xếp hạng",
-          tabBarIcon: ({ color }) => <TabIcon emoji="🏆" color={color} />,
+          tabBarIcon: ({ color }) => <TabIcon name="trophy" color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Cá nhân",
-          tabBarIcon: ({ color }) => <TabIcon emoji="👤" color={color} />,
+          tabBarIcon: ({ color }) => <TabIcon name="person" color={color} />,
         }}
       />
 
@@ -56,6 +56,18 @@ export default function CitizenLayout() {
       />
       <Tabs.Screen
         name="rewards"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="register-enterprise"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="register-enterprise-form"
         options={{
           href: null, // Hide from tab bar
         }}

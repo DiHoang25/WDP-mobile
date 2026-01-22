@@ -20,28 +20,28 @@ export default function ShipperLayout() {
         name="index"
         options={{
           title: "Đơn hàng",
-          tabBarIcon: ({ color }) => <TabIcon emoji="📦" color={color} />,
+          tabBarIcon: ({ color }) => <TabIcon name="list" color={color} />,
         }}
       />
       <Tabs.Screen
         name="active-task"
         options={{
           title: "Đang làm",
-          tabBarIcon: ({ color }) => <TabIcon emoji="🚚" color={color} />,
+          tabBarIcon: ({ color }) => <TabIcon name="car" color={color} />,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
           title: "Lịch sử",
-          tabBarIcon: ({ color }) => <TabIcon emoji="📋" color={color} />,
+          tabBarIcon: ({ color }) => <TabIcon name="time" color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: "Cá nhân",
-          tabBarIcon: ({ color }) => <TabIcon emoji="👤" color={color} />,
+          tabBarIcon: ({ color }) => <TabIcon name="person" color={color} />,
         }}
       />
     </Tabs>

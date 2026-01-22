@@ -1,6 +1,7 @@
 import { Button, Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import {
@@ -58,7 +59,8 @@ export default function ShipperProfileScreen() {
             <Text style={styles.userName}>{user?.name}</Text>
             <Text style={styles.userEmail}>{user?.email}</Text>
             <View style={styles.roleBadge}>
-              <Text style={styles.roleBadgeText}>🚚 Shipper</Text>
+              <Ionicons name="car" size={14} color={AppColors.shipper} />
+              <Text style={styles.roleBadgeText}>Shipper</Text>
             </View>
           </View>
 
@@ -77,7 +79,7 @@ export default function ShipperProfileScreen() {
           <Card variant="default" style={styles.menuItem}>
             <View style={styles.menuContent}>
               <View style={styles.menuIconContainer}>
-                <Text style={styles.menuIcon}>📊</Text>
+                <Ionicons name="stats-chart" size={22} color={AppColors.textSecondary} />
               </View>
               <View style={styles.menuTextContainer}>
                 <Text style={styles.menuTitle}>Thống kê</Text>
@@ -92,7 +94,7 @@ export default function ShipperProfileScreen() {
           <Card variant="default" style={styles.menuItem}>
             <View style={styles.menuContent}>
               <View style={styles.menuIconContainer}>
-                <Text style={styles.menuIcon}>⚙️</Text>
+                <Ionicons name="settings" size={22} color={AppColors.textSecondary} />
               </View>
               <View style={styles.menuTextContainer}>
                 <Text style={styles.menuTitle}>Cài đặt</Text>
@@ -109,7 +111,7 @@ export default function ShipperProfileScreen() {
       {/* Logout Button */}
       <View style={styles.logoutSection}>
         <Button
-          title="🚪 Đăng xuất"
+          title="Đăng xuất"
           onPress={handleLogout}
           variant="outline"
           style={styles.logoutButton}
@@ -180,6 +182,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   roleBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     backgroundColor: AppColors.shipper + "20",
     paddingHorizontal: 15,
     paddingVertical: 6,

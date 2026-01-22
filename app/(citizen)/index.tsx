@@ -3,6 +3,7 @@ import { WasteReportCard } from "@/components/reports";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { MOCK_WASTE_REPORTS } from "@/data/mockData";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React from "react";
@@ -50,21 +51,21 @@ export default function CitizenHomeScreen() {
     {
       title: "Lịch sử",
       subtitle: "Xem các báo cáo",
-      icon: "📋",
+      icon: "document-text",
       color: AppColors.secondary,
       route: "/(citizen)/history",
     },
     {
       title: "Xếp hạng",
       subtitle: "Top công dân",
-      icon: "🏆",
+      icon: "trophy",
       color: AppColors.warning,
       route: "/(citizen)/leaderboard",
     },
     {
       title: "Đổi thưởng",
       subtitle: "Phần thưởng",
-      icon: "🎁",
+      icon: "gift",
       color: AppColors.error,
       route: "/(citizen)/rewards",
     },
@@ -81,7 +82,7 @@ export default function CitizenHomeScreen() {
           <View>
             <Text style={styles.greeting}>Xin chào!</Text>
             <Text style={styles.userName}>{user?.name}</Text>
-            <Text style={styles.location}>📍 {user?.district}</Text>
+            <Text style={styles.location}>{user?.district}</Text>
           </View>
           <TouchableOpacity style={styles.avatar}>
             {user?.avatar ? (
@@ -124,7 +125,7 @@ export default function CitizenHomeScreen() {
           >
             <View style={styles.mainActionContent}>
               <View style={styles.mainActionIconContainer}>
-                <Text style={styles.mainActionIcon}>📝</Text>
+                <Ionicons name="create" size={28} color={AppColors.white} />
               </View>
               <View style={styles.mainActionTextContainer}>
                 <Text style={styles.mainActionTitle}>Tạo báo cáo rác</Text>
@@ -133,7 +134,7 @@ export default function CitizenHomeScreen() {
                 </Text>
               </View>
               <View style={styles.mainActionArrow}>
-                <Text style={styles.mainActionArrowText}>→</Text>
+                <Ionicons name="chevron-forward" size={28} color={AppColors.white} />
               </View>
             </View>
           </LinearGradient>
@@ -156,7 +157,7 @@ export default function CitizenHomeScreen() {
                   { backgroundColor: `${action.color}20` },
                 ]}
               >
-                <Text style={styles.actionIcon}>{action.icon}</Text>
+                <Ionicons name={action.icon as any} size={24} color={action.color} />
               </View>
               <Text style={styles.actionTitle}>{action.title}</Text>
               <Text style={styles.actionSubtitle}>{action.subtitle}</Text>
@@ -169,8 +170,12 @@ export default function CitizenHomeScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Báo cáo gần đây</Text>
-          <TouchableOpacity onPress={() => router.push("/(citizen)/history")}>
-            <Text style={styles.seeAllText}>Xem tất cả →</Text>
+          <TouchableOpacity 
+            onPress={() => router.push("/(citizen)/history")}
+            style={styles.seeAllButton}
+          >
+            <Text style={styles.seeAllText}>Xem tất cả</Text>
+            <Ionicons name="chevron-forward" size={16} color={AppColors.primary} />
           </TouchableOpacity>
         </View>
 
@@ -195,7 +200,7 @@ export default function CitizenHomeScreen() {
       <View style={styles.section}>
         <Card variant="outlined" style={styles.tipCard}>
           <View style={styles.tipContent}>
-            <Text style={styles.tipIcon}>💡</Text>
+            <Ionicons name="bulb" size={24} color={AppColors.warning} />
             <View style={styles.tipTextContainer}>
               <Text style={styles.tipTitle}>Mẹo thu gom rác</Text>
               <Text style={styles.tipText}>
@@ -310,9 +315,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 16,
   },
-  mainActionIcon: {
-    fontSize: 32,
-  },
+
   mainActionTextContainer: {
     flex: 1,
   },
@@ -334,11 +337,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  mainActionArrowText: {
-    fontSize: 24,
-    color: AppColors.white,
-    fontWeight: "bold",
-  },
   section: {
     padding: 20,
   },
@@ -352,6 +350,11 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     color: AppColors.textPrimary,
+  },
+  seeAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   seeAllText: {
     fontSize: 14,
@@ -379,9 +382,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
   },
-  actionIcon: {
-    fontSize: 26,
-  },
   actionTitle: {
     fontSize: 14,
     fontWeight: "bold",
@@ -400,10 +400,7 @@ const styles = StyleSheet.create({
   tipContent: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  tipIcon: {
-    fontSize: 30,
-    marginRight: 15,
+    gap: 15,
   },
   tipTextContainer: {
     flex: 1,

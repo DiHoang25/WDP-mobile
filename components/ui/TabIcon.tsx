@@ -1,5 +1,5 @@
-import { Text } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-export function TabIcon({ emoji, color }: { emoji: string; color: string }) {
-  return <Text style={{ fontSize: 24 }}>{emoji}</Text>;
+export function TabIcon({ name, color }: { name: keyof typeof Ionicons.glyphMap; color: string }) {
+  return <Ionicons name={name} size={24} color={color} />;
 }

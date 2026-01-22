@@ -1,6 +1,8 @@
 // Types for the EcoCollect App
 
-export type UserRole = "citizen" | "shipper";
+export type UserRole = "citizen" | "enterprise" | "shipper";
+
+export type WasteType = "organic" | "plastic" | "paper" | "metal" | "glass" | "electronic" | "hazardous" | "mixed";
 
 export interface User {
   id: string;
@@ -8,6 +10,7 @@ export interface User {
   name: string;
   phone: string;
   role: UserRole;
+  roleId: number; // 1: citizen, 2: enterprise, 3: shipper, 4: admin
   avatar?: string;
 
   // Citizen specific

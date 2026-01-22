@@ -1,6 +1,7 @@
 import { Button, Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import {
@@ -31,52 +32,64 @@ export default function ProfileScreen() {
   };
 
   const menuItems = [
+    // Show "Đăng ký doanh nghiệp" only for citizens (roleId = 1)
+    ...(user?.roleId === 1
+      ? [
+          {
+            icon: "business",
+            title: "Đăng ký doanh nghiệp",
+            subtitle: "Trở thành đối tác xử lý rác",
+            onPress: () => router.push("/(citizen)/register-enterprise-form" as any),
+            highlight: true,
+          },
+        ]
+      : []),
     {
-      icon: "📋",
+      icon: "document-text",
       title: "Lịch sử báo cáo",
       subtitle: "Xem các báo cáo đã tạo",
       onPress: () => router.push("/(citizen)/history"),
       highlight: true,
     },
     {
-      icon: "🎁",
+      icon: "gift",
       title: "Đổi thưởng",
       subtitle: "Đổi điểm lấy phần thưởng",
       onPress: () => router.push("/(citizen)/rewards"),
       highlight: true,
     },
     {
-      icon: "👤",
+      icon: "person",
       title: "Thông tin cá nhân",
       subtitle: "Cập nhật thông tin",
       onPress: () => Alert.alert("Thông báo", "Tính năng đang phát triển"),
     },
     {
-      icon: "📍",
+      icon: "location",
       title: "Địa chỉ",
       subtitle: user?.address,
       onPress: () => Alert.alert("Thông báo", "Tính năng đang phát triển"),
     },
     {
-      icon: "🔔",
+      icon: "notifications",
       title: "Thông báo",
       subtitle: "Cài đặt thông báo",
       onPress: () => Alert.alert("Thông báo", "Tính năng đang phát triển"),
     },
     {
-      icon: "🌍",
+      icon: "language",
       title: "Ngôn ngữ",
       subtitle: "Tiếng Việt",
       onPress: () => Alert.alert("Thông báo", "Tính năng đang phát triển"),
     },
     {
-      icon: "❓",
+      icon: "help-circle",
       title: "Trợ giúp & Hỗ trợ",
       subtitle: "Câu hỏi thường gặp",
       onPress: () => Alert.alert("Thông báo", "Tính năng đang phát triển"),
     },
     {
-      icon: "📄",
+      icon: "document",
       title: "Điều khoản sử dụng",
       subtitle: "Chính sách & Điều khoản",
       onPress: () => Alert.alert("Thông báo", "Tính năng đang phát triển"),
@@ -107,19 +120,26 @@ export default function ProfileScreen() {
             <Text style={styles.userName}>{user?.name}</Text>
             <Text style={styles.userEmail}>{user?.email}</Text>
             <View style={styles.roleBadge}>
-              <Text style={styles.roleBadgeText}>👤 Công dân</Text>
+              <Ionicons name="person" size={14} color={AppColors.primary} />
+              <Text style={styles.roleBadgeText}>Công dân</Text>
             </View>
           </View>
 
           {/* Stats */}
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>⭐ {user?.points || 0}</Text>
+              <View style={styles.statRow}>
+                <Ionicons name="star" size={18} color={AppColors.warning} />
+                <Text style={styles.statValue}>{user?.points || 0}</Text>
+              </View>
               <Text style={styles.statLabel}>Điểm tích lũy</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>📍 {user?.district}</Text>
+              <View style={styles.statRow}>
+                <Ionicons name="location" size={18} color={AppColors.primary} />
+                <Text style={styles.statValue}>{user?.district}</Text>
+              </View>
               <Text style={styles.statLabel}>Khu vực</Text>
             </View>
           </View>
@@ -144,7 +164,11 @@ export default function ProfileScreen() {
                     item.highlight && styles.menuIconHighlight,
                   ])}
                 >
-                  <Text style={styles.menuIcon}>{item.icon}</Text>
+                  <Ionicons 
+                    name={item.icon as any} 
+                    size={22} 
+                    color={item.highlight ? AppColors.primary : AppColors.textSecondary} 
+                  />
                 </View>
                 <View style={styles.menuTextContainer}>
                   <Text
@@ -167,7 +191,7 @@ export default function ProfileScreen() {
       {/* Logout Button */}
       <View style={styles.logoutSection}>
         <Button
-          title="🚪 Đăng xuất"
+          title="Đăng xuất"
           onPress={handleLogout}
           variant="outline"
           style={styles.logoutButton}
@@ -235,6 +259,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   roleBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     backgroundColor: AppColors.primary + "20",
     paddingHorizontal: 15,
     paddingVertical: 6,
@@ -255,11 +282,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
   },
+  statRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 5,
+  },
   statValue: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "bold",
     color: AppColors.textPrimary,
-    marginBottom: 5,
   },
   statLabel: {
     fontSize: 12,
@@ -296,9 +328,6 @@ const styles = StyleSheet.create({
   },
   menuIconHighlight: {
     backgroundColor: AppColors.primary + "20",
-  },
-  menuIcon: {
-    fontSize: 22,
   },
   menuTextContainer: {
     flex: 1,

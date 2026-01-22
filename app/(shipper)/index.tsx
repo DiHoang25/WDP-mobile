@@ -3,6 +3,7 @@ import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { MOCK_WASTE_REPORTS } from "@/data/mockData";
 import { getWasteTypeLabel } from "@/utils/helpers";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -15,9 +16,9 @@ export default function ShipperHomeScreen() {
   );
 
   const stats = [
-    { label: "Đơn hôm nay", value: "3", icon: "📦", color: AppColors.shipper },
-    { label: "Đang làm", value: "1", icon: "🚚", color: AppColors.secondary },
-    { label: "Hoàn thành", value: "45", icon: "✅", color: AppColors.success },
+    { label: "Đơn hôm nay", value: "3", icon: "list", color: AppColors.shipper },
+    { label: "Đang làm", value: "1", icon: "car", color: AppColors.secondary },
+    { label: "Hoàn thành", value: "45", icon: "checkmark-circle", color: AppColors.success },
   ];
 
   const handleAcceptTask = (reportId: string, isAssigned: boolean) => {
@@ -60,7 +61,7 @@ export default function ShipperHomeScreen() {
         <View style={styles.statsContainer}>
           {stats.map((stat, index) => (
             <View key={index} style={styles.statCard}>
-              <Text style={styles.statIcon}>{stat.icon}</Text>
+              <Ionicons name={stat.icon as any} size={24} color={stat.color} />
               <Text style={styles.statValue}>{stat.value}</Text>
               <Text style={styles.statLabel}>{stat.label}</Text>
             </View>
@@ -80,7 +81,7 @@ export default function ShipperHomeScreen() {
               <Card key={report.id} variant="elevated" style={styles.taskCard}>
                 <View style={styles.taskHeader}>
                   <Badge
-                    label={isAssigned ? "⚡ Đã phân công" : "🔔 Mới"}
+                    label={isAssigned ? "Đã phân công" : "Mới"}
                     color={isAssigned ? "secondary" : "warning"}
                     size="small"
                   />
@@ -99,7 +100,7 @@ export default function ShipperHomeScreen() {
                 </View>
 
                 <View style={styles.taskLocation}>
-                  <Text style={styles.locationIcon}>📍</Text>
+                  <Ionicons name="location" size={20} color={AppColors.error} />
                   <View style={styles.locationInfo}>
                     <Text style={styles.locationAddress}>{report.address}</Text>
                     <Text style={styles.locationDistrict}>
@@ -109,7 +110,7 @@ export default function ShipperHomeScreen() {
                 </View>
 
                 <View style={styles.taskCustomer}>
-                  <Text style={styles.customerIcon}>👤</Text>
+                  <Ionicons name="person" size={18} color={AppColors.textSecondary} />
                   <Text style={styles.customerName}>{report.citizenName}</Text>
                 </View>
 
@@ -124,7 +125,6 @@ export default function ShipperHomeScreen() {
                   <Button
                     title={isAssigned ? "Bắt đầu thu gom" : "Nhận đơn"}
                     onPress={() => handleAcceptTask(report.id, isAssigned)}
-                    icon={isAssigned ? "🚚" : "✅"}
                   />
                 </View>
               </Card>
@@ -133,7 +133,7 @@ export default function ShipperHomeScreen() {
 
           {assignedReports.length === 0 && (
             <EmptyState
-              icon="📦"
+              icon=""
               title="Chưa có đơn hàng mới"
               message="Các đơn hàng mới sẽ xuất hiện ở đây"
             />
@@ -143,7 +143,7 @@ export default function ShipperHomeScreen() {
         {/* Tips */}
         <Card variant="outlined" style={styles.tipCard}>
           <View style={styles.tipContent}>
-            <Text style={styles.tipIcon}>💡</Text>
+            <Ionicons name="bulb" size={24} color={AppColors.warning} />
             <View style={styles.tipTextContainer}>
               <Text style={styles.tipTitle}>Lưu ý khi thu gom</Text>
               <Text style={styles.tipText}>
@@ -256,14 +256,11 @@ const styles = StyleSheet.create({
   taskLocation: {
     flexDirection: "row",
     alignItems: "flex-start",
+    gap: 10,
     marginBottom: 10,
     padding: 10,
     backgroundColor: AppColors.gray[50],
     borderRadius: 12,
-  },
-  locationIcon: {
-    fontSize: 20,
-    marginRight: 10,
   },
   locationInfo: {
     flex: 1,
@@ -281,11 +278,8 @@ const styles = StyleSheet.create({
   taskCustomer: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
     marginBottom: 10,
-  },
-  customerIcon: {
-    fontSize: 18,
-    marginRight: 8,
   },
   customerName: {
     fontSize: 14,
@@ -317,10 +311,7 @@ const styles = StyleSheet.create({
   },
   tipContent: {
     flexDirection: "row",
-  },
-  tipIcon: {
-    fontSize: 24,
-    marginRight: 12,
+    gap: 12,
   },
   tipTextContainer: {
     flex: 1,
