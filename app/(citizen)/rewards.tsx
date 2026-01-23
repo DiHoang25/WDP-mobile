@@ -2,6 +2,7 @@ import { Button, Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { MOCK_VOUCHERS } from "@/data/mockData";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
     Alert,
@@ -58,7 +59,7 @@ export default function RewardsScreen() {
   return (
     <View style={styles.container}>
       <Header
-        title="🎁 Đổi thưởng"
+        title="Đổi thưởng"
         subtitle="Đổi điểm lấy voucher hấp dẫn"
         showBack={false}
       />
@@ -68,7 +69,10 @@ export default function RewardsScreen() {
         <Card variant="elevated">
           <View style={styles.pointsCard}>
             <Text style={styles.pointsLabel}>Điểm của bạn</Text>
-            <Text style={styles.pointsValue}>⭐ {user?.points || 0}</Text>
+            <View style={styles.pointsValueContainer}>
+              <Ionicons name="star" size={24} color={AppColors.warning} />
+              <Text style={styles.pointsValue}> {user?.points || 0}</Text>
+            </View>
           </View>
         </Card>
       </View>
@@ -127,8 +131,10 @@ export default function RewardsScreen() {
                   <Text style={styles.voucherBrand}>{voucher.brandName}</Text>
                 </View>
                 <View style={styles.voucherPointsBadge}>
+                  <Ionicons name="star" size={12} color={AppColors.white} />
                   <Text style={styles.voucherPointsText}>
-                    ⭐ {voucher.pointsCost}
+                    {" "}
+                    {voucher.pointsCost}
                   </Text>
                 </View>
               </View>
@@ -183,6 +189,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: AppColors.textSecondary,
     marginBottom: 5,
+  },
+  pointsValueContainer: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   pointsValue: {
     fontSize: 32,

@@ -1,5 +1,6 @@
 import { AppColors } from "@/constants/theme";
 import { UserRole } from "@/types";
+import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -12,14 +13,14 @@ const ROLES = [
   {
     value: "citizen" as UserRole,
     label: "Công dân",
-    icon: "👤",
+    icon: "person",
     color: AppColors.citizen,
     description: "Thu gom rác, tích điểm",
   },
   {
     value: "shipper" as UserRole,
     label: "Shipper",
-    icon: "🚚",
+    icon: "car",
     color: AppColors.shipper,
     description: "Nhận đơn, thu gom",
   },
@@ -46,7 +47,11 @@ export default function RoleSelector({
             onPress={() => onSelectRole(role.value)}
             activeOpacity={0.7}
           >
-            <Text style={styles.roleIcon}>{role.icon}</Text>
+            <Ionicons
+              name={role.icon as any}
+              size={32}
+              color={selectedRole === role.value ? "#FFFFFF" : role.color}
+            />
             <Text
               style={[
                 styles.roleLabel,

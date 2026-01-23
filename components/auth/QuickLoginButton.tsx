@@ -1,10 +1,7 @@
 import { AppColors } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import {
-    StyleSheet,
-    Text,
-    TouchableOpacity
-} from "react-native";
+import { StyleSheet, Text, TouchableOpacity } from "react-native";
 
 interface QuickLoginButtonProps {
   email: string;
@@ -27,7 +24,12 @@ export default function QuickLoginButton({
       onPress={() => onPress(email)}
       activeOpacity={0.7}
     >
-      <Text style={styles.icon}>{icon}</Text>
+      <Ionicons
+        name={icon as any}
+        size={28}
+        color={color}
+        style={styles.icon}
+      />
       <Text style={styles.label}>{label}</Text>
     </TouchableOpacity>
   );
@@ -49,7 +51,6 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   icon: {
-    fontSize: 28,
     marginBottom: 4,
   },
   label: {

@@ -1,4 +1,5 @@
 import { AppColors } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -16,7 +17,7 @@ export default function LogoHeader({ appName, tagline }: LogoHeaderProps) {
     >
       <View style={styles.logoContainer}>
         <View style={styles.logoCircle}>
-          <Text style={styles.logoIcon}>♻️</Text>
+          <Ionicons name="leaf" size={48} color={AppColors.white} />
         </View>
         <Text style={styles.appName}>{appName}</Text>
         <Text style={styles.tagline}>{tagline}</Text>
@@ -49,9 +50,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
-  },
-  logoIcon: {
-    fontSize: 48,
   },
   appName: {
     fontSize: 36,

@@ -4,21 +4,21 @@ import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserRole } from "@/types";
 import {
-  validateEmail,
-  validatePassword,
-  validatePhone,
-  validateRequired,
+    validateEmail,
+    validatePassword,
+    validatePhone,
+    validateRequired,
 } from "@/utils/validators";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 export default function RegisterScreen() {
@@ -137,7 +137,7 @@ export default function RegisterScreen() {
 
           <Input
             label="Họ và tên"
-            icon="👤"
+            icon="person"
             placeholder="Nguyễn Văn A"
             value={name}
             onChangeText={setName}
@@ -146,7 +146,7 @@ export default function RegisterScreen() {
 
           <Input
             label="Email"
-            icon="📧"
+            icon="mail"
             placeholder="example@email.com"
             value={email}
             onChangeText={setEmail}
@@ -157,7 +157,7 @@ export default function RegisterScreen() {
 
           <Input
             label="Số điện thoại"
-            icon="📱"
+            icon="call"
             placeholder="0901234567"
             value={phone}
             onChangeText={setPhone}
@@ -169,7 +169,7 @@ export default function RegisterScreen() {
             <>
               <Input
                 label="Địa chỉ"
-                icon="📍"
+                icon="location"
                 placeholder="123 Lê Lợi, Quận 1"
                 value={address}
                 onChangeText={setAddress}
@@ -177,7 +177,7 @@ export default function RegisterScreen() {
               />
               <Input
                 label="Quận/Huyện"
-                icon="🏙️"
+                icon="business"
                 value={district}
                 editable={false}
               />
@@ -188,7 +188,7 @@ export default function RegisterScreen() {
             <>
               <Input
                 label="Loại phương tiện"
-                icon="🚚"
+                icon="car"
                 placeholder="Xe máy / Xe tải nhỏ"
                 value={vehicleType}
                 onChangeText={setVehicleType}
@@ -196,7 +196,7 @@ export default function RegisterScreen() {
               />
               <Input
                 label="Biển số xe"
-                icon="🔢"
+                icon="card"
                 placeholder="59A-12345"
                 value={vehicleNumber}
                 onChangeText={setVehicleNumber}
@@ -207,7 +207,7 @@ export default function RegisterScreen() {
 
           <Input
             label="Mật khẩu"
-            icon="🔒"
+            icon="lock-closed"
             placeholder="Ít nhất 6 ký tự"
             value={password}
             onChangeText={setPassword}
@@ -217,7 +217,7 @@ export default function RegisterScreen() {
 
           <Input
             label="Xác nhận mật khẩu"
-            icon="🔒"
+            icon="lock-closed"
             placeholder="Nhập lại mật khẩu"
             value={confirmPassword}
             onChangeText={setConfirmPassword}
@@ -231,7 +231,6 @@ export default function RegisterScreen() {
             title="Đăng ký"
             onPress={handleRegister}
             loading={loading}
-            icon="✨"
             style={styles.registerButton}
           />
 

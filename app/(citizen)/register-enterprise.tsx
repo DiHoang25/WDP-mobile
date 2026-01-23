@@ -1,31 +1,38 @@
 import { Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 export default function RegisterEnterpriseScreen() {
   const params = useLocalSearchParams();
-  
+
   // Parse form data from previous screen
-  const formData = params.name ? {
-    name: params.name as string,
-    address: params.address as string,
-    latitude: params.latitude as string,
-    longitude: params.longitude as string,
-    capacityKg: params.capacityKg as string,
-    serviceAreas: params.serviceAreas ? JSON.parse(params.serviceAreas as string) : [],
-    wasteTypes: params.wasteTypes ? JSON.parse(params.wasteTypes as string) : [],
-    startTime: params.startTime as string,
-    endTime: params.endTime as string,
-  } : null;
+  const formData = params.name
+    ? {
+        name: params.name as string,
+        address: params.address as string,
+        latitude: params.latitude as string,
+        longitude: params.longitude as string,
+        capacityKg: params.capacityKg as string,
+        serviceAreas: params.serviceAreas
+          ? JSON.parse(params.serviceAreas as string)
+          : [],
+        wasteTypes: params.wasteTypes
+          ? JSON.parse(params.wasteTypes as string)
+          : [],
+        startTime: params.startTime as string,
+        endTime: params.endTime as string,
+      }
+    : null;
 
   const subscriptionPlans = [
     {
@@ -85,7 +92,7 @@ export default function RegisterEnterpriseScreen() {
     // TODO: Gọi API đăng ký doanh nghiệp với formData và selectedPlan
     // POST /enterprise/register với body: { ...formData, subscriptionPlanId: selectedPlan }
     // Sau đó chuyển sang màn hình thanh toán hoặc hiển thị thông báo thành công
-    
+
     Alert.alert(
       "Thành công",
       "Đăng ký doanh nghiệp thành công! Vui lòng đợi phê duyệt.",
@@ -94,7 +101,7 @@ export default function RegisterEnterpriseScreen() {
           text: "OK",
           onPress: () => router.replace("/(citizen)" as any),
         },
-      ]
+      ],
     );
   };
 
@@ -120,16 +127,37 @@ export default function RegisterEnterpriseScreen() {
             <View style={styles.summaryCard}>
               <Text style={styles.summaryTitle}>Thông tin đã nhập</Text>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>🏢 Doanh nghiệp:</Text>
+                <View style={styles.summaryLabelContainer}>
+                  <Ionicons
+                    name="business"
+                    size={16}
+                    color={AppColors.primary}
+                  />
+                  <Text style={styles.summaryLabelText}> Doanh nghiệp:</Text>
+                </View>
                 <Text style={styles.summaryValue}>{formData.name}</Text>
               </View>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>📍 Địa chỉ:</Text>
-                <Text style={styles.summaryValue} numberOfLines={2}>{formData.address}</Text>
+                <View style={styles.summaryLabelContainer}>
+                  <Ionicons
+                    name="location"
+                    size={16}
+                    color={AppColors.primary}
+                  />
+                  <Text style={styles.summaryLabelText}> Địa chỉ:</Text>
+                </View>
+                <Text style={styles.summaryValue} numberOfLines={2}>
+                  {formData.address}
+                </Text>
               </View>
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>⚙️ Công suất:</Text>
-                <Text style={styles.summaryValue}>{formData.capacityKg} kg/ngày</Text>
+                <View style={styles.summaryLabelContainer}>
+                  <Ionicons name="cog" size={16} color={AppColors.primary} />
+                  <Text style={styles.summaryLabelText}> Công suất:</Text>
+                </View>
+                <Text style={styles.summaryValue}>
+                  {formData.capacityKg} kg/ngày
+                </Text>
               </View>
             </View>
           </View>
@@ -138,7 +166,12 @@ export default function RegisterEnterpriseScreen() {
         {/* Info Section */}
         <View style={styles.infoSection}>
           <View style={styles.infoCard}>
-            <Text style={styles.infoIcon}>🏢</Text>
+            <Ionicons
+              name="business"
+              size={48}
+              color={AppColors.primary}
+              style={styles.infoIcon}
+            />
             <Text style={styles.infoTitle}>Trở thành đối tác</Text>
             <Text style={styles.infoText}>
               Đăng ký doanh nghiệp để nhận báo cáo rác từ công dân và tham gia
@@ -203,7 +236,12 @@ export default function RegisterEnterpriseScreen() {
           <Text style={styles.sectionTitle}>Lợi ích khi tham gia</Text>
           <View style={styles.benefitsList}>
             <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>📍</Text>
+              <Ionicons
+                name="location"
+                size={32}
+                color={AppColors.primary}
+                style={styles.benefitIcon}
+              />
               <View style={styles.benefitContent}>
                 <Text style={styles.benefitTitle}>Mở rộng khu vực</Text>
                 <Text style={styles.benefitText}>
@@ -213,7 +251,12 @@ export default function RegisterEnterpriseScreen() {
             </View>
 
             <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>📊</Text>
+              <Ionicons
+                name="stats-chart"
+                size={32}
+                color={AppColors.primary}
+                style={styles.benefitIcon}
+              />
               <View style={styles.benefitContent}>
                 <Text style={styles.benefitTitle}>Quản lý hiệu quả</Text>
                 <Text style={styles.benefitText}>
@@ -223,7 +266,12 @@ export default function RegisterEnterpriseScreen() {
             </View>
 
             <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>🤝</Text>
+              <Ionicons
+                name="people"
+                size={32}
+                color={AppColors.primary}
+                style={styles.benefitIcon}
+              />
               <View style={styles.benefitContent}>
                 <Text style={styles.benefitTitle}>Hỗ trợ tận tình</Text>
                 <Text style={styles.benefitText}>
@@ -284,11 +332,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     gap: 8,
   },
-  summaryLabel: {
+  summaryLabelContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    minWidth: 120,
+  },
+  summaryLabelText: {
     fontSize: 14,
     color: AppColors.textSecondary,
     fontWeight: "500",
-    minWidth: 120,
   },
   summaryValue: {
     flex: 1,
@@ -307,7 +359,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   infoIcon: {
-    fontSize: 48,
     marginBottom: 12,
   },
   infoTitle: {
@@ -434,7 +485,6 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   benefitIcon: {
-    fontSize: 32,
     marginRight: 12,
   },
   benefitContent: {

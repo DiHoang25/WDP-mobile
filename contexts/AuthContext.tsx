@@ -83,8 +83,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (userData: Partial<User>): Promise<boolean> => {
     // Mock register - just create a new user
     const role = userData.role || "citizen";
-    const roleId = userData.roleId || (role === "citizen" ? 1 : role === "enterprise" ? 2 : 3);
-    
+    const roleId =
+      userData.roleId ||
+      (role === "citizen" ? 1 : role === "enterprise" ? 2 : 3);
+
     const newUser: User = {
       id: `${role}_${Date.now()}`,
       email: userData.email || "",

@@ -3,6 +3,7 @@ import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { MOCK_WASTE_REPORTS } from "@/data/mockData";
 import { getWasteTypeLabel } from "@/utils/helpers";
+import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -39,7 +40,12 @@ export default function ShipperHistoryScreen() {
             </Text>
 
             <View style={styles.reportLocation}>
-              <Text style={styles.locationIcon}>📍</Text>
+              <Ionicons
+                name="location"
+                size={16}
+                color={AppColors.primary}
+                style={styles.locationIcon}
+              />
               <View style={styles.locationInfo}>
                 <Text style={styles.locationAddress}>{report.address}</Text>
                 <Text style={styles.locationDistrict}>{report.district}</Text>
@@ -47,7 +53,12 @@ export default function ShipperHistoryScreen() {
             </View>
 
             <View style={styles.reportCustomer}>
-              <Text style={styles.customerIcon}>👤</Text>
+              <Ionicons
+                name="person"
+                size={16}
+                color={AppColors.gray[500]}
+                style={styles.customerIcon}
+              />
               <Text style={styles.customerName}>{report.citizenName}</Text>
             </View>
           </Card>
@@ -55,7 +66,7 @@ export default function ShipperHistoryScreen() {
 
         {completedReports.length === 0 && (
           <EmptyState
-            icon="📦"
+            icon="cube"
             title="Chưa có đơn hoàn thành"
             message="Các đơn đã hoàn thành sẽ xuất hiện ở đây"
           />
@@ -107,7 +118,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   locationIcon: {
-    fontSize: 20,
     marginRight: 10,
   },
   locationInfo: {
@@ -128,7 +138,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   customerIcon: {
-    fontSize: 18,
     marginRight: 8,
   },
   customerName: {

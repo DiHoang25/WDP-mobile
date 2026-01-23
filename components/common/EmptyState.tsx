@@ -1,4 +1,5 @@
 import { AppColors } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -20,7 +21,12 @@ export default function EmptyState({
 }: EmptyStateProps) {
   return (
     <View style={styles.container}>
-      <Text style={styles.icon}>{icon}</Text>
+      <Ionicons
+        name={icon as any}
+        size={80}
+        color={AppColors.gray[400]}
+        style={styles.icon}
+      />
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.message}>{message}</Text>
       {action && (
@@ -40,7 +46,6 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   icon: {
-    fontSize: 80,
     marginBottom: 20,
     opacity: 0.5,
   },

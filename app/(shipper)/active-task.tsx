@@ -1,18 +1,13 @@
 import { Button, Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View
-} from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 
 export default function ActiveTaskScreen() {
   const activeTask = {
     id: "report2",
-    type: "📄 Giấy",
+    type: "Giấy",
     weight: 3.2,
     address: "123 Lê Lợi, Quận 1",
     customer: "Nguyễn Văn A",
@@ -45,7 +40,12 @@ export default function ActiveTaskScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Card variant="outlined" style={styles.statusCard}>
           <View style={styles.statusContent}>
-            <Text style={styles.statusIcon}>🚚</Text>
+            <Ionicons
+              name="car"
+              size={48}
+              color={AppColors.shipper}
+              style={styles.statusIcon}
+            />
             <Text style={styles.statusText}>Đang trên đường đến địa chỉ</Text>
           </View>
         </Card>
@@ -64,7 +64,12 @@ export default function ActiveTaskScreen() {
           <View style={styles.taskSection}>
             <Text style={styles.taskLabel}>Địa chỉ thu gom</Text>
             <View style={styles.locationCard}>
-              <Text style={styles.locationIcon}>📍</Text>
+              <Ionicons
+                name="location"
+                size={24}
+                color={AppColors.primary}
+                style={styles.locationIcon}
+              />
               <Text style={styles.locationText}>{activeTask.address}</Text>
             </View>
           </View>
@@ -77,7 +82,7 @@ export default function ActiveTaskScreen() {
                 <Text style={styles.customerPhone}>{activeTask.phone}</Text>
               </View>
               <Button
-                title="📞 Gọi"
+                title="Gọi"
                 onPress={handleCall}
                 size="small"
                 variant="outline"
@@ -87,15 +92,19 @@ export default function ActiveTaskScreen() {
         </Card>
 
         <Button
-          title="✅ Hoàn thành thu gom"
+          title="Hoàn thành thu gom"
           onPress={handleComplete}
-          icon="✅"
           style={styles.completeButton}
         />
 
         <Card variant="outlined" style={styles.noteCard}>
           <View style={styles.noteContent}>
-            <Text style={styles.noteIcon}>💡</Text>
+            <Ionicons
+              name="bulb"
+              size={24}
+              color={AppColors.warning}
+              style={styles.noteIcon}
+            />
             <Text style={styles.noteText}>
               Nhấn "Hoàn thành" sau khi đã thu gom và xác nhận với khách hàng
             </Text>
@@ -124,7 +133,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statusIcon: {
-    fontSize: 48,
     marginBottom: 10,
   },
   statusText: {
@@ -157,7 +165,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   locationIcon: {
-    fontSize: 24,
     marginRight: 10,
   },
   locationText: {
@@ -193,7 +200,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   noteIcon: {
-    fontSize: 24,
     marginRight: 10,
   },
   noteText: {

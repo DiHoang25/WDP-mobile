@@ -5,11 +5,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { MOCK_WASTE_REPORTS } from "@/data/mockData";
 import React, { useState } from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function HistoryScreen() {
@@ -84,7 +84,7 @@ export default function HistoryScreen() {
 
         {filteredReports.length === 0 && (
           <EmptyState
-            icon="📋"
+            icon="clipboard"
             title="Không có báo cáo nào"
             message={
               filter === "all"

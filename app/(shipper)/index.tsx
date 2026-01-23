@@ -16,9 +16,19 @@ export default function ShipperHomeScreen() {
   );
 
   const stats = [
-    { label: "Đơn hôm nay", value: "3", icon: "list", color: AppColors.shipper },
+    {
+      label: "Đơn hôm nay",
+      value: "3",
+      icon: "list",
+      color: AppColors.shipper,
+    },
     { label: "Đang làm", value: "1", icon: "car", color: AppColors.secondary },
-    { label: "Hoàn thành", value: "45", icon: "checkmark-circle", color: AppColors.success },
+    {
+      label: "Hoàn thành",
+      value: "45",
+      icon: "checkmark-circle",
+      color: AppColors.success,
+    },
   ];
 
   const handleAcceptTask = (reportId: string, isAssigned: boolean) => {
@@ -110,7 +120,11 @@ export default function ShipperHomeScreen() {
                 </View>
 
                 <View style={styles.taskCustomer}>
-                  <Ionicons name="person" size={18} color={AppColors.textSecondary} />
+                  <Ionicons
+                    name="person"
+                    size={18}
+                    color={AppColors.textSecondary}
+                  />
                   <Text style={styles.customerName}>{report.citizenName}</Text>
                 </View>
 

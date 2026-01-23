@@ -79,7 +79,11 @@ export default function ShipperProfileScreen() {
           <Card variant="default" style={styles.menuItem}>
             <View style={styles.menuContent}>
               <View style={styles.menuIconContainer}>
-                <Ionicons name="stats-chart" size={22} color={AppColors.textSecondary} />
+                <Ionicons
+                  name="stats-chart"
+                  size={22}
+                  color={AppColors.textSecondary}
+                />
               </View>
               <View style={styles.menuTextContainer}>
                 <Text style={styles.menuTitle}>Thống kê</Text>
@@ -94,7 +98,11 @@ export default function ShipperProfileScreen() {
           <Card variant="default" style={styles.menuItem}>
             <View style={styles.menuContent}>
               <View style={styles.menuIconContainer}>
-                <Ionicons name="settings" size={22} color={AppColors.textSecondary} />
+                <Ionicons
+                  name="settings"
+                  size={22}
+                  color={AppColors.textSecondary}
+                />
               </View>
               <View style={styles.menuTextContainer}>
                 <Text style={styles.menuTitle}>Cài đặt</Text>

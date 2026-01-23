@@ -134,7 +134,11 @@ export default function CitizenHomeScreen() {
                 </Text>
               </View>
               <View style={styles.mainActionArrow}>
-                <Ionicons name="chevron-forward" size={28} color={AppColors.white} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={28}
+                  color={AppColors.white}
+                />
               </View>
             </View>
           </LinearGradient>
@@ -157,7 +161,11 @@ export default function CitizenHomeScreen() {
                   { backgroundColor: `${action.color}20` },
                 ]}
               >
-                <Ionicons name={action.icon as any} size={24} color={action.color} />
+                <Ionicons
+                  name={action.icon as any}
+                  size={24}
+                  color={action.color}
+                />
               </View>
               <Text style={styles.actionTitle}>{action.title}</Text>
               <Text style={styles.actionSubtitle}>{action.subtitle}</Text>
@@ -170,12 +178,16 @@ export default function CitizenHomeScreen() {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Báo cáo gần đây</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => router.push("/(citizen)/history")}
             style={styles.seeAllButton}
           >
             <Text style={styles.seeAllText}>Xem tất cả</Text>
-            <Ionicons name="chevron-forward" size={16} color={AppColors.primary} />
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={AppColors.primary}
+            />
           </TouchableOpacity>
         </View>
 
@@ -185,7 +197,7 @@ export default function CitizenHomeScreen() {
           ))
         ) : (
           <EmptyState
-            icon="📝"
+            icon="document-text"
             title="Chưa có báo cáo nào"
             message="Tạo báo cáo đầu tiên để bắt đầu thu gom rác"
             action={{

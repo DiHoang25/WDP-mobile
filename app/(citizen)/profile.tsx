@@ -39,7 +39,8 @@ export default function ProfileScreen() {
             icon: "business",
             title: "Đăng ký doanh nghiệp",
             subtitle: "Trở thành đối tác xử lý rác",
-            onPress: () => router.push("/(citizen)/register-enterprise-form" as any),
+            onPress: () =>
+              router.push("/(citizen)/register-enterprise-form" as any),
             highlight: true,
           },
         ]
@@ -164,10 +165,14 @@ export default function ProfileScreen() {
                     item.highlight && styles.menuIconHighlight,
                   ])}
                 >
-                  <Ionicons 
-                    name={item.icon as any} 
-                    size={22} 
-                    color={item.highlight ? AppColors.primary : AppColors.textSecondary} 
+                  <Ionicons
+                    name={item.icon as any}
+                    size={22}
+                    color={
+                      item.highlight
+                        ? AppColors.primary
+                        : AppColors.textSecondary
+                    }
                   />
                 </View>
                 <View style={styles.menuTextContainer}>

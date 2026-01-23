@@ -2,7 +2,15 @@
 
 export type UserRole = "citizen" | "enterprise" | "shipper";
 
-export type WasteType = "organic" | "plastic" | "paper" | "metal" | "glass" | "electronic" | "hazardous" | "mixed";
+export type WasteType =
+  | "organic"
+  | "plastic"
+  | "paper"
+  | "metal"
+  | "glass"
+  | "electronic"
+  | "hazardous"
+  | "mixed";
 
 export interface User {
   id: string;

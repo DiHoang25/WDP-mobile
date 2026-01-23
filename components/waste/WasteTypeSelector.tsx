@@ -1,5 +1,6 @@
 import { AppColors } from "@/constants/theme";
 import { WASTE_TYPES } from "@/data/mockData";
+import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -29,7 +30,12 @@ export default function WasteTypeSelector({
             onPress={() => onSelect(type.value)}
             activeOpacity={0.7}
           >
-            <Text style={styles.typeIcon}>{type.icon}</Text>
+            <Ionicons
+              name={type.icon as any}
+              size={28}
+              color={selectedType === type.value ? AppColors.white : type.color}
+              style={styles.typeIcon}
+            />
             <Text
               style={[
                 styles.typeLabel,
@@ -67,7 +73,8 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
+    justifyContent: "flex-start",
+    gap: 10,
   },
   typeButton: {
     width: "31%",
@@ -86,7 +93,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   typeIcon: {
-    fontSize: 32,
     marginBottom: 8,
   },
   typeLabel: {

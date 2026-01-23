@@ -6,13 +6,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 export default function LoginScreen() {
@@ -110,14 +110,14 @@ export default function LoginScreen() {
             <View style={styles.quickLoginButtons}>
               <QuickLoginButton
                 email="citizen@test.com"
-                icon="👤"
+                icon="person"
                 label="Công dân"
                 color={AppColors.citizen}
                 onPress={handleQuickLogin}
               />
               <QuickLoginButton
                 email="shipper@test.com"
-                icon="🚚"
+                icon="car"
                 label="Shipper"
                 color={AppColors.shipper}
                 onPress={handleQuickLogin}

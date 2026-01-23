@@ -1,18 +1,19 @@
 import { Header, Input } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { WasteType } from "@/types";
+import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 // Danh sách các quận/huyện tại TP. Hồ Chí Minh
@@ -144,7 +145,7 @@ export default function RegisterEnterpriseFormScreen() {
             handleInputChange("longitude", "105.8542");
           },
         },
-      ]
+      ],
     );
   };
 
@@ -191,7 +192,12 @@ export default function RegisterEnterpriseFormScreen() {
               style={styles.locationButton}
               onPress={pickLocation}
             >
-              <Text style={styles.locationButtonIcon}>📍</Text>
+              <Ionicons
+                name="location"
+                size={24}
+                color={AppColors.primary}
+                style={styles.locationButtonIcon}
+              />
               <View style={styles.locationButtonContent}>
                 {formData.latitude && formData.longitude ? (
                   <>
@@ -268,14 +274,14 @@ export default function RegisterEnterpriseFormScreen() {
 
           <View style={styles.wasteTypesGrid}>
             {[
-              { value: "organic", label: "Rác hữu cơ", icon: "🥬" },
-              { value: "plastic", label: "Nhựa", icon: "🥤" },
-              { value: "paper", label: "Giấy", icon: "📄" },
-              { value: "metal", label: "Kim loại", icon: "🔩" },
-              { value: "glass", label: "Thủy tinh", icon: "🍾" },
-              { value: "electronic", label: "Điện tử", icon: "📱" },
-              { value: "hazardous", label: "Nguy hại", icon: "☢️" },
-              { value: "mixed", label: "Hỗn hợp", icon: "♻️" },
+              { value: "organic", label: "Rác hữu cơ", icon: "leaf" },
+              { value: "plastic", label: "Nhựa", icon: "water" },
+              { value: "paper", label: "Giấy", icon: "document" },
+              { value: "metal", label: "Kim loại", icon: "construct" },
+              { value: "glass", label: "Thủy tinh", icon: "wine" },
+              { value: "electronic", label: "Điện tử", icon: "phone-portrait" },
+              { value: "hazardous", label: "Nguy hại", icon: "warning" },
+              { value: "mixed", label: "Hỗn hợp", icon: "trash" },
             ].map((type) => (
               <TouchableOpacity
                 key={type.value}
@@ -285,13 +291,24 @@ export default function RegisterEnterpriseFormScreen() {
                     styles.wasteTypeChipSelected,
                 ]}
                 onPress={() => {
-                  const newTypes = formData.wasteTypes.includes(type.value as WasteType)
+                  const newTypes = formData.wasteTypes.includes(
+                    type.value as WasteType,
+                  )
                     ? formData.wasteTypes.filter((t) => t !== type.value)
                     : [...formData.wasteTypes, type.value as WasteType];
                   handleInputChange("wasteTypes", newTypes);
                 }}
               >
-                <Text style={styles.wasteTypeIcon}>{type.icon}</Text>
+                <Ionicons
+                  name={type.icon as any}
+                  size={24}
+                  color={
+                    formData.wasteTypes.includes(type.value as WasteType)
+                      ? AppColors.white
+                      : AppColors.primary
+                  }
+                  style={styles.wasteTypeIcon}
+                />
                 <Text
                   style={[
                     styles.wasteTypeText,
@@ -403,7 +420,6 @@ const styles = StyleSheet.create({
     borderColor: AppColors.gray[300],
   },
   locationButtonIcon: {
-    fontSize: 24,
     marginRight: 12,
   },
   locationButtonContent: {
@@ -513,9 +529,7 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.success + "15",
     borderColor: AppColors.success,
   },
-  wasteTypeIcon: {
-    fontSize: 16,
-  },
+  wasteTypeIcon: {},
   wasteTypeText: {
     fontSize: 14,
     color: AppColors.textSecondary,

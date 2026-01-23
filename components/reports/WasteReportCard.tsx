@@ -6,6 +6,7 @@ import {
     getStatusText,
     getWasteTypeLabel,
 } from "@/utils/helpers";
+import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -46,12 +47,22 @@ export default function WasteReportCard({
       </View>
 
       <View style={styles.row}>
-        <Text style={styles.icon}>⚖️</Text>
+        <Ionicons
+          name="scale"
+          size={16}
+          color={AppColors.gray[500]}
+          style={styles.icon}
+        />
         <Text style={styles.detail}>{weight} kg</Text>
       </View>
 
       <View style={styles.row}>
-        <Text style={styles.icon}>📍</Text>
+        <Ionicons
+          name="location"
+          size={16}
+          color={AppColors.gray[500]}
+          style={styles.icon}
+        />
         <Text style={styles.detail} numberOfLines={1}>
           {address}, {district}
         </Text>
@@ -63,7 +74,12 @@ export default function WasteReportCard({
         </Text>
         {points && (
           <View style={styles.pointsContainer}>
-            <Text style={styles.pointsIcon}>⭐</Text>
+            <Ionicons
+              name="star"
+              size={14}
+              color={AppColors.warning}
+              style={styles.pointsIcon}
+            />
             <Text style={styles.points}>+{points} điểm</Text>
           </View>
         )}
@@ -101,7 +117,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   icon: {
-    fontSize: 16,
     marginRight: 8,
   },
   detail: {
@@ -127,7 +142,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   pointsIcon: {
-    fontSize: 14,
     marginRight: 4,
   },
   points: {

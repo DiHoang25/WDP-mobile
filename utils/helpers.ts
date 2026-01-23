@@ -44,14 +44,14 @@ export const getStatusText = (status: string): string => {
 
 export const getWasteTypeLabel = (type: string): string => {
   const typeMap: Record<string, string> = {
-    organic: "🥬 Rác hữu cơ",
-    plastic: "♻️ Nhựa",
-    paper: "📄 Giấy",
-    metal: "⚙️ Kim loại",
-    glass: "🍾 Thủy tinh",
-    electronic: "📱 Điện tử",
-    hazardous: "⚠️ Nguy hại",
-    mixed: "🗑️ Hỗn hợp",
+    organic: "Rác hữu cơ",
+    plastic: "Nhựa",
+    paper: "Giấy",
+    metal: "Kim loại",
+    glass: "Thủy tinh",
+    electronic: "Điện tử",
+    hazardous: "Nguy hại",
+    mixed: "Hỗn hợp",
   };
   return typeMap[type] || type;
 };

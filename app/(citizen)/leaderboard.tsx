@@ -2,6 +2,7 @@ import { Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { MOCK_LEADERBOARD } from "@/data/mockData";
+import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -12,7 +13,7 @@ export default function LeaderboardScreen() {
   return (
     <View style={styles.container}>
       <Header
-        title="🏆 Bảng xếp hạng"
+        title="Bảng xếp hạng"
         subtitle={user?.district || ""}
         showBack={false}
       />
@@ -68,7 +69,11 @@ export default function LeaderboardScreen() {
               <View style={styles.cardContent}>
                 <View style={styles.rankBadge}>
                   {index < 3 ? (
-                    <Text style={styles.rankMedal}>{getMedal(index)}</Text>
+                    <Ionicons
+                      name="medal"
+                      size={32}
+                      color={getMedalColor(index)}
+                    />
                   ) : (
                     <Text style={styles.rankNumber}>#{entry.rank}</Text>
                   )}
@@ -107,9 +112,9 @@ export default function LeaderboardScreen() {
   );
 }
 
-function getMedal(index: number) {
-  const medals = ["🥇", "🥈", "🥉"];
-  return medals[index];
+function getMedalColor(index: number) {
+  const colors = ["#FFD700", "#C0C0C0", "#CD7F32"]; // Gold, Silver, Bronze
+  return colors[index];
 }
 
 const styles = StyleSheet.create({

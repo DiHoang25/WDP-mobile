@@ -1,4 +1,5 @@
 import { AppColors } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
     StyleSheet,
@@ -13,7 +14,7 @@ import {
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
-  icon?: string;
+  icon?: string; // Ionicons name
   required?: boolean;
   containerStyle?: ViewStyle;
 }
@@ -44,7 +45,14 @@ export default function Input({
           isFocused && styles.inputFocused,
         ]}
       >
-        {icon && <Text style={styles.icon}>{icon}</Text>}
+        {icon && (
+          <Ionicons
+            name={icon as any}
+            size={20}
+            color={isFocused ? AppColors.primary : AppColors.gray[400]}
+            style={styles.icon}
+          />
+        )}
         <TextInput
           style={styles.input}
           placeholderTextColor={AppColors.gray[400]}
@@ -58,7 +66,11 @@ export default function Input({
             onPress={() => setShowPassword(!showPassword)}
             style={styles.eyeIcon}
           >
-            <Text style={styles.icon}>{showPassword ? "👁️" : "🔒"}</Text>
+            <Ionicons
+              name={showPassword ? "eye-off" : "eye"}
+              size={20}
+              color={AppColors.gray[400]}
+            />
           </TouchableOpacity>
         )}
       </View>
@@ -103,7 +115,6 @@ const styles = StyleSheet.create({
     borderColor: AppColors.error,
   },
   icon: {
-    fontSize: 18,
     marginRight: 10,
   },
   eyeIcon: {
