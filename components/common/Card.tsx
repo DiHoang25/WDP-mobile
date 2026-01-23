@@ -1,10 +1,10 @@
 import { AppColors } from "@/constants/theme";
 import React from "react";
-import { StyleSheet, View, ViewStyle } from "react-native";
+import { StyleProp, StyleSheet, View, ViewStyle } from "react-native";
 
 interface CardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   padding?: number;
   variant?: "default" | "elevated" | "outlined";
 }

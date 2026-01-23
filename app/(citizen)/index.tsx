@@ -69,6 +69,13 @@ export default function CitizenHomeScreen() {
       color: AppColors.error,
       route: "/(citizen)/rewards",
     },
+    {
+      title: "Đăng ký DN",
+      subtitle: "Trở thành đối tác",
+      icon: "business",
+      color: AppColors.primary,
+      route: "/(citizen)/register-enterprise-form",
+    },
   ];
 
   return (
@@ -88,7 +95,11 @@ export default function CitizenHomeScreen() {
             {user?.avatar ? (
               <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
             ) : (
-              <Text style={styles.avatarText}>{user?.name.charAt(0)}</Text>
+              <Text style={styles.avatarText}>
+                {user?.name?.charAt(0) ||
+                  user?.email?.charAt(0) ||
+                  "?"}
+              </Text>
             )}
           </TouchableOpacity>
         </View>

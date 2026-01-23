@@ -1,378 +1,491 @@
-import { Header, Input } from "@/components/common";
+import { Button, Header, Input, MapLocationPicker, MultiSelectPicker } from "@/components/common";
 import { AppColors } from "@/constants/theme";
-import { WasteType } from "@/types";
+import { District, locationService, Province, Ward } from "@/services/location.service";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import { router } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 
-// Danh sách các quận/huyện tại TP. Hồ Chí Minh
-const HCM_DISTRICTS = [
-  { id: "Q1", name: "Quận 1" },
-  { id: "Q2", name: "Quận 2" },
-  { id: "Q3", name: "Quận 3" },
-  { id: "Q4", name: "Quận 4" },
-  { id: "Q5", name: "Quận 5" },
-  { id: "Q6", name: "Quận 6" },
-  { id: "Q7", name: "Quận 7" },
-  { id: "Q8", name: "Quận 8" },
-  { id: "Q9", name: "Quận 9" },
-  { id: "Q10", name: "Quận 10" },
-  { id: "Q11", name: "Quận 11" },
-  { id: "Q12", name: "Quận 12" },
-  { id: "TB", name: "Quận Tân Bình" },
-  { id: "TP", name: "Quận Tân Phú" },
-  { id: "BT", name: "Quận Bình Tân" },
-  { id: "BTH", name: "Quận Bình Thạnh" },
-  { id: "PN", name: "Quận Phú Nhuận" },
-  { id: "GV", name: "Quận Gò Vấp" },
-  { id: "TD", name: "Quận Thủ Đức" },
-  { id: "BC", name: "Huyện Bình Chánh" },
-  { id: "HC", name: "Huyện Hóc Môn" },
-  { id: "CG", name: "Huyện Củ Chi" },
-  { id: "NH", name: "Huyện Nhà Bè" },
-  { id: "CC", name: "Huyện Cần Giờ" },
-];
-
 export default function RegisterEnterpriseFormScreen() {
-  const params = useLocalSearchParams();
-  const planId = params.planId as string;
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
+  const [capacity, setCapacity] = useState("");
 
-  const [formData, setFormData] = useState({
-    name: "",
-    address: "",
-    latitude: "",
-    longitude: "",
-    capacityKg: "",
-    serviceAreas: [] as string[],
-    wasteTypes: [] as WasteType[],
-    startTime: "08:00",
-    endTime: "17:00",
-  });
+  // Location dynamic data
+  const [provinces, setProvinces] = useState<Province[]>([]);
+  const [districts, setDistricts] = useState<(District & { provinceName?: string; provinceCode?: string })[]>([]);
+  const [wards, setWards] = useState<(Ward & { districtName?: string; districtCode?: string; provinceCode?: string })[]>([]);
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  // General address location (for enterprise address)
+  const [addressProvinceId, setAddressProvinceId] = useState("");
+  const [addressDistrictId, setAddressDistrictId] = useState("");
+  const [addressWardId, setAddressWardId] = useState("");
+  const [addressDistricts, setAddressDistricts] = useState<District[]>([]);
+  const [addressWards, setAddressWards] = useState<Ward[]>([]);
 
-  const handleInputChange = (field: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
-      });
+  // Service area location selection - NOW MULTI-SELECT (arrays)
+  const [serviceProvinceIds, setServiceProvinceIds] = useState<string[]>([]);
+  const [serviceDistrictIds, setServiceDistrictIds] = useState<string[]>([]);
+  const [serviceWardIds, setServiceWardIds] = useState<string[]>([]);
+
+  const [startTime, setStartTime] = useState("08:00");
+  const [endTime, setEndTime] = useState("17:00");
+
+  const [errors, setErrors] = useState<any>({});
+
+  // Map location for enterprise address
+  const [mapLocation, setMapLocation] = useState<{
+    latitude: number;
+    longitude: number;
+    address: string;
+    rawAddress?: any;
+  } | null>(null);
+
+  // Helper to normalize and compare Vietnamese location names
+  const normalizeLocationName = (name: string): string => {
+    if (!name) return "";
+    return name
+      .toLowerCase()
+      .replace(/^(tỉnh|thành phố|thành phồ|quận|huyện|thị xã|phường|xã|thị trấn|p\.|q\.)\s*/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
+  // Auto-fill address elements when map location is selected
+  const handleMapLocationSelect = async (loc: any) => {
+    setMapLocation(loc);
+
+    if (loc.rawAddress) {
+      const raw = loc.rawAddress;
+
+      // 1. Fill detailed address
+      const streetPart = [raw.name, raw.street].filter(Boolean).join(" ");
+      if (streetPart) setAddress(streetPart);
+
+      // 2. Try to match Province
+      const provinceName = raw.region || raw.city || "";
+      const normProvince = normalizeLocationName(provinceName);
+
+      if (normProvince && provinces.length > 0) {
+        const matchedProvince = provinces.find(p => {
+          const pNorm = normalizeLocationName(p.name);
+          return normProvince.includes(pNorm) || pNorm.includes(normProvince);
+        });
+
+        if (matchedProvince) {
+          setAddressProvinceId(matchedProvince.code);
+
+          // 3. Load and match District
+          const distRes = await locationService.getDistricts(matchedProvince.code);
+          if (distRes.success && distRes.data) {
+            setAddressDistricts(distRes.data);
+            const districtName = raw.district || raw.city_district || raw.suburb || "";
+            const normDistrict = normalizeLocationName(districtName);
+
+            const matchedDistrict = distRes.data.find(d => {
+              const dNorm = normalizeLocationName(d.name);
+              return normDistrict.includes(dNorm) || dNorm.includes(normDistrict);
+            });
+
+            if (matchedDistrict) {
+              setAddressDistrictId(matchedDistrict.code);
+
+              // 4. Load and match Ward
+              const wardRes = await locationService.getWards(matchedDistrict.code);
+              if (wardRes.success && wardRes.data) {
+                setAddressWards(wardRes.data);
+
+                const wardCandidates = [
+                  raw.ward,
+                  raw.suburb,
+                  raw.subdistrict,
+                  raw.neighbourhood,
+                  raw.quarter,
+                  raw.hamlet,
+                  raw.village
+                ].filter(Boolean);
+
+                let matchedWard = null;
+                for (const candidate of wardCandidates) {
+                  const normCandidate = normalizeLocationName(candidate);
+                  matchedWard = wardRes.data.find(w => {
+                    const wNorm = normalizeLocationName(w.name);
+                    return normCandidate.includes(wNorm) || wNorm.includes(normCandidate);
+                  });
+                  if (matchedWard) break;
+                }
+
+                if (matchedWard) setAddressWardId(matchedWard.code);
+              }
+            }
+          }
+        }
+      }
     }
   };
 
-  const toggleServiceArea = (districtId: string) => {
-    setFormData((prev) => {
-      const serviceAreas = prev.serviceAreas.includes(districtId)
-        ? prev.serviceAreas.filter((id) => id !== districtId)
-        : [...prev.serviceAreas, districtId];
-      return { ...prev, serviceAreas };
-    });
+  useEffect(() => {
+    loadProvinces();
+  }, []);
+
+  // Service area multi-select: Load districts when provinces selected
+  useEffect(() => {
+    if (serviceProvinceIds.length > 0) {
+      // Load districts for all selected provinces
+      const loadAllDistricts = async () => {
+        const allDistrictsData = await Promise.all(
+          serviceProvinceIds.map(async pid => {
+            const province = provinces.find(p => p.code === pid);
+            const res = await locationService.getDistricts(pid);
+            const districtsRes = (res.success && res.data) ? res.data : [];
+            return districtsRes.map(d => ({ ...d, provinceName: province?.name, provinceCode: pid }));
+          })
+        );
+        // Flatten and deduplicate
+        const uniqueDistricts = Array.from(
+          new Map(
+            allDistrictsData.flat().map(d => [d.code, d])
+          ).values()
+        ).sort((a, b) => (a.provinceName || "").localeCompare(b.provinceName || ""));
+        setDistricts(uniqueDistricts);
+      };
+      loadAllDistricts();
+    } else {
+      setDistricts([]);
+      setServiceDistrictIds([]);
+      setWards([]);
+      setServiceWardIds([]);
+    }
+  }, [serviceProvinceIds]);
+
+  // Service area multi-select: Load wards when districts selected
+  useEffect(() => {
+    if (serviceDistrictIds.length > 0) {
+      const loadAllWards = async () => {
+        const allWardsData = await Promise.all(
+          serviceDistrictIds.map(async did => {
+            const district = districts.find(d => d.code === did);
+            const res = await locationService.getWards(did);
+            const wardsRes = (res.success && res.data) ? res.data : [];
+            return wardsRes.map(w => ({
+              ...w,
+              districtName: district?.name,
+              districtCode: did,
+              provinceCode: district?.provinceCode
+            }));
+          })
+        );
+        // Flatten and deduplicate
+        const uniqueWards = Array.from(
+          new Map(
+            allWardsData.flat().map(w => [w.code, w])
+          ).values()
+        ).sort((a, b) => (a.districtName || "").localeCompare(b.districtName || ""));
+        setWards(uniqueWards);
+      };
+      loadAllWards();
+    } else {
+      setWards([]);
+      setServiceWardIds([]);
+    }
+  }, [serviceDistrictIds]);
+
+  // General address location effects
+  useEffect(() => {
+    if (addressProvinceId) {
+      loadAddressDistricts(addressProvinceId);
+    } else {
+      setAddressDistricts([]);
+      setAddressDistrictId("");
+      setAddressWards([]);
+      setAddressWardId("");
+    }
+  }, [addressProvinceId]);
+
+  useEffect(() => {
+    if (addressDistrictId) {
+      loadAddressWards(addressDistrictId);
+    } else {
+      setAddressWards([]);
+      setAddressWardId("");
+    }
+  }, [addressDistrictId]);
+
+  const loadProvinces = async () => {
+    const res = await locationService.getProvinces();
+    if (res.success && res.data) setProvinces(res.data);
   };
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.name.trim()) {
-      newErrors.name = "Vui lòng nhập tên doanh nghiệp";
-    }
-
-    if (!formData.address.trim()) {
-      newErrors.address = "Vui lòng nhập địa chỉ";
-    }
-
-    if (!formData.latitude || !formData.longitude) {
-      newErrors.location = "Vui lòng chọn vị trí trên bản đồ";
-    }
-
-    if (!formData.capacityKg || parseInt(formData.capacityKg) <= 0) {
-      newErrors.capacityKg = "Vui lòng nhập công suất xử lý";
-    }
-
-    if (formData.serviceAreas.length === 0) {
-      newErrors.serviceAreas = "Vui lòng chọn ít nhất 1 khu vực phục vụ";
-    }
-
-    if (formData.wasteTypes.length === 0) {
-      newErrors.wasteTypes = "Vui lòng chọn ít nhất 1 loại rác";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const loadDistricts = async (id: string): Promise<District[]> => {
+    const res = await locationService.getDistricts(id);
+    return (res.success && res.data) ? res.data : [];
   };
 
-  const handleSubmit = () => {
-    if (!validateForm()) {
-      Alert.alert("Lỗi", "Vui lòng kiểm tra lại thông tin");
+  const loadWards = async (id: string): Promise<Ward[]> => {
+    const res = await locationService.getWards(id);
+    return (res.success && res.data) ? res.data : [];
+  };
+
+  // General address location loaders
+  const loadAddressDistricts = async (id: string) => {
+    const res = await locationService.getDistricts(id);
+    if (res.success && res.data) setAddressDistricts(res.data);
+  };
+
+  const loadAddressWards = async (id: string) => {
+    const res = await locationService.getWards(id);
+    if (res.success && res.data) setAddressWards(res.data);
+  };
+
+  const nextStep = () => {
+    // Basic validation
+    const newErrors: any = {};
+    if (!name) newErrors.name = "Vui lòng nhập tên doanh nghiệp";
+    if (!address) newErrors.address = "Vui lòng nhập địa chỉ chi tiết";
+    if (!capacity || isNaN(parseFloat(capacity))) newErrors.capacity = "Khối lượng không hợp lệ";
+
+    if (!mapLocation) {
+      newErrors.mapLocation = "Vui lòng chọn vị trí trên bản đồ";
+    }
+
+    // Validate working hours
+    const validateTime = (time: string): boolean => {
+      const timeRegex = /^([0-1]?[0-9]|2[0-4]):([0-5][0-9])$/;
+      if (!timeRegex.test(time)) return false;
+
+      const [hours, minutes] = time.split(':').map(Number);
+      return hours >= 0 && hours <= 24 && minutes >= 0 && minutes < 60;
+    };
+
+    const timeToMinutes = (time: string): number => {
+      const [hours, minutes] = time.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+
+    if (!startTime || !validateTime(startTime)) {
+      newErrors.startTime = "Giờ bắt đầu không hợp lệ (định dạng: HH:mm, 00:00-24:00)";
+    }
+
+    if (!endTime || !validateTime(endTime)) {
+      newErrors.endTime = "Giờ kết thúc không hợp lệ (định dạng: HH:mm, 00:00-24:00)";
+    }
+
+    if (startTime && endTime && validateTime(startTime) && validateTime(endTime)) {
+      const startMinutes = timeToMinutes(startTime);
+      const endMinutes = timeToMinutes(endTime);
+
+      if (endMinutes <= startMinutes) {
+        newErrors.endTime = "Giờ kết thúc phải sau giờ bắt đầu";
+      }
+    }
+
+    // Validate service areas - require at least one selection
+    if (serviceProvinceIds.length === 0) {
+      newErrors.serviceArea = "Vui lòng chọn ít nhất một khu vực phục vụ";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
-    // Chuyển sang màn hình chọn gói thanh toán
-    router.push({
-      pathname: "/(citizen)/register-enterprise" as any,
-      params: {
-        ...formData,
-        serviceAreas: JSON.stringify(formData.serviceAreas),
-        wasteTypes: JSON.stringify(formData.wasteTypes),
-      },
-    });
-  };
+    // Save state and navigate to plans selection
+    // Build full address from selections
+    const selectedProvince = provinces.find(p => p.code === addressProvinceId);
+    const selectedDistrict = addressDistricts.find(d => d.code === addressDistrictId);
+    const selectedWard = addressWards.find(w => w.code === addressWardId);
 
-  const pickLocation = () => {
-    // TODO: Implement map picker
-    Alert.alert(
-      "Chọn vị trí",
-      "Tính năng chọn vị trí trên bản đồ đang phát triển",
-      [
-        {
-          text: "Nhập thủ công",
-          onPress: () => {
-            // Set sample coordinates
-            handleInputChange("latitude", "21.0285");
-            handleInputChange("longitude", "105.8542");
-          },
-        },
-      ],
-    );
+    const fullAddress = [
+      address, // detailed address
+      selectedWard?.name,
+      selectedDistrict?.name,
+      selectedProvince?.name
+    ].filter(Boolean).join(', ');
+
+    // Build structured service areas
+    const formattedServiceAreas: any[] = [];
+
+    // Priority: Wards > Districts > Provinces
+    if (serviceWardIds.length > 0) {
+      serviceWardIds.forEach(wid => {
+        const ward = wards.find(w => w.code === wid);
+        if (ward) {
+          formattedServiceAreas.push({
+            provinceCode: ward.provinceCode,
+            districtCode: ward.districtCode,
+            wardCode: ward.code
+          });
+        }
+      });
+    } else if (serviceDistrictIds.length > 0) {
+      serviceDistrictIds.forEach(did => {
+        const district = districts.find(d => d.code === did);
+        if (district) {
+          formattedServiceAreas.push({
+            provinceCode: district.provinceCode,
+            districtCode: district.code,
+            wardCode: null
+          });
+        }
+      });
+    } else if (serviceProvinceIds.length > 0) {
+      serviceProvinceIds.forEach(pid => {
+        formattedServiceAreas.push({
+          provinceCode: pid,
+          districtCode: null,
+          wardCode: null
+        });
+      });
+    }
+
+    router.push({
+      pathname: "/(citizen)/register-enterprise",
+      params: {
+        name,
+        address: fullAddress,
+        latitude: mapLocation!.latitude.toString(),
+        longitude: mapLocation!.longitude.toString(),
+        capacityKg: capacity,
+        serviceAreas: JSON.stringify(formattedServiceAreas),
+        startTime,
+        endTime,
+      }
+    } as any);
   };
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <Header
-        title="Thông tin doanh nghiệp"
-        subtitle="Điền đầy đủ thông tin đăng ký"
-        showBack={true}
-      />
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Header title="Đăng ký doanh nghiệp" subtitle="Thông tin cơ bản" showBack />
 
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Basic Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Thông tin cơ bản</Text>
-
+        <View style={styles.form}>
           <Input
-            label="Tên doanh nghiệp *"
-            placeholder="VD: Công ty TNHH Xử lý rác ABC"
-            value={formData.name}
-            onChangeText={(value) => handleInputChange("name", value)}
+            label="Tên doanh nghiệp"
+            placeholder="Công ty TNHH Môi trường Xanh"
+            value={name}
+            onChangeText={setName}
             error={errors.name}
           />
 
-          <Input
-            label="Địa chỉ *"
-            placeholder="VD: 123 Đường ABC, Phường XYZ"
-            value={formData.address}
-            onChangeText={(value) => handleInputChange("address", value)}
-            error={errors.address}
-            multiline
+          <Text style={styles.sectionTitle}>Địa chỉ doanh nghiệp</Text>
+
+          <MapLocationPicker
+            label="Chọn vị trí đoanh nghiệp trên bản đồ"
+            onLocationSelect={handleMapLocationSelect}
+            error={errors.mapLocation}
           />
 
-          {/* Location Picker */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Vị trí trên bản đồ *</Text>
-            <TouchableOpacity
-              style={styles.locationButton}
-              onPress={pickLocation}
-            >
-              <Ionicons
-                name="location"
-                size={24}
-                color={AppColors.primary}
-                style={styles.locationButtonIcon}
-              />
-              <View style={styles.locationButtonContent}>
-                {formData.latitude && formData.longitude ? (
-                  <>
-                    <Text style={styles.locationButtonText}>
-                      Đã chọn vị trí
-                    </Text>
-                    <Text style={styles.locationCoords}>
-                      {formData.latitude}, {formData.longitude}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={styles.locationButtonText}>
-                    Chọn vị trí trên bản đồ
+          {mapLocation && (
+            <View style={styles.addressDisplayCard}>
+              <View style={styles.addressRow}>
+                <Ionicons name="location" size={20} color={AppColors.primary} />
+                <View style={styles.addressInfo}>
+                  <Text style={styles.addressLabel}>Khu vực đã xác định:</Text>
+                  <Text style={styles.fullAddressText}>
+                    {[
+                      addressWards.find(w => w.code === addressWardId)?.name,
+                      addressDistricts.find(d => d.code === addressDistrictId)?.name,
+                      provinces.find(p => p.code === addressProvinceId)?.name
+                    ].filter(Boolean).join(", ") || "Đang xác định khu vực..."}
                   </Text>
-                )}
+                </View>
               </View>
-            </TouchableOpacity>
-            {errors.location && (
-              <Text style={styles.errorText}>{errors.location}</Text>
-            )}
-          </View>
+            </View>
+          )}
 
           <Input
-            label="Công suất xử lý (kg/ngày) *"
-            placeholder="VD: 1000"
-            value={formData.capacityKg}
-            onChangeText={(value) => handleInputChange("capacityKg", value)}
-            keyboardType="numeric"
-            error={errors.capacityKg}
+            label="Địa chỉ chi tiết (nhập thủ công nếu cần)"
+            placeholder="Số nhà, tên đường..."
+            value={address}
+            onChangeText={setAddress}
+            error={errors.address}
           />
-        </View>
 
-        {/* Service Areas */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Khu vực phục vụ (TP.HCM) *</Text>
-          <Text style={styles.sectionSubtitle}>
-            Chọn các quận/huyện bạn có thể phục vụ tại TP. Hồ Chí Minh
-          </Text>
-
-          <View style={styles.areasGrid}>
-            {HCM_DISTRICTS.map((district) => (
-              <TouchableOpacity
-                key={district.id}
-                style={[
-                  styles.areaChip,
-                  formData.serviceAreas.includes(district.id) &&
-                    styles.areaChipSelected,
-                ]}
-                onPress={() => toggleServiceArea(district.id)}
-              >
-                <Text
-                  style={[
-                    styles.areaChipText,
-                    formData.serviceAreas.includes(district.id) &&
-                      styles.areaChipTextSelected,
-                  ]}
-                >
-                  {district.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <Input
+                label="Khả năng xử lý (kg)"
+                placeholder="1000.5"
+                value={capacity}
+                onChangeText={setCapacity}
+                keyboardType="decimal-pad"
+                error={errors.capacity}
+              />
+            </View>
           </View>
-          {errors.serviceAreas && (
-            <Text style={styles.errorText}>{errors.serviceAreas}</Text>
-          )}
-        </View>
 
-        {/* Waste Types */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Loại rác xử lý *</Text>
-          <Text style={styles.sectionSubtitle}>
-            Chọn các loại rác doanh nghiệp có thể xử lý
-          </Text>
+          <Text style={styles.sectionTitle}>Khu vực phục vụ mặc định</Text>
+          <MultiSelectPicker
+            label="Tỉnh / Thành phố"
+            options={provinces.map(p => ({ value: p.code, label: p.name }))}
+            selectedValues={serviceProvinceIds}
+            onValuesChange={setServiceProvinceIds}
+            error={errors.serviceArea}
+          />
 
-          <View style={styles.wasteTypesGrid}>
-            {[
-              { value: "organic", label: "Rác hữu cơ", icon: "leaf" },
-              { value: "plastic", label: "Nhựa", icon: "water" },
-              { value: "paper", label: "Giấy", icon: "document" },
-              { value: "metal", label: "Kim loại", icon: "construct" },
-              { value: "glass", label: "Thủy tinh", icon: "wine" },
-              { value: "electronic", label: "Điện tử", icon: "phone-portrait" },
-              { value: "hazardous", label: "Nguy hại", icon: "warning" },
-              { value: "mixed", label: "Hỗn hợp", icon: "trash" },
-            ].map((type) => (
-              <TouchableOpacity
-                key={type.value}
-                style={[
-                  styles.wasteTypeChip,
-                  formData.wasteTypes.includes(type.value as WasteType) &&
-                    styles.wasteTypeChipSelected,
-                ]}
-                onPress={() => {
-                  const newTypes = formData.wasteTypes.includes(
-                    type.value as WasteType,
-                  )
-                    ? formData.wasteTypes.filter((t) => t !== type.value)
-                    : [...formData.wasteTypes, type.value as WasteType];
-                  handleInputChange("wasteTypes", newTypes);
-                }}
-              >
-                <Ionicons
-                  name={type.icon as any}
-                  size={24}
-                  color={
-                    formData.wasteTypes.includes(type.value as WasteType)
-                      ? AppColors.white
-                      : AppColors.primary
-                  }
-                  style={styles.wasteTypeIcon}
-                />
-                <Text
-                  style={[
-                    styles.wasteTypeText,
-                    formData.wasteTypes.includes(type.value as WasteType) &&
-                      styles.wasteTypeTextSelected,
-                  ]}
-                >
-                  {type.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          {errors.wasteTypes && (
-            <Text style={styles.errorText}>{errors.wasteTypes}</Text>
-          )}
-        </View>
+          <MultiSelectPicker
+            label="Quận / Huyện phục vụ"
+            options={districts.map(d => ({
+              value: d.code,
+              label: d.name,
+              subLabel: d.provinceName
+            }))}
+            selectedValues={serviceDistrictIds}
+            onValuesChange={setServiceDistrictIds}
+            disabled={serviceProvinceIds.length === 0}
+          />
 
-        {/* Working Hours */}
-        <View style={styles.section}>
+          <MultiSelectPicker
+            label="Phường / Xã phục vụ"
+            options={wards.map(w => ({
+              value: w.code,
+              label: w.name,
+              subLabel: w.districtName
+            }))}
+            selectedValues={serviceWardIds}
+            onValuesChange={setServiceWardIds}
+            disabled={serviceDistrictIds.length === 0}
+          />
+          {/* 
           <Text style={styles.sectionTitle}>Giờ làm việc</Text>
-
-          <View style={styles.timeRow}>
-            <View style={styles.timeInput}>
-              <Text style={styles.inputLabel}>Giờ mở cửa</Text>
-              <TextInput
-                style={styles.timeField}
-                value={formData.startTime}
-                onChangeText={(value) => handleInputChange("startTime", value)}
+          <View style={styles.row}>
+            <View style={{ flex: 1, marginRight: 10 }}>
+              <Input
+                label="Bắt đầu"
+                value={startTime}
+                onChangeText={setStartTime}
                 placeholder="08:00"
-                keyboardType="numbers-and-punctuation"
+                error={errors.startTime}
               />
             </View>
-
-            <Text style={styles.timeSeparator}>-</Text>
-
-            <View style={styles.timeInput}>
-              <Text style={styles.inputLabel}>Giờ đóng cửa</Text>
-              <TextInput
-                style={styles.timeField}
-                value={formData.endTime}
-                onChangeText={(value) => handleInputChange("endTime", value)}
+            <View style={{ flex: 1 }}>
+              <Input
+                label="Kết thúc"
+                value={endTime}
+                onChangeText={setEndTime}
                 placeholder="17:00"
-                keyboardType="numbers-and-punctuation"
+                error={errors.endTime}
               />
             </View>
-          </View>
-        </View>
+          </View> */}
 
-        {/* Note */}
-        <View style={styles.noteSection}>
-          <Text style={styles.noteIcon}>ℹ️</Text>
-          <Text style={styles.noteText}>
-            Sau khi đăng ký, hệ thống sẽ xem xét và phê duyệt trong vòng 1-2
-            ngày làm việc.
-          </Text>
+          <Button
+            title="Tiếp tục chọn gói"
+            onPress={nextStep}
+            style={styles.submitButton}
+          />
         </View>
       </ScrollView>
-
-      {/* Bottom Button */}
-      <View style={styles.bottomContainer}>
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>Tiếp tục chọn gói</Text>
-        </TouchableOpacity>
-      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -382,178 +495,60 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: AppColors.background,
   },
-  scrollView: {
-    flex: 1,
+  scrollContent: {
+    flexGrow: 1,
   },
-  section: {
+  form: {
     padding: 20,
-    paddingBottom: 10,
+  },
+  row: {
+    flexDirection: "row",
+    gap: 10,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "bold",
     color: AppColors.textPrimary,
-    marginBottom: 8,
+    marginTop: 20,
+    marginBottom: 10,
   },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: AppColors.textSecondary,
-    marginBottom: 16,
-    lineHeight: 20,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: AppColors.textPrimary,
-    marginBottom: 8,
-  },
-  locationButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: AppColors.white,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: AppColors.gray[300],
-  },
-  locationButtonIcon: {
-    marginRight: 12,
-  },
-  locationButtonContent: {
-    flex: 1,
-  },
-  locationButtonText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: AppColors.textPrimary,
-  },
-  locationCoords: {
-    fontSize: 12,
-    color: AppColors.textSecondary,
-    marginTop: 2,
-  },
-  areasGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  areaChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: AppColors.gray[100],
-    borderWidth: 1,
-    borderColor: AppColors.gray[300],
-  },
-  areaChipSelected: {
-    backgroundColor: AppColors.primary + "15",
-    borderColor: AppColors.primary,
-  },
-  areaChipText: {
-    fontSize: 14,
-    color: AppColors.textSecondary,
-    fontWeight: "500",
-  },
-  areaChipTextSelected: {
-    color: AppColors.primary,
-    fontWeight: "600",
-  },
-  timeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  timeInput: {
-    flex: 1,
-  },
-  timeField: {
-    backgroundColor: AppColors.white,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    color: AppColors.textPrimary,
-    borderWidth: 1,
-    borderColor: AppColors.gray[300],
-  },
-  timeSeparator: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: AppColors.textSecondary,
-    marginTop: 24,
-  },
-  noteSection: {
-    flexDirection: "row",
-    margin: 20,
-    marginTop: 10,
-    padding: 16,
-    backgroundColor: AppColors.info + "10",
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: AppColors.info,
-  },
-  noteIcon: {
-    fontSize: 20,
-    marginRight: 8,
-  },
-  noteText: {
-    flex: 1,
-    fontSize: 13,
-    color: AppColors.textSecondary,
-    lineHeight: 18,
-  },
-  errorText: {
-    fontSize: 12,
-    color: AppColors.error,
-    marginTop: 4,
-  },
-  wasteTypesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  wasteTypeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: AppColors.gray[100],
-    borderWidth: 1,
-    borderColor: AppColors.gray[300],
-    gap: 6,
-  },
-  wasteTypeChipSelected: {
-    backgroundColor: AppColors.success + "15",
-    borderColor: AppColors.success,
-  },
-  wasteTypeIcon: {},
-  wasteTypeText: {
-    fontSize: 14,
-    color: AppColors.textSecondary,
-    fontWeight: "500",
-  },
-  wasteTypeTextSelected: {
-    color: AppColors.success,
-    fontWeight: "600",
-  },
-  bottomContainer: {
-    padding: 20,
-    backgroundColor: AppColors.white,
-    borderTopWidth: 1,
-    borderTopColor: AppColors.gray[200],
-  },
-  submitButton: {
-    backgroundColor: AppColors.primary,
+  addressDisplayCard: {
+    backgroundColor: AppColors.primary + "10",
     borderRadius: 16,
     padding: 16,
-    alignItems: "center",
+    marginBottom: 20,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: AppColors.primary + "30",
   },
-  submitButtonText: {
-    fontSize: 16,
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  addressInfo: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  addressLabel: {
+    fontSize: 12,
+    color: AppColors.textSecondary,
+    marginBottom: 4,
     fontWeight: "600",
-    color: AppColors.white,
+  },
+  fullAddressText: {
+    fontSize: 15,
+    color: AppColors.textPrimary,
+    lineHeight: 22,
+    fontWeight: "600",
+  },
+  warningText: {
+    fontSize: 11,
+    color: AppColors.error,
+    marginTop: 6,
+    fontStyle: "italic",
+  },
+  submitButton: {
+    marginTop: 30,
+    marginBottom: 50,
   },
 });

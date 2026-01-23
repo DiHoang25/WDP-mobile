@@ -2,43 +2,58 @@ import { EmptyState, Header } from "@/components/common";
 import { WasteReportCard } from "@/components/reports";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
-import { MOCK_WASTE_REPORTS } from "@/data/mockData";
-import React, { useState } from "react";
+import { wasteService } from "@/services/waste.service";
+import { WasteReport } from "@/types";
+import React, { useEffect, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 
 export default function HistoryScreen() {
   const { user } = useAuth();
+  const [reports, setReports] = useState<WasteReport[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "pending" | "completed">("all");
 
-  const userReports = MOCK_WASTE_REPORTS.filter(
-    (r) => r.citizenId === user?.id,
-  );
-  const filteredReports =
-    filter === "all"
-      ? userReports
-      : userReports.filter((r) =>
-          filter === "completed"
-            ? r.status === "completed"
-            : r.status !== "completed",
-        );
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
+  const fetchHistory = async () => {
+    setLoading(true);
+    try {
+      const response = await wasteService.getHistory();
+      if (response.success && response.data) {
+        setReports(response.data);
+      }
+    } catch (error) {
+      console.error("Fetch history error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredReports = reports.filter((r) => {
+    if (filter === "all") return true;
+    if (filter === "completed") return r.status === "completed";
+    return r.status !== "completed";
+  });
 
   const filters = [
-    { value: "all" as const, label: "Tất cả", count: userReports.length },
+    { value: "all" as const, label: "Tất cả", count: reports.length },
     {
       value: "pending" as const,
       label: "Đang xử lý",
-      count: userReports.filter((r) => r.status !== "completed").length,
+      count: reports.filter((r) => r.status !== "completed").length,
     },
     {
       value: "completed" as const,
       label: "Hoàn thành",
-      count: userReports.filter((r) => r.status === "completed").length,
+      count: reports.filter((r) => r.status === "completed").length,
     },
   ];
 
@@ -46,7 +61,7 @@ export default function HistoryScreen() {
     <View style={styles.container}>
       <Header
         title="Lịch sử báo cáo"
-        subtitle={`Tổng cộng: ${userReports.length} báo cáo`}
+        subtitle={`Tổng cộng: ${reports.length} báo cáo`}
         showBack={false}
       />
 
@@ -78,11 +93,16 @@ export default function HistoryScreen() {
         style={styles.reportsList}
         showsVerticalScrollIndicator={false}
       >
-        {filteredReports.map((report) => (
-          <WasteReportCard key={report.id} report={report} />
-        ))}
-
-        {filteredReports.length === 0 && (
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={AppColors.primary} />
+            <Text style={styles.loadingText}>Đang tải lịch sử...</Text>
+          </View>
+        ) : filteredReports.length > 0 ? (
+          filteredReports.map((report) => (
+            <WasteReportCard key={report.id} report={report} />
+          ))
+        ) : (
           <EmptyState
             icon="clipboard"
             title="Không có báo cáo nào"
@@ -135,5 +155,14 @@ const styles = StyleSheet.create({
   reportsList: {
     flex: 1,
     paddingHorizontal: 20,
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    color: AppColors.textSecondary,
+    fontSize: 14,
   },
 });

@@ -1,5 +1,6 @@
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { getRouteByRoleId } from "@/utils/roleHelper";
 import { router } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -15,14 +16,10 @@ export default function Index() {
         return;
       }
 
-      // Redirect based on user role
-      if (user?.role === "citizen") {
-        router.replace("/(citizen)" as any);
-      } else if (user?.role === "shipper") {
-        router.replace("/(shipper)" as any);
-      } else {
-        router.replace("/login");
-      }
+      // Redirect based on user roleId
+      // roleId: 1 = citizen, 2 = enterprise, 3 = collector/shipper, 4 = admin
+      const route = getRouteByRoleId(user?.roleId);
+      router.replace(route as any);
     }, 100);
 
     return () => clearTimeout(timer);

@@ -3,11 +3,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React from "react";
 import {
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    ViewStyle,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewStyle,
 } from "react-native";
 
 interface HeaderProps {
@@ -15,7 +16,7 @@ interface HeaderProps {
   subtitle?: string;
   showBack?: boolean;
   rightComponent?: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   colors?: [string, string];
 }
 

@@ -1,19 +1,19 @@
 import { AppColors } from "@/constants/theme";
 import React from "react";
-import { StyleSheet, Text, View, ViewStyle } from "react-native";
+import { StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 
 interface BadgeProps {
   label: string;
   color?:
-    | "success"
-    | "warning"
-    | "error"
-    | "info"
-    | "primary"
-    | "secondary"
-    | "default";
+  | "success"
+  | "warning"
+  | "error"
+  | "info"
+  | "primary"
+  | "secondary"
+  | "default";
   size?: "small" | "medium";
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export default function Badge({

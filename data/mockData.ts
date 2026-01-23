@@ -9,10 +9,17 @@ export const WASTE_TYPES = [
     points: 10,
   },
   {
+    value: "recyclable",
+    label: "Rác tái chế",
+    icon: "refresh",
+    color: "#3B82F6",
+    points: 15,
+  },
+  {
     value: "plastic",
     label: "Nhựa",
     icon: "water",
-    color: "#3B82F6",
+    color: "#10B981",
     points: 15,
   },
   {
@@ -239,23 +246,41 @@ export const MOCK_LEADERBOARD: LeaderboardEntry[] = [
   },
 ];
 
-export const DISTRICTS = [
-  "Quận 1",
-  "Quận 2",
-  "Quận 3",
-  "Quận 4",
-  "Quận 5",
-  "Quận 6",
-  "Quận 7",
-  "Quận 8",
-  "Quận 9",
-  "Quận 10",
-  "Quận 11",
-  "Quận 12",
-  "Bình Thạnh",
-  "Tân Bình",
-  "Phú Nhuận",
-  "Gò Vấp",
-  "Bình Tân",
-  "Tân Phú",
-];
+export const LOCATION_DATA = {
+  provinces: [
+    { value: "79", label: "Thành phố Hồ Chí Minh" },
+    { value: "01", label: "Thành phố Hà Nội" },
+    { value: "48", label: "Thành phố Đà Nẵng" },
+  ],
+  districts: {
+    "79": [
+      { value: "760", label: "Quận 1" },
+      { value: "769", label: "Quận 2 (Thủ Đức)" },
+      { value: "770", label: "Quận 3" },
+      { value: "773", label: "Quận 4" },
+    ],
+    "01": [
+      { value: "001", label: "Quận Ba Đình" },
+      { value: "002", label: "Quận Hoàn Kiếm" },
+      { value: "003", label: "Quận Tây Hồ" },
+    ],
+    "48": [
+      { value: "490", label: "Quận Hải Châu" },
+      { value: "491", label: "Quận Thanh Khê" },
+      { value: "492", label: "Quận Sơn Trà" },
+    ],
+  } as Record<string, { value: string; label: string }[]>,
+  wards: {
+    "760": [
+      { value: "26734", label: "Phường Tân Định" },
+      { value: "26737", label: "Phường Đa Kao" },
+      { value: "26740", label: "Phường Bến Nghé" },
+      { value: "26743", label: "Phường Bến Thành" },
+    ],
+    "769": [
+      { value: "26893", label: "Phường An Khánh" },
+      { value: "26896", label: "Phường An Lợi Đông" },
+      { value: "26899", label: "Phường An Phú" },
+    ],
+  } as Record<string, { value: string; label: string }[]>,
+};

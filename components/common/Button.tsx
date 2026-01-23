@@ -2,11 +2,12 @@ import { AppColors } from "@/constants/theme";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
-    ActivityIndicator,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    ViewStyle,
+  ActivityIndicator,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  ViewStyle,
 } from "react-native";
 
 interface ButtonProps {
@@ -16,7 +17,7 @@ interface ButtonProps {
   size?: "small" | "medium" | "large";
   loading?: boolean;
   disabled?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   icon?: string;
 }
 

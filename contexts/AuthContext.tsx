@@ -1,9 +1,14 @@
+import { authService } from "@/services/auth.service";
 import { User } from "@/types";
-import React, { createContext, ReactNode, useContext, useState } from "react";
+import { apiClient } from "@/utils/api";
+import { getRoleNameByRoleId } from "@/utils/roleHelper";
+import { storage } from "@/utils/storage";
+import React, { createContext, ReactNode, useContext, useEffect, useState } from "react";
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   register: (userData: Partial<User>) => Promise<boolean>;
@@ -11,94 +16,145 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock accounts for testing
-const MOCK_ACCOUNTS: User[] = [
-  // Citizens
-  {
-    id: "citizen1",
-    email: "citizen@test.com",
-    name: "Nguyễn Văn A",
-    phone: "0901234567",
-    role: "citizen",
-    roleId: 1,
-    address: "123 Lê Lợi, Quận 1",
-    district: "Quận 1",
-    points: 1250,
-    avatar: "https://i.pravatar.cc/150?img=1",
-  },
-  {
-    id: "citizen2",
-    email: "citizen2@test.com",
-    name: "Trần Thị B",
-    phone: "0902345678",
-    role: "citizen",
-    roleId: 1,
-    address: "456 Nguyễn Huệ, Quận 1",
-    district: "Quận 1",
-    points: 890,
-    avatar: "https://i.pravatar.cc/150?img=5",
-  },
-
-  // Shipper
-  {
-    id: "shipper1",
-    email: "shipper@test.com",
-    name: "Phạm Văn D",
-    phone: "0904567890",
-    role: "shipper",
-    roleId: 3,
-    vehicleType: "Xe tải nhỏ",
-    vehicleNumber: "59A-12345",
-    avatar: "https://i.pravatar.cc/150?img=12",
-  },
-];
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load user and token on app start
+  useEffect(() => {
+    loadStoredAuth();
+  }, []);
+
+  const loadStoredAuth = async () => {
+    try {
+      const [storedUser, token] = await Promise.all([
+        storage.getUser(),
+        storage.getToken(),
+      ]);
+
+      if (storedUser && token) {
+        setUser(storedUser);
+        apiClient.setToken(token);
+      }
+    } catch (error) {
+      console.error("Error loading stored auth:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    // TODO: Replace with real API call
-    // const response = await fetch('/api/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-    // const data = await response.json();
-    // if (data.success) { setUser(data.user); return true; }
+    try {
+      const response = await authService.login(email, password);
 
-    // Mock login - Backend will return user with role automatically
-    const foundUser = MOCK_ACCOUNTS.find(
-      (acc) => acc.email === email, // Backend validates password and returns user with role
-    );
+      if (response.success && response.data) {
+        // Backend currently returns:
+        // {
+        //   success,
+        //   statusCode,
+        //   message,
+        //   data: {
+        //     user: { ... },
+        //     backendToken: {
+        //       accessToken,
+        //       refreshToken,
+        //       expiresIn
+        //     }
+        //   }
+        // }
+        const raw = response.data as any;
+        const data = raw?.data ?? raw;
 
-    if (foundUser && password === "123456") {
-      // Mock password check
-      setUser(foundUser);
-      return true;
+        // Backend tokens are in backendToken property
+        const accessToken = data?.backendToken?.accessToken || data?.accessToken;
+        const userData = data?.user || (data?.accessToken ? data : null);
+
+        if (!userData || !accessToken) {
+          console.error("Missing user or accessToken in response", {
+            data,
+            rawResponse: response.data,
+          });
+          return false;
+        }
+
+        // Normalize user data: ensure roleId and role are properly set
+        const roleId = userData.roleId || 1;
+        const roleName = getRoleNameByRoleId(roleId);
+
+        const normalizedUser: User = {
+          ...userData,
+          id: userData.id?.toString() || "unknown",
+          roleId: roleId,
+          role: roleName as any,
+          name: userData.name || userData.fullName || userData.email || "",
+          email: userData.email || "",
+          phone: userData.phone || "",
+        };
+
+        // Save to state
+        setUser(normalizedUser);
+
+        // Save to storage - only save what exists
+        const savePromises = [
+          storage.saveUser(normalizedUser),
+          storage.saveToken(accessToken),
+        ];
+
+        await Promise.all(savePromises);
+
+        // Set token for API client
+        apiClient.setToken(accessToken);
+
+        return true;
+      }
+
+      console.error("Login failed:", response.error);
+      return false;
+    } catch (error) {
+      console.error("Login error:", error);
+      return false;
     }
-
-    return false;
   };
 
-  const logout = () => {
-    setUser(null);
+  const logout = async () => {
+    try {
+      // Call logout service
+      await authService.logout();
+
+      // Clear state
+      setUser(null);
+
+      // Clear storage
+      await storage.clearAll();
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   };
 
-  const register = async (userData: Partial<User>): Promise<boolean> => {
-    // Mock register - just create a new user
-    const role = userData.role || "citizen";
-    const roleId =
-      userData.roleId ||
-      (role === "citizen" ? 1 : role === "enterprise" ? 2 : 3);
+  const register = async (userData: Partial<User> & { password?: string }): Promise<boolean> => {
+    try {
+      const response = await authService.signup({
+        email: userData.email || "",
+        password: userData.password || "",
+        fullName: userData.name || "",
+        phone: userData.phone || "",
+        address: (userData as any).address || "",
+        latitude: (userData as any).latitude,
+        longitude: (userData as any).longitude,
+      });
 
-    const newUser: User = {
-      id: `${role}_${Date.now()}`,
-      email: userData.email || "",
-      name: userData.name || "",
-      phone: userData.phone || "",
-      role,
-      roleId,
-      ...userData,
-    };
+      if (response.success) {
+        // Registration successful. According to user requirement, 
+        // we don't log in automatically anymore.
+        return true;
+      }
 
-    setUser(newUser);
-    return true;
+      console.error("Registration failed:", response.error);
+      return false;
+    } catch (error) {
+      console.error("Registration error:", error);
+      return false;
+    }
   };
 
   return (
@@ -106,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isAuthenticated: !!user,
+        isLoading,
         login,
         logout,
         register,

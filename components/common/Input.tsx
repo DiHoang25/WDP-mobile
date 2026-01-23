@@ -2,13 +2,14 @@ import { AppColors } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
-    StyleSheet,
-    Text,
-    TextInput,
-    TextInputProps,
-    TouchableOpacity,
-    View,
-    ViewStyle,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TextInput,
+  TextInputProps,
+  TouchableOpacity,
+  View,
+  ViewStyle,
 } from "react-native";
 
 interface InputProps extends TextInputProps {
@@ -16,7 +17,7 @@ interface InputProps extends TextInputProps {
   error?: string;
   icon?: string; // Ionicons name
   required?: boolean;
-  containerStyle?: ViewStyle;
+  containerStyle?: StyleProp<ViewStyle>;
 }
 
 export default function Input({

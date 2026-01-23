@@ -2,9 +2,9 @@ import Badge from "@/components/common/Badge";
 import { AppColors } from "@/constants/theme";
 import { WasteReport } from "@/types";
 import {
-    getStatusColor,
-    getStatusText,
-    getWasteTypeLabel,
+  getStatusColor,
+  getStatusText,
+  getWasteTypeLabel,
 } from "@/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
@@ -19,8 +19,22 @@ export default function WasteReportCard({
   report,
   onPress,
 }: WasteReportCardProps) {
-  const { wasteType, weight, address, status, points, createdAt, district } =
+  const { wasteItems, weight, address, status, points, createdAt, district, wasteType } =
     report;
+
+  // Calculate display values based on backend wasteItems or fallback to legacy fields
+  const displayType = wasteItems && wasteItems.length > 0
+    ? getWasteTypeLabel(wasteItems[0].wasteType.toLowerCase())
+    : getWasteTypeLabel(wasteType);
+
+  const displayTitle = wasteItems && wasteItems.length > 1
+    ? `${displayType} (+${wasteItems.length - 1})`
+    : displayType;
+
+  const displayWeight = wasteItems && wasteItems.length > 0
+    ? wasteItems.reduce((sum, item) => sum + item.weight, 0).toFixed(1)
+    : weight;
+
   const statusColor = getStatusColor(status);
   const statusText = getStatusText(status);
 
@@ -32,7 +46,7 @@ export default function WasteReportCard({
       disabled={!onPress}
     >
       <View style={styles.header}>
-        <Text style={styles.wasteType}>{getWasteTypeLabel(wasteType)}</Text>
+        <Text style={styles.wasteType}>{displayTitle}</Text>
         <Badge
           label={statusText}
           color={
@@ -53,7 +67,7 @@ export default function WasteReportCard({
           color={AppColors.gray[500]}
           style={styles.icon}
         />
-        <Text style={styles.detail}>{weight} kg</Text>
+        <Text style={styles.detail}>{displayWeight} kg</Text>
       </View>
 
       <View style={styles.row}>

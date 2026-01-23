@@ -1,6 +1,6 @@
 // Types for the EcoCollect App
 
-export type UserRole = "citizen" | "enterprise" | "shipper";
+export type UserRole = "citizen" | "enterprise" | "shipper" | "admin";
 
 export type WasteType =
   | "organic"
@@ -23,6 +23,8 @@ export interface User {
 
   // Citizen specific
   address?: string;
+  latitude?: number;
+  longitude?: number;
   points?: number;
   district?: string;
 
@@ -31,28 +33,26 @@ export interface User {
   vehicleNumber?: string;
 }
 
+export interface BackendWasteItem {
+  wasteType: string;
+  weight: number;
+}
+
 export interface WasteReport {
   id: string;
   citizenId: string;
   citizenName: string;
   address: string;
   district: string;
-  wasteType:
-    | "organic"
-    | "plastic"
-    | "paper"
-    | "metal"
-    | "glass"
-    | "electronic"
-    | "hazardous"
-    | "mixed";
+  wasteType: string;
   weight: number; // kg
+  wasteItems?: BackendWasteItem[]; // Added for backend compatibility
   estimatedWeight?: number;
   description?: string;
   images?: string[];
   status: "pending" | "assigned" | "collected" | "completed";
-  createdAt: Date;
-  collectedAt?: Date;
+  createdAt: string | Date; // Backend usually returns ISO string
+  collectedAt?: string | Date;
   assignedShipperId?: string;
   points?: number;
   location?: {
@@ -96,4 +96,40 @@ export interface ShipperTask {
     latitude: number;
     longitude: number;
   }[];
+}
+export interface ServiceArea {
+  provinceCode: string;
+  districtCode: string;
+  wardCode?: string;
+}
+
+export interface BusinessWasteType {
+  wasteType: string;
+}
+
+export interface WorkingHour {
+  startTime: string;
+  endTime: string;
+}
+
+export interface BusinessRegistrationRequest {
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  capacityKg: number;
+  serviceAreas: ServiceArea[];
+  wasteTypes: BusinessWasteType[];
+  workingHour: WorkingHour;
+  subscriptionPlanConfigId: number;
+}
+
+export interface SubscriptionPlan {
+  id: number;
+  name: string;
+  description: string;
+  price: string;
+  durationMonths: number;
+  features?: string[];
+  isActive?: boolean;
 }

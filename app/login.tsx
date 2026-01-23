@@ -1,18 +1,17 @@
 import LogoHeader from "@/components/auth/LogoHeader";
-import QuickLoginButton from "@/components/auth/QuickLoginButton";
 import { Button, Input } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function LoginScreen() {
@@ -39,20 +38,6 @@ export default function LoginScreen() {
     } else {
       setError("Email hoặc mật khẩu không đúng");
     }
-  };
-
-  const handleQuickLogin = async (loginEmail: string) => {
-    setEmail(loginEmail);
-    setPassword("123456");
-    setLoading(true);
-
-    setTimeout(async () => {
-      const success = await login(loginEmail, "123456");
-      setLoading(false);
-      if (success) {
-        router.replace("/");
-      }
-    }, 100);
   };
 
   return (
@@ -104,32 +89,11 @@ export default function LoginScreen() {
             style={styles.loginButton}
           />
 
-          {/* Quick Login */}
-          <View style={styles.quickLoginContainer}>
-            <Text style={styles.quickLoginTitle}>Đăng nhập nhanh (Test):</Text>
-            <View style={styles.quickLoginButtons}>
-              <QuickLoginButton
-                email="citizen@test.com"
-                icon="person"
-                label="Công dân"
-                color={AppColors.citizen}
-                onPress={handleQuickLogin}
-              />
-              <QuickLoginButton
-                email="shipper@test.com"
-                icon="car"
-                label="Shipper"
-                color={AppColors.shipper}
-                onPress={handleQuickLogin}
-              />
-            </View>
-          </View>
-
-          {/* Register Link */}
+          {/* Register Link / Button */}
           <View style={styles.registerContainer}>
             <Text style={styles.registerText}>Chưa có tài khoản? </Text>
             <TouchableOpacity onPress={() => router.push("/register")}>
-              <Text style={styles.registerLink}>Đăng ký ngay</Text>
+              <Text style={styles.registerLink}>Đăng ký tài khoản</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -172,29 +136,10 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     marginTop: 8,
-    marginBottom: 24,
-  },
-  quickLoginContainer: {
-    marginVertical: 20,
-    padding: 20,
-    backgroundColor: AppColors.gray[50],
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: AppColors.gray[200],
-  },
-  quickLoginTitle: {
-    fontSize: 11,
-    color: AppColors.textSecondary,
     marginBottom: 12,
-    textAlign: "center",
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
-  quickLoginButtons: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 12,
+  businessButton: {
+    marginBottom: 24,
   },
   registerContainer: {
     flexDirection: "row",

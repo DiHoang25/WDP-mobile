@@ -1,302 +1,203 @@
-import { Header } from "@/components/common";
+import { Button, Card, Header, Loading } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { businessService } from "@/services/business.service";
+import { SubscriptionPlan } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
-export default function RegisterEnterpriseScreen() {
+const { width } = Dimensions.get("window");
+
+export default function RegisterEnterprisePlansScreen() {
   const params = useLocalSearchParams();
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
 
-  // Parse form data from previous screen
-  const formData = params.name
-    ? {
-        name: params.name as string,
-        address: params.address as string,
-        latitude: params.latitude as string,
-        longitude: params.longitude as string,
-        capacityKg: params.capacityKg as string,
-        serviceAreas: params.serviceAreas
-          ? JSON.parse(params.serviceAreas as string)
-          : [],
-        wasteTypes: params.wasteTypes
-          ? JSON.parse(params.wasteTypes as string)
-          : [],
-        startTime: params.startTime as string,
-        endTime: params.endTime as string,
+  useEffect(() => {
+    fetchPlans();
+  }, []);
+
+  const fetchPlans = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await businessService.getSubscriptionPlans();
+      if (response.success && response.data) {
+        setPlans(response.data);
+        if (response.data.length > 0) {
+          setSelectedPlanId(response.data[0].id);
+        }
+      } else {
+        setError(response.error || "Không thể tải danh sách gói đăng ký");
       }
-    : null;
+    } catch (err: any) {
+      console.error("Fetch plans error:", err);
+      setError("Đã có lỗi xảy ra khi tải dữ liệu");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const subscriptionPlans = [
-    {
-      id: 1,
-      name: "Gói 3 tháng",
-      duration: "3 tháng",
-      price: 2999000,
-      pricePerMonth: 999000,
-      features: [
-        "✓ Nhận báo cáo rác từ công dân",
-        "✓ Quản lý khu vực thu gom",
-        "✓ Hỗ trợ kỹ thuật 24/7",
-        "✓ Báo cáo thống kê chi tiết",
-      ],
-      recommended: false,
-    },
-    {
-      id: 2,
-      name: "Gói 6 tháng",
-      duration: "6 tháng",
-      price: 4999000,
-      pricePerMonth: 833000,
-      features: [
-        "✓ Tất cả tính năng gói 3 tháng",
-        "✓ Giảm 17% so với trả theo tháng",
-        "✓ Ưu tiên nhận báo cáo",
-        "✓ Dashboard nâng cao",
-      ],
-      recommended: true,
-      badge: "Phổ biến nhất",
-    },
-    {
-      id: 3,
-      name: "Gói 1 năm",
-      duration: "12 tháng",
-      price: 7999000,
-      pricePerMonth: 666000,
-      features: [
-        "✓ Tất cả tính năng gói 6 tháng",
-        "✓ Giảm 33% so với trả theo tháng",
-        "✓ Tích hợp API không giới hạn",
-        "✓ Tư vấn tối ưu hoạt động",
-      ],
-      recommended: false,
-      badge: "Tiết kiệm nhất",
-    },
-  ];
-
-  const [selectedPlan, setSelectedPlan] = useState<number | null>(null);
-
-  const handleContinue = () => {
-    if (!selectedPlan) {
-      Alert.alert("Thông báo", "Vui lòng chọn gói đăng ký");
+  const handleRegister = async () => {
+    if (!selectedPlanId) {
+      Alert.alert("Thông báo", "Vui lòng chọn một gói đăng ký");
       return;
     }
 
-    // TODO: Gọi API đăng ký doanh nghiệp với formData và selectedPlan
-    // POST /enterprise/register với body: { ...formData, subscriptionPlanId: selectedPlan }
-    // Sau đó chuyển sang màn hình thanh toán hoặc hiển thị thông báo thành công
+    setLoading(true);
+    try {
+      // Parse service areas from JSON string
+      const serviceAreas: any[] = params.serviceAreas
+        ? JSON.parse(params.serviceAreas as string)
+        : [];
 
-    Alert.alert(
-      "Thành công",
-      "Đăng ký doanh nghiệp thành công! Vui lòng đợi phê duyệt.",
-      [
-        {
-          text: "OK",
-          onPress: () => router.replace("/(citizen)" as any),
+      const registrationData: any = {
+        name: params.name,
+        address: params.address,
+        latitude: params.latitude ? parseFloat(params.latitude as string) : 10.762622,
+        longitude: params.longitude ? parseFloat(params.longitude as string) : 106.660172,
+        capacityKg: parseFloat(params.capacityKg as string),
+        serviceAreas: serviceAreas.length > 0 ? serviceAreas : [
+          {
+            provinceCode: "",
+            districtCode: null,
+            wardCode: null,
+          }
+        ],
+        wasteTypes: [
+          { wasteType: "ORGANIC" },
+          { wasteType: "RECYCLABLE" }
+        ],
+        workingHour: {
+          startTime: params.startTime,
+          endTime: params.endTime
         },
-      ],
-    );
+        subscriptionPlanConfigId: selectedPlanId
+      };
+
+      const response = await businessService.registerBusiness(registrationData);
+
+      if (response.success && response.data) {
+        const { enterprise, payment, qrCode } = response.data;
+        const bankInfo = qrCode?.bankInfo;
+
+        // Navigate to payment
+        router.push({
+          pathname: "/payment",
+          params: {
+            registrationId: enterprise?.id || "mock-id",
+            referenceCode: payment?.referenceCode || "PAY-UNKNOWN",
+            amount: payment?.amount || "0",
+            planName: payment?.subscriptionPlanConfig?.name || "Gói đăng ký",
+            qrUrl: qrCode?.qrUrl || "",
+            bankName: bankInfo?.bankCode || "",
+            accountNumber: bankInfo?.accountNumber || "",
+            accountHolder: bankInfo?.accountHolder || "",
+            transferContent: bankInfo?.transferContent || payment?.referenceCode || ""
+          }
+        } as any);
+      } else {
+        Alert.alert("Lỗi", response.error || "Đăng ký không thành công");
+      }
+    } catch (error) {
+      Alert.alert("Lỗi", "Đã có lỗi xảy ra. Vui lòng thử lại.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const formatPrice = (price: number) => {
-    return price.toLocaleString("vi-VN") + "đ";
-  };
+  if (loading && plans.length === 0) return <Loading />;
+
+  if (error && plans.length === 0) {
+    return (
+      <View style={styles.container}>
+        <Header title="Chọn gói đăng ký" showBack />
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle" size={64} color={AppColors.error} />
+          <Text style={styles.errorText}>{error}</Text>
+          <Button title="Thử lại" onPress={fetchPlans} style={styles.retryButton} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <Header
-        title="Đăng ký doanh nghiệp"
-        subtitle="Chọn gói đăng ký phù hợp"
-        showBack={true}
-      />
+      <Header title="Chọn gói đăng ký" subtitle="Nâng tầm doanh nghiệp của bạn" showBack />
 
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Form Summary */}
-        {formData && (
-          <View style={styles.summarySection}>
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryTitle}>Thông tin đã nhập</Text>
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryLabelContainer}>
-                  <Ionicons
-                    name="business"
-                    size={16}
-                    color={AppColors.primary}
-                  />
-                  <Text style={styles.summaryLabelText}> Doanh nghiệp:</Text>
-                </View>
-                <Text style={styles.summaryValue}>{formData.name}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryLabelContainer}>
-                  <Ionicons
-                    name="location"
-                    size={16}
-                    color={AppColors.primary}
-                  />
-                  <Text style={styles.summaryLabelText}> Địa chỉ:</Text>
-                </View>
-                <Text style={styles.summaryValue} numberOfLines={2}>
-                  {formData.address}
-                </Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryLabelContainer}>
-                  <Ionicons name="cog" size={16} color={AppColors.primary} />
-                  <Text style={styles.summaryLabelText}> Công suất:</Text>
-                </View>
-                <Text style={styles.summaryValue}>
-                  {formData.capacityKg} kg/ngày
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Info Section */}
-        <View style={styles.infoSection}>
-          <View style={styles.infoCard}>
-            <Ionicons
-              name="business"
-              size={48}
-              color={AppColors.primary}
-              style={styles.infoIcon}
-            />
-            <Text style={styles.infoTitle}>Trở thành đối tác</Text>
-            <Text style={styles.infoText}>
-              Đăng ký doanh nghiệp để nhận báo cáo rác từ công dân và tham gia
-              bảo vệ môi trường
-            </Text>
-          </View>
-        </View>
-
-        {/* Subscription Plans */}
-        <View style={styles.plansSection}>
-          <Text style={styles.sectionTitle}>Chọn gói đăng ký</Text>
-
-          {subscriptionPlans.map((plan) => (
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.plansContainer}>
+          {plans.map((plan) => (
             <TouchableOpacity
               key={plan.id}
-              style={[
-                styles.planCard,
-                selectedPlan === plan.id && styles.planCardSelected,
-                plan.recommended && styles.planCardRecommended,
-              ]}
-              onPress={() => setSelectedPlan(plan.id)}
-              activeOpacity={0.8}
+              activeOpacity={0.9}
+              onPress={() => setSelectedPlanId(plan.id)}
             >
-              {plan.badge && (
-                <View style={styles.planBadge}>
-                  <Text style={styles.planBadgeText}>{plan.badge}</Text>
-                </View>
-              )}
+              <Card
+                variant={selectedPlanId === plan.id ? "elevated" : "outlined"}
+                style={[
+                  styles.planCard,
+                  selectedPlanId === plan.id && styles.selectedCard,
+                ]}
+              >
+                {selectedPlanId === plan.id && (
+                  <View style={styles.bestValueBadge}>
+                    <Text style={styles.bestValueText}>Đang chọn</Text>
+                  </View>
+                )}
 
-              <View style={styles.planHeader}>
-                <View style={styles.planRadio}>
-                  {selectedPlan === plan.id && (
-                    <View style={styles.planRadioSelected} />
-                  )}
-                </View>
-                <View style={styles.planInfo}>
-                  <Text style={styles.planName}>{plan.name}</Text>
-                  <Text style={styles.planDuration}>{plan.duration}</Text>
-                </View>
-              </View>
+                <Text style={styles.planName}>{plan.name}</Text>
+                <Text style={styles.planDescription}>{plan.description}</Text>
 
-              <View style={styles.planPricing}>
-                <Text style={styles.planPrice}>{formatPrice(plan.price)}</Text>
-                <Text style={styles.planPricePerMonth}>
-                  {formatPrice(plan.pricePerMonth)}/tháng
-                </Text>
-              </View>
-
-              <View style={styles.planFeatures}>
-                {plan.features.map((feature, index) => (
-                  <Text key={index} style={styles.planFeature}>
-                    {feature}
+                <View style={styles.priceRow}>
+                  <Text style={styles.priceCurrency}>đ</Text>
+                  <Text style={styles.priceValue}>
+                    {Number(plan.price).toLocaleString("vi-VN")}
                   </Text>
-                ))}
-              </View>
+                  <Text style={styles.priceDuration}>/{plan.durationMonths} tháng</Text>
+                </View>
+
+                {plan.features && plan.features.length > 0 && (
+                  <>
+                    <View style={styles.divider} />
+                    <View style={styles.featuresContainer}>
+                      {plan.features.map((feature, idx) => (
+                        <View key={idx} style={styles.featureRow}>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={20}
+                            color={AppColors.primary}
+                          />
+                          <Text style={styles.featureText}>{feature}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                )}
+              </Card>
             </TouchableOpacity>
           ))}
         </View>
-
-        {/* Benefits */}
-        <View style={styles.benefitsSection}>
-          <Text style={styles.sectionTitle}>Lợi ích khi tham gia</Text>
-          <View style={styles.benefitsList}>
-            <View style={styles.benefitItem}>
-              <Ionicons
-                name="location"
-                size={32}
-                color={AppColors.primary}
-                style={styles.benefitIcon}
-              />
-              <View style={styles.benefitContent}>
-                <Text style={styles.benefitTitle}>Mở rộng khu vực</Text>
-                <Text style={styles.benefitText}>
-                  Nhận báo cáo từ nhiều khu vực khác nhau
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.benefitItem}>
-              <Ionicons
-                name="stats-chart"
-                size={32}
-                color={AppColors.primary}
-                style={styles.benefitIcon}
-              />
-              <View style={styles.benefitContent}>
-                <Text style={styles.benefitTitle}>Quản lý hiệu quả</Text>
-                <Text style={styles.benefitText}>
-                  Dashboard chi tiết và báo cáo thống kê
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.benefitItem}>
-              <Ionicons
-                name="people"
-                size={32}
-                color={AppColors.primary}
-                style={styles.benefitIcon}
-              />
-              <View style={styles.benefitContent}>
-                <Text style={styles.benefitTitle}>Hỗ trợ tận tình</Text>
-                <Text style={styles.benefitText}>
-                  Đội ngũ hỗ trợ 24/7 và tư vấn chuyên nghiệp
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
       </ScrollView>
 
-      {/* Bottom Button */}
-      <View style={styles.bottomContainer}>
-        <TouchableOpacity
-          style={[
-            styles.continueButton,
-            !selectedPlan && styles.continueButtonDisabled,
-          ]}
-          onPress={handleContinue}
-          disabled={!selectedPlan}
-        >
-          <Text style={styles.continueButtonText}>
-            {formData ? "Hoàn tất đăng ký" : "Tiếp tục đăng ký"}
-          </Text>
-        </TouchableOpacity>
+      <View style={styles.footer}>
+        <Button
+          title="Đăng ký & Thanh toán"
+          onPress={handleRegister}
+          loading={loading}
+          disabled={!selectedPlanId}
+        />
       </View>
     </View>
   );
@@ -307,218 +208,113 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: AppColors.background,
   },
-  scrollView: {
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+  plansContainer: {
+    gap: 20,
+  },
+  errorContainer: {
     flex: 1,
-  },
-  summarySection: {
-    padding: 20,
-    paddingBottom: 10,
-  },
-  summaryCard: {
-    backgroundColor: AppColors.white,
-    borderRadius: 12,
-    padding: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: AppColors.primary,
-  },
-  summaryTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: AppColors.textPrimary,
-    marginBottom: 12,
-  },
-  summaryRow: {
-    flexDirection: "row",
-    marginBottom: 8,
-    gap: 8,
-  },
-  summaryLabelContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    minWidth: 120,
-  },
-  summaryLabelText: {
-    fontSize: 14,
-    color: AppColors.textSecondary,
-    fontWeight: "500",
-  },
-  summaryValue: {
-    flex: 1,
-    fontSize: 14,
-    color: AppColors.textPrimary,
-    fontWeight: "600",
-  },
-  infoSection: {
-    padding: 20,
-    paddingTop: 10,
-  },
-  infoCard: {
-    backgroundColor: AppColors.primary + "10",
-    borderRadius: 16,
-    padding: 20,
-    alignItems: "center",
-  },
-  infoIcon: {
-    marginBottom: 12,
-  },
-  infoTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: AppColors.textPrimary,
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: AppColors.textSecondary,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  plansSection: {
-    padding: 20,
-    paddingTop: 0,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: AppColors.textPrimary,
-    marginBottom: 16,
-  },
-  planCard: {
-    backgroundColor: AppColors.white,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: AppColors.gray[200],
-    position: "relative",
-  },
-  planCardSelected: {
-    borderColor: AppColors.primary,
-    backgroundColor: AppColors.primary + "05",
-  },
-  planCardRecommended: {
-    borderColor: AppColors.warning + "80",
-  },
-  planBadge: {
-    position: "absolute",
-    top: -10,
-    right: 20,
-    backgroundColor: AppColors.warning,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  planBadgeText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: AppColors.white,
-  },
-  planHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  planRadio: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: AppColors.primary,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    padding: 40,
+    gap: 20,
   },
-  planRadioSelected: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+  errorText: {
+    fontSize: 16,
+    color: AppColors.textSecondary,
+    textAlign: "center",
+    lineHeight: 24,
+  },
+  retryButton: {
+    minWidth: 150,
+  },
+  planCard: {
+    padding: 24,
+    borderRadius: 24,
+    backgroundColor: AppColors.white,
+    position: "relative",
+    overflow: "hidden",
+  },
+  selectedCard: {
+    borderColor: AppColors.primary,
+    borderWidth: 2,
+    backgroundColor: AppColors.primary + "05",
+  },
+  bestValueBadge: {
+    position: "absolute",
+    top: 12,
+    right: -30,
     backgroundColor: AppColors.primary,
+    paddingHorizontal: 40,
+    paddingVertical: 5,
+    transform: [{ rotate: "45deg" }],
   },
-  planInfo: {
-    flex: 1,
+  bestValueText: {
+    color: AppColors.white,
+    fontSize: 10,
+    fontWeight: "bold",
+    textAlign: "center",
   },
   planName: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: "bold",
     color: AppColors.textPrimary,
-    marginBottom: 2,
+    marginBottom: 8,
   },
-  planDuration: {
+  planDescription: {
     fontSize: 14,
     color: AppColors.textSecondary,
+    marginBottom: 20,
   },
-  planPricing: {
-    marginBottom: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: AppColors.gray[200],
-  },
-  planPrice: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: AppColors.primary,
-    marginBottom: 4,
-  },
-  planPricePerMonth: {
-    fontSize: 14,
-    color: AppColors.textSecondary,
-  },
-  planFeatures: {
-    gap: 8,
-  },
-  planFeature: {
-    fontSize: 14,
-    color: AppColors.textPrimary,
-    lineHeight: 20,
-  },
-  benefitsSection: {
-    padding: 20,
-    paddingTop: 0,
-  },
-  benefitsList: {
-    gap: 16,
-  },
-  benefitItem: {
+  priceRow: {
     flexDirection: "row",
-    backgroundColor: AppColors.white,
-    borderRadius: 12,
-    padding: 16,
+    alignItems: "baseline",
+    marginBottom: 20,
   },
-  benefitIcon: {
-    marginRight: 12,
-  },
-  benefitContent: {
-    flex: 1,
-  },
-  benefitTitle: {
-    fontSize: 16,
+  priceCurrency: {
+    fontSize: 18,
     fontWeight: "600",
-    color: AppColors.textPrimary,
-    marginBottom: 4,
+    color: AppColors.primary,
+    marginRight: 2,
   },
-  benefitText: {
+  priceValue: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: AppColors.primary,
+  },
+  priceDuration: {
     fontSize: 14,
     color: AppColors.textSecondary,
-    lineHeight: 20,
+    marginLeft: 4,
   },
-  bottomContainer: {
+  divider: {
+    height: 1,
+    backgroundColor: AppColors.gray[200],
+    marginBottom: 20,
+  },
+  featuresContainer: {
+    gap: 12,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  featureText: {
+    fontSize: 15,
+    color: AppColors.textPrimary,
+  },
+  footer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     padding: 20,
     backgroundColor: AppColors.white,
     borderTopWidth: 1,
     borderTopColor: AppColors.gray[200],
-  },
-  continueButton: {
-    backgroundColor: AppColors.primary,
-    borderRadius: 16,
-    padding: 16,
-    alignItems: "center",
-  },
-  continueButtonDisabled: {
-    backgroundColor: AppColors.gray[300],
-  },
-  continueButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: AppColors.white,
   },
 });
