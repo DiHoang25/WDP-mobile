@@ -18,6 +18,7 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
 
   const handleLogout = () => {
+    console.log("Hello");
     Alert.alert("Đăng xuất", "Bạn có chắc muốn đăng xuất?", [
       { text: "Hủy", style: "cancel" },
       {
@@ -35,15 +36,15 @@ export default function ProfileScreen() {
     // Show "Đăng ký doanh nghiệp" only for citizens (roleId = 1)
     ...(user?.roleId === 1
       ? [
-          {
-            icon: "business",
-            title: "Đăng ký doanh nghiệp",
-            subtitle: "Trở thành đối tác xử lý rác",
-            onPress: () =>
-              router.push("/(citizen)/register-enterprise-form" as any),
-            highlight: true,
-          },
-        ]
+        {
+          icon: "business",
+          title: "Đăng ký doanh nghiệp",
+          subtitle: "Trở thành đối tác xử lý rác",
+          onPress: () =>
+            router.push("/(citizen)/register-enterprise-form" as any),
+          highlight: true,
+        },
+      ]
       : []),
     {
       icon: "document-text",

@@ -9,6 +9,8 @@ export default function AdminProfileScreen() {
   const { user, logout } = useAuth();
 
   const handleLogout = () => {
+
+    console.log("Hello");
     Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất?", [
       { text: "Hủy", style: "cancel" },
       {
