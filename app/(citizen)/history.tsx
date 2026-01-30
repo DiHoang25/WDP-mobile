@@ -4,8 +4,12 @@ import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { wasteService } from "@/services/waste.service";
 import { WasteReport } from "@/types";
+import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,30 +21,55 @@ export default function HistoryScreen() {
   const { user } = useAuth();
   const [reports, setReports] = useState<WasteReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<"all" | "pending" | "completed">("all");
 
   useEffect(() => {
-    fetchHistory();
+    fetchHistory(true);
   }, []);
 
-  const fetchHistory = async () => {
-    setLoading(true);
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    fetchHistory(false);
+  }, []);
+
+  const fetchHistory = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const response = await wasteService.getHistory();
       if (response.success && response.data) {
-        setReports(response.data);
+        // Robust extraction logic
+        let reportsList: WasteReport[] = [];
+        const rawData = response.data;
+
+        if (Array.isArray(rawData)) {
+          reportsList = rawData;
+        } else if (rawData.data && Array.isArray(rawData.data)) {
+          reportsList = rawData.data;
+        } else if (rawData.items && Array.isArray(rawData.items)) {
+          reportsList = rawData.items;
+        } else if (rawData.reports && Array.isArray(rawData.reports)) {
+          reportsList = rawData.reports;
+        } else if (typeof rawData === 'object' && rawData !== null) {
+          // Check for any first child that is an array
+          const firstArrayKey = Object.keys(rawData).find(key => Array.isArray(rawData[key]));
+          if (firstArrayKey) reportsList = rawData[firstArrayKey];
+        }
+
+        setReports(reportsList);
       }
     } catch (error) {
       console.error("Fetch history error:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   const filteredReports = reports.filter((r) => {
     if (filter === "all") return true;
-    if (filter === "completed") return r.status === "completed";
-    return r.status !== "completed";
+    if (filter === "completed") return r.status?.toLowerCase() === "completed";
+    return r.status?.toLowerCase() !== "completed";
   });
 
   const filters = [
@@ -48,12 +77,12 @@ export default function HistoryScreen() {
     {
       value: "pending" as const,
       label: "Đang xử lý",
-      count: reports.filter((r) => r.status !== "completed").length,
+      count: reports.filter((r) => r.status?.toLowerCase() !== "completed").length,
     },
     {
       value: "completed" as const,
       label: "Hoàn thành",
-      count: reports.filter((r) => r.status === "completed").length,
+      count: reports.filter((r) => r.status?.toLowerCase() === "completed").length,
     },
   ];
 
@@ -62,7 +91,8 @@ export default function HistoryScreen() {
       <Header
         title="Lịch sử báo cáo"
         subtitle={`Tổng cộng: ${reports.length} báo cáo`}
-        showBack={false}
+        showBack={true}
+        onBackPress={() => router.push("/(citizen)")}
       />
 
       {/* Filters */}
@@ -78,44 +108,79 @@ export default function HistoryScreen() {
           >
             <Text
               style={[
-                styles.filterButtonText,
-                filter === f.value && styles.filterButtonTextActive,
+                styles.filterLabel,
+                filter === f.value && styles.filterTextActive,
               ]}
             >
-              {f.label} ({f.count})
+              {f.label}
+            </Text>
+            <Text
+              style={[
+                styles.filterCount,
+                filter === f.value && styles.filterTextActive,
+              ]}
+            >
+              ({f.count})
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
       {/* Reports List */}
-      <ScrollView
-        style={styles.reportsList}
-        showsVerticalScrollIndicator={false}
-      >
-        {loading ? (
+      <View style={{ flex: 1 }}>
+        {loading && !refreshing ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={AppColors.primary} />
             <Text style={styles.loadingText}>Đang tải lịch sử...</Text>
           </View>
         ) : filteredReports.length > 0 ? (
-          filteredReports.map((report) => (
-            <WasteReportCard key={report.id} report={report} />
-          ))
-        ) : (
-          <EmptyState
-            icon="clipboard"
-            title="Không có báo cáo nào"
-            message={
-              filter === "all"
-                ? "Bạn chưa tạo báo cáo nào"
-                : filter === "pending"
-                  ? "Không có báo cáo đang xử lý"
-                  : "Không có báo cáo hoàn thành"
+          <FlatList
+            data={filteredReports}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+              <WasteReportCard
+                report={item}
+                onPress={() => router.push({
+                  pathname: "/report-detail",
+                  params: { id: item.id }
+                })}
+              />
+            )}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[AppColors.primary]}
+              />
             }
           />
+        ) : (
+          <ScrollView
+            contentContainerStyle={styles.emptyContainer}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[AppColors.primary]}
+              />
+            }
+          >
+            <EmptyState
+              icon="clipboard"
+              title="Không có báo cáo nào"
+              message={
+                filter === "all"
+                  ? "Bạn chưa tạo báo cáo nào"
+                  : filter === "pending"
+                    ? "Không có báo cáo đang xử lý"
+                    : "Không có báo cáo hoàn thành"
+              }
+            />
+          </ScrollView>
         )}
-      </ScrollView>
+      </View>
     </View>
   );
 }
@@ -132,29 +197,47 @@ const styles = StyleSheet.create({
   },
   filterButton: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 12,
     backgroundColor: AppColors.white,
     borderWidth: 1,
-    borderColor: AppColors.gray[300],
+    borderColor: AppColors.gray[200],
     alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
   },
   filterButtonActive: {
     backgroundColor: AppColors.primary,
     borderColor: AppColors.primary,
   },
-  filterButtonText: {
-    fontSize: 13,
+  filterLabel: {
+    fontSize: 12,
     fontWeight: "600",
     color: AppColors.textSecondary,
+    textAlign: "center",
   },
-  filterButtonTextActive: {
+  filterCount: {
+    fontSize: 11,
+    fontWeight: "500",
+    color: AppColors.gray[500],
+    textAlign: "center",
+  },
+  filterTextActive: {
     color: AppColors.white,
   },
   reportsList: {
     flex: 1,
+  },
+  listContent: {
     paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: -50,
   },
   loadingContainer: {
     padding: 40,

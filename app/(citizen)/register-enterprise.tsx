@@ -62,6 +62,11 @@ export default function RegisterEnterprisePlansScreen() {
         ? JSON.parse(params.serviceAreas as string)
         : [];
 
+      // Parse waste types from JSON string
+      const wasteTypes: string[] = params.wasteTypes
+        ? JSON.parse(params.wasteTypes as string)
+        : [];
+
       const registrationData: any = {
         name: params.name,
         address: params.address,
@@ -75,10 +80,9 @@ export default function RegisterEnterprisePlansScreen() {
             wardCode: null,
           }
         ],
-        wasteTypes: [
-          { wasteType: "ORGANIC" },
-          { wasteType: "RECYCLABLE" }
-        ],
+        wasteTypes: wasteTypes.length > 0
+          ? wasteTypes.map(type => ({ wasteType: type }))
+          : [{ wasteType: "ORGANIC" }, { wasteType: "RECYCLABLE" }],
         workingHour: {
           startTime: params.startTime,
           endTime: params.endTime

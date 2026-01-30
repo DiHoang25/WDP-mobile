@@ -5,14 +5,16 @@ import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Linking,
     Modal,
+    Platform,
     SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 import { WebView } from "react-native-webview";
 
@@ -218,7 +220,25 @@ export const MapLocationPicker = ({
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== "granted") {
-                Alert.alert("Quyền truy cập", "Vui lòng cấp quyền vị trí");
+                setLoading(false);
+                Alert.alert(
+                    "Cần quyền truy cập vị trí",
+                    "Ứng dụng cần quyền truy cập vị trí để hiển thị vị trí của bạn trên bản đồ. Bạn có muốn mở Cài đặt?",
+                    [
+                        { text: "Không", style: "cancel" },
+                        {
+                            text: "Có",
+                            onPress: () => {
+                                // Mở Settings để user cấp quyền
+                                if (Platform.OS === 'ios') {
+                                    Linking.openURL('app-settings:');
+                                } else {
+                                    Linking.openSettings();
+                                }
+                            }
+                        }
+                    ]
+                );
                 return;
             }
 
@@ -331,10 +351,10 @@ export const MapLocationPicker = ({
             </TouchableOpacity>
 
             <View style={styles.infoContainer}>
-                <View style={styles.coordRow}>
+                {/* <View style={styles.coordRow}>
                     <Text style={styles.coordLabel}>Tọa độ:</Text>
                     <Text style={styles.coordValue}>{location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}</Text>
-                </View>
+                </View> */}
                 {address ? (
                     <View style={styles.addressContainer}>
                         <Text style={styles.addressLabel}>Địa chỉ:</Text>

@@ -4,9 +4,11 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+import { WasteType } from "@/types";
+
 interface WasteTypeSelectorProps {
-  selectedType: string;
-  onSelect: (type: string) => void;
+  selectedType: WasteType;
+  onSelect: (type: WasteType) => void;
 }
 
 export default function WasteTypeSelector({
@@ -27,7 +29,7 @@ export default function WasteTypeSelector({
                 borderColor: type.color,
               },
             ]}
-            onPress={() => onSelect(type.value)}
+            onPress={() => onSelect(type.value as WasteType)}
             activeOpacity={0.7}
           >
             <Ionicons

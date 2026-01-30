@@ -8,4 +8,5 @@ export { default as Loading } from "./Loading";
 export { MapLocationPicker } from "./MapLocationPicker";
 export { MultiSelectPicker } from "./MultiSelectPicker";
 export { Picker } from "./Picker";
+export { WasteTypeMultiSelector } from "./WasteTypeMultiSelector";
 

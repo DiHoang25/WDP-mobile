@@ -3,14 +3,9 @@
 export type UserRole = "citizen" | "enterprise" | "shipper" | "admin";
 
 export type WasteType =
-  | "organic"
-  | "plastic"
-  | "paper"
-  | "metal"
-  | "glass"
-  | "electronic"
-  | "hazardous"
-  | "mixed";
+  | "ORGANIC"
+  | "RECYCLABLE"
+  | "HAZARDOUS";
 
 export interface User {
   id: string;
@@ -31,33 +26,48 @@ export interface User {
   // Shipper specific
   vehicleType?: string;
   vehicleNumber?: string;
+
+  status?: string;
 }
 
 export interface BackendWasteItem {
   wasteType: string;
-  weight: number;
+  weightKg: number;
 }
 
 export interface WasteReport {
   id: string;
   citizenId: string;
   citizenName: string;
+  enterpriseName?: string;
   address: string;
   district: string;
   wasteType: string;
-  weight: number; // kg
+  weightKg: number; // kg
   wasteItems?: BackendWasteItem[]; // Added for backend compatibility
   estimatedWeight?: number;
   description?: string;
+  content?: string; // Mapped from backend description or content
   images?: string[];
-  status: "pending" | "assigned" | "collected" | "completed";
-  createdAt: string | Date; // Backend usually returns ISO string
-  collectedAt?: string | Date;
-  assignedShipperId?: string;
+  status: ReportStatus; // Use the type defined below
+  createdAt: string | Date;
+  updatedAt?: string | Date;
+  cancelReason?: string;
   points?: number;
-  location?: {
-    latitude: number;
-    longitude: number;
+  provinceCode?: string;
+  districtCode?: string;
+  wardCode?: string;
+  enterprise?: {
+    id: number;
+    name: string;
+    phone?: string;
+    avatar?: string;
+  };
+  collector?: {
+    id: number;
+    fullName: string;
+    phone?: string;
+    avatar?: string;
   };
 }
 
@@ -103,8 +113,38 @@ export interface ServiceArea {
   wardCode?: string;
 }
 
+export type NotificationType = "REPORT_STATUS_CHANGED" | "BROADCAST" | "SYSTEM";
+
+export interface Notification {
+  id: number;
+  userId: number;
+  type: NotificationType | string;
+  title: string;
+  content: string;
+  meta?: {
+    action?: string;
+    reportId?: number;
+    broadcast?: boolean;
+    [key: string]: any;
+  };
+  isRead: boolean;
+  createdAt: string;
+  readAt?: string;
+}
+
+export interface NotificationResponse {
+  data: Notification[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export interface BusinessWasteType {
   wasteType: string;
+  weightKg?: number; // Added optional for business context if needed
 }
 
 export interface WorkingHour {
@@ -119,7 +159,7 @@ export interface BusinessRegistrationRequest {
   longitude: number;
   capacityKg: number;
   serviceAreas: ServiceArea[];
-  wasteTypes: BusinessWasteType[];
+  wasteTypes: { wasteType: string }[];
   workingHour: WorkingHour;
   subscriptionPlanConfigId: number;
 }
@@ -133,3 +173,14 @@ export interface SubscriptionPlan {
   features?: string[];
   isActive?: boolean;
 }
+
+// Report Status Types (matching backend)
+export type ReportStatus =
+  | "PENDING"
+  | "ACCEPTED"
+  | "ASSIGNED"
+  | "ON_THE_WAY"
+  | "WAITING_CUSTOMER"
+  | "COLLECTED"
+  | "COMPLETED"
+  | "CANCELLED";

@@ -15,6 +15,7 @@ interface HeaderProps {
   title: string;
   subtitle?: string;
   showBack?: boolean;
+  onBackPress?: () => void;
   rightComponent?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   colors?: [string, string];
@@ -24,6 +25,7 @@ export default function Header({
   title,
   subtitle,
   showBack = false,
+  onBackPress,
   rightComponent,
   style,
   colors = [AppColors.primary, AppColors.primaryDark],
@@ -34,7 +36,7 @@ export default function Header({
         {showBack && (
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={onBackPress || (() => router.back())}
             activeOpacity={0.7}
           >
             <Text style={styles.backIcon}>←</Text>
@@ -54,11 +56,11 @@ export default function Header({
 
 const styles = StyleSheet.create({
   header: {
-    paddingTop: 60,
-    paddingBottom: 30,
+    paddingTop: 15,
+    paddingBottom: 20,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   headerContent: {
     flexDirection: "row",
@@ -69,7 +71,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   backIcon: {
-    fontSize: 28,
+    fontSize: 24,
     color: AppColors.white,
     fontWeight: "600",
   },
@@ -77,7 +79,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: "800",
     color: AppColors.white,
     marginBottom: 5,

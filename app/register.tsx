@@ -1,4 +1,4 @@
-import { Button, Header, Input, MapLocationPicker } from "@/components/common";
+import { Button, Header, Input } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { District, locationService, Province, Ward } from "@/services/location.service";
@@ -9,7 +9,6 @@ import {
   validatePhone,
   validateRequired,
 } from "@/utils/validators";
-import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -292,37 +291,6 @@ export default function RegisterScreen() {
           />
 
 
-          <MapLocationPicker
-            label="Chọn vị trí chính xác trên bản đồ"
-            onLocationSelect={handleMapLocationSelect}
-          />
-
-          {mapLocation && (
-            <View style={styles.addressDisplayCard}>
-              <View style={styles.addressRow}>
-                <Ionicons name="location" size={20} color={AppColors.primary} />
-                <View style={styles.addressInfo}>
-                  <Text style={styles.addressLabel}>Khu vực phục vụ đã xác định:</Text>
-                  <Text style={styles.fullAddressText}>
-                    {[
-                      wards.find(w => w.code === wardId)?.name,
-                      districts.find(d => d.code === districtId)?.name,
-                      provinces.find(p => p.code === provinceId)?.name
-                    ].filter(Boolean).join(", ") || "Đang xác định khu vực..."}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          )}
-
-          <Input
-            label="Địa chỉ chi tiết (nhập thủ công nếu cần)"
-            icon="location-outline"
-            placeholder="Số nhà, ngõ, tên đường..."
-            value={address}
-            onChangeText={setAddress}
-            required
-          />
 
           <Input
             label="Mật khẩu"

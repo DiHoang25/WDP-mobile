@@ -101,8 +101,18 @@ class ApiClient {
         });
     }
 
-    async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-        return this.request<T>(endpoint, { method: 'DELETE' });
+    async patch<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+        return this.request<T>(endpoint, {
+            method: 'PATCH',
+            body: body ? JSON.stringify(body) : undefined,
+        });
+    }
+
+    async delete<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+        return this.request<T>(endpoint, {
+            method: 'DELETE',
+            body: body ? JSON.stringify(body) : undefined,
+        });
     }
 
     // For multipart/form-data (file uploads)
@@ -124,6 +134,11 @@ class ApiClient {
             const data = await response.json();
 
             if (!response.ok) {
+                console.error('❌ API postFormData Error Details:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    data
+                });
                 return {
                     success: false,
                     error: formatErrorMessage(data.message || data.error || 'Request failed'),

@@ -2,11 +2,13 @@ import { Card, EmptyState } from "@/components/common";
 import { WasteReportCard } from "@/components/reports";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
-import { MOCK_WASTE_REPORTS } from "@/data/mockData";
+import { notificationService } from "@/services/notification.service";
+import { wasteService } from "@/services/waste.service";
+import { WasteReport } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import React from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   Dimensions,
   Image,
@@ -20,11 +22,56 @@ import {
 const { width } = Dimensions.get("window");
 
 export default function CitizenHomeScreen() {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [allReports, setAllReports] = useState<WasteReport[]>([]);
+  const [loadingReports, setLoadingReports] = useState(true);
 
-  const recentReports = MOCK_WASTE_REPORTS.filter(
-    (r) => r.citizenId === user?.id,
-  ).slice(0, 3);
+  const recentReports = allReports.slice(0, 3);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile();
+      checkUnreadNotifications();
+      fetchReports();
+    }, [])
+  );
+
+  const checkUnreadNotifications = async () => {
+    const count = await notificationService.countUnread();
+    setUnreadCount(count);
+  };
+
+  const fetchReports = async () => {
+    try {
+      setLoadingReports(true);
+      const response = await wasteService.getHistory();
+      if (response.success && response.data) {
+        // Robust extraction logic
+        let reportsList: WasteReport[] = [];
+        const rawData = response.data;
+
+        if (Array.isArray(rawData)) {
+          reportsList = rawData;
+        } else if (rawData.data && Array.isArray(rawData.data)) {
+          reportsList = rawData.data;
+        } else if (rawData.items && Array.isArray(rawData.items)) {
+          reportsList = rawData.items;
+        } else if (rawData.reports && Array.isArray(rawData.reports)) {
+          reportsList = rawData.reports;
+        } else if (typeof rawData === 'object' && rawData !== null) {
+          const firstArrayKey = Object.keys(rawData).find(key => Array.isArray(rawData[key]));
+          if (firstArrayKey) reportsList = rawData[firstArrayKey];
+        }
+
+        setAllReports(reportsList);
+      }
+    } catch (error) {
+      console.error("Fetch reports error:", error);
+    } finally {
+      setLoadingReports(false);
+    }
+  };
 
   const stats = [
     {
@@ -35,13 +82,13 @@ export default function CitizenHomeScreen() {
     },
     {
       label: "Báo cáo",
-      value: recentReports.length,
+      value: allReports.filter((r) => r.status?.toLowerCase() !== "completed").length,
 
       color: AppColors.primary,
     },
     {
       label: "Đã thu gom",
-      value: recentReports.filter((r) => r.status === "completed").length,
+      value: allReports.filter((r) => r.status?.toLowerCase() === "completed").length,
 
       color: AppColors.success,
     },
@@ -91,17 +138,33 @@ export default function CitizenHomeScreen() {
             <Text style={styles.userName}>{user?.name}</Text>
             <Text style={styles.location}>{user?.district}</Text>
           </View>
-          <TouchableOpacity style={styles.avatar}>
-            {user?.avatar ? (
-              <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
-            ) : (
-              <Text style={styles.avatarText}>
-                {user?.name?.charAt(0) ||
-                  user?.email?.charAt(0) ||
-                  "?"}
-              </Text>
-            )}
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.notificationButton}
+              onPress={() => router.push("/(citizen)/notifications")}
+            >
+              <Ionicons name="notifications" size={24} color={AppColors.white} />
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.avatar}>
+              {user?.avatar ? (
+                <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>
+                  {user?.name?.charAt(0) ||
+                    user?.email?.charAt(0) ||
+                    "?"}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Stats Cards */}
@@ -204,7 +267,14 @@ export default function CitizenHomeScreen() {
 
         {recentReports.length > 0 ? (
           recentReports.map((report) => (
-            <WasteReportCard key={report.id} report={report} />
+            <WasteReportCard
+              key={report.id}
+              report={report}
+              onPress={() => router.push({
+                pathname: "/report-detail",
+                params: { id: report.id }
+              })}
+            />
           ))
         ) : (
           <EmptyState
@@ -269,22 +339,55 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: "rgba(255, 255, 255, 0.3)",
     justifyContent: "center",
     alignItems: "center",
   },
   avatarImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   avatarText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "bold",
     color: AppColors.white,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  notificationButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  badge: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: AppColors.error,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: AppColors.primary,
+  },
+  badgeText: {
+    color: AppColors.white,
+    fontSize: 10,
+    fontWeight: "bold",
   },
   statsContainer: {
     flexDirection: "row",
