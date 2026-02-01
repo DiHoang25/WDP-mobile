@@ -350,18 +350,18 @@ export const MapLocationPicker = ({
                 </View>
             </TouchableOpacity>
 
-            <View style={styles.infoContainer}>
-                {/* <View style={styles.coordRow}>
+            {/* <View style={styles.infoContainer}> */}
+            {/* <View style={styles.coordRow}>
                     <Text style={styles.coordLabel}>Tọa độ:</Text>
                     <Text style={styles.coordValue}>{location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}</Text>
                 </View> */}
-                {address ? (
+            {/* {address ? (
                     <View style={styles.addressContainer}>
                         <Text style={styles.addressLabel}>Địa chỉ:</Text>
                         <Text style={styles.addressValue} numberOfLines={2}>{address}</Text>
                     </View>
                 ) : null}
-            </View>
+            </View> */}
 
             {error && <Text style={styles.errorText}>{error}</Text>}
 

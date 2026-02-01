@@ -617,19 +617,35 @@ export default function CreateReportScreen() {
           <Text style={styles.sectionTitle}>Danh sách rác đã thêm</Text>
           {wasteItems.length > 0 ? (
             <View style={styles.itemsList}>
-              {wasteItems.map((item, index) => (
-                <View key={index} style={styles.itemRow}>
-                  <View style={styles.itemInfo}>
-                    <Text style={styles.itemName}>
-                      {getWasteTypeLabel(item.wasteType)}
-                    </Text>
-                    <Text style={styles.itemWeight}>{item.weightKg} kg</Text>
+              {(() => {
+                // Group waste items by type and sum weights
+                const grouped = wasteItems.reduce((acc, item) => {
+                  const existing = acc.find(i => i.wasteType === item.wasteType);
+                  if (existing) {
+                    existing.weightKg += item.weightKg;
+                  } else {
+                    acc.push({ ...item });
+                  }
+                  return acc;
+                }, [] as BackendWasteItem[]);
+
+                return grouped.map((item, index) => (
+                  <View key={index} style={styles.itemRow}>
+                    <View style={styles.itemInfo}>
+                      <Text style={styles.itemName}>
+                        {getWasteTypeLabel(item.wasteType)}
+                      </Text>
+                      <Text style={styles.itemWeight}>{item.weightKg.toFixed(1)} kg</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => {
+                      // Remove all items of this type
+                      setWasteItems(wasteItems.filter(i => i.wasteType !== item.wasteType));
+                    }}>
+                      <Ionicons name="trash-outline" size={20} color={AppColors.error} />
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity onPress={() => removeWasteItem(index)}>
-                    <Ionicons name="trash-outline" size={20} color={AppColors.error} />
-                  </TouchableOpacity>
-                </View>
-              ))}
+                ));
+              })()}
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Tổng cộng:</Text>
                 <Text style={styles.totalValue}>{totalWeight.toFixed(1)} kg</Text>
@@ -680,12 +696,12 @@ export default function CreateReportScreen() {
           {errors.weight && <Text style={styles.errorText}>{errors.weight}</Text>}
         </Card>
 
-        {estimatedPoints > 0 && (
+        {/* {estimatedPoints > 0 && (
           <View style={styles.pointsEstimate}>
             <Text style={styles.estimateLabel}>Điểm dự kiến:</Text>
             <Text style={styles.estimateValue}>+{Math.round(estimatedPoints)} điểm</Text>
           </View>
-        )}
+        )} */}
 
         {/* Description */}
         <View style={styles.section}>
@@ -741,9 +757,9 @@ export default function CreateReportScreen() {
             <View style={styles.infoTextContainer}>
               <Text style={styles.infoTitle}>Lưu ý:</Text>
               <Text style={styles.infoText}>
-                • Phân loại rác đúng loại để nhận thêm điểm{"\n"}• Rửa sạch và
+                • Phân loại rác đúng loại {"\n"}• Rửa sạch và
                 để khô trước khi đóng gói{"\n"}• Chụp ảnh rõ ràng giúp shipper
-                dễ xác nhận{"\n"}• Shipper sẽ đến trong 24-48 giờ
+                dễ xác nhận
               </Text>
             </View>
           </View>

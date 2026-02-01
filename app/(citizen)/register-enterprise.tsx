@@ -83,15 +83,11 @@ export default function RegisterEnterprisePlansScreen() {
         wasteTypes: wasteTypes.length > 0
           ? wasteTypes.map(type => ({ wasteType: type }))
           : [{ wasteType: "ORGANIC" }, { wasteType: "RECYCLABLE" }],
-        workingHour: {
-          startTime: params.startTime,
-          endTime: params.endTime
-        },
         subscriptionPlanConfigId: selectedPlanId
       };
 
       const response = await businessService.registerBusiness(registrationData);
-
+      // console.log("Registration response:", response);
       if (response.success && response.data) {
         const { enterprise, payment, qrCode } = response.data;
         const bankInfo = qrCode?.bankInfo;

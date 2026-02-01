@@ -1,7 +1,6 @@
 import { Button, Header, Input } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
-import { District, locationService, Province, Ward } from "@/services/location.service";
 import { UserRole } from "@/types";
 import {
   validateEmail,
@@ -10,7 +9,7 @@ import {
   validateRequired,
 } from "@/utils/validators";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -29,151 +28,15 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [selectedRole] = useState<UserRole>("citizen");
 
-  // Location dynamic data
-  const [provinces, setProvinces] = useState<Province[]>([]);
-  const [districts, setDistricts] = useState<District[]>([]);
-  const [wards, setWards] = useState<Ward[]>([]);
 
-  // Selection
-  const [provinceId, setProvinceId] = useState("");
-  const [districtId, setDistrictId] = useState("");
-  const [wardId, setWardId] = useState("");
-  const [address, setAddress] = useState("");
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
 
-  // Map location data
-  const [mapLocation, setMapLocation] = useState<{
-    latitude: number;
-    longitude: number;
-    address: string;
-    rawAddress?: any;
-  } | null>(null);
 
-  // Helper to normalize and compare Vietnamese location names
-  const normalizeLocationName = (name: string): string => {
-    if (!name) return "";
-    return name
-      .toLowerCase()
-      .replace(/^(tỉnh|thành phố|thành phồ|quận|huyện|thị xã|phường|xã|thị trấn|p\.|q\.)\s*/gi, "")
-      .replace(/\s+/g, " ")
-      .trim();
-  };
 
-  // Auto-fill address elements when map location is selected
-  const handleMapLocationSelect = async (loc: any) => {
-    setMapLocation(loc);
 
-    if (loc.rawAddress) {
-      const raw = loc.rawAddress;
-
-      // 1. Fill detailed address
-      const streetPart = [raw.name, raw.street].filter(Boolean).join(" ");
-      if (streetPart) setAddress(streetPart);
-
-      // 2. Try to match Province
-      const provinceName = raw.region || raw.city || "";
-      const normProvince = normalizeLocationName(provinceName);
-
-      if (normProvince && provinces.length > 0) {
-        const matchedProvince = provinces.find(p => {
-          const pNorm = normalizeLocationName(p.name);
-          return normProvince.includes(pNorm) || pNorm.includes(normProvince);
-        });
-
-        if (matchedProvince) {
-          setProvinceId(matchedProvince.code);
-
-          // 3. Load and match District
-          const distRes = await locationService.getDistricts(matchedProvince.code);
-          if (distRes.success && distRes.data) {
-            setDistricts(distRes.data);
-            const districtName = raw.district || raw.city_district || raw.suburb || "";
-            const normDistrict = normalizeLocationName(districtName);
-
-            const matchedDistrict = distRes.data.find(d => {
-              const dNorm = normalizeLocationName(d.name);
-              return normDistrict.includes(dNorm) || dNorm.includes(normDistrict);
-            });
-
-            if (matchedDistrict) {
-              setDistrictId(matchedDistrict.code);
-
-              // 4. Load and match Ward
-              const wardRes = await locationService.getWards(matchedDistrict.code);
-              if (wardRes.success && wardRes.data) {
-                setWards(wardRes.data);
-
-                // Smart search for Ward: check multiple raw fields from Nominatim
-                const wardCandidates = [
-                  raw.ward,
-                  raw.suburb,
-                  raw.subdistrict,
-                  raw.neighbourhood,
-                  raw.quarter,
-                  raw.hamlet,
-                  raw.village
-                ].filter(Boolean);
-
-                let matchedWard = null;
-                for (const candidate of wardCandidates) {
-                  const normCandidate = normalizeLocationName(candidate);
-                  matchedWard = wardRes.data.find(w => {
-                    const wNorm = normalizeLocationName(w.name);
-                    return normCandidate.includes(wNorm) || wNorm.includes(normCandidate);
-                  });
-                  if (matchedWard) break;
-                }
-
-                if (matchedWard) setWardId(matchedWard.code);
-              }
-            }
-          }
-        }
-      }
-    }
-  };
-
-  useEffect(() => {
-    loadProvinces();
-  }, []);
-
-  useEffect(() => {
-    if (provinceId) {
-      loadDistricts(provinceId);
-    } else {
-      setDistricts([]);
-      setDistrictId("");
-      setWards([]);
-      setWardId("");
-    }
-  }, [provinceId]);
-
-  useEffect(() => {
-    if (districtId) {
-      loadWards(districtId);
-    } else {
-      setWards([]);
-      setWardId("");
-    }
-  }, [districtId]);
-
-  const loadProvinces = async () => {
-    const res = await locationService.getProvinces();
-    if (res.success && res.data) setProvinces(res.data);
-  };
-
-  const loadDistricts = async (id: string) => {
-    const res = await locationService.getDistricts(id);
-    if (res.success && res.data) setDistricts(res.data);
-  };
-
-  const loadWards = async (id: string) => {
-    const res = await locationService.getWards(id);
-    if (res.success && res.data) setWards(res.data);
-  };
 
   const handleRegister = async () => {
     setError("");
@@ -213,23 +76,7 @@ export default function RegisterScreen() {
       password,
     };
 
-    const addressError = validateRequired(address, "Địa chỉ chi tiết");
-    if (addressError) {
-      setError(addressError);
-      return;
-    }
 
-    if (!mapLocation) {
-      setError("Vui lòng chọn vị trí trên bản đồ");
-      return;
-    }
-
-    userData.address = address;
-    userData.latitude = mapLocation.latitude;
-    userData.longitude = mapLocation.longitude;
-    userData.provinceCode = provinceId;
-    userData.districtCode = districtId;
-    userData.wardCode = wardId;
     userData.points = 0;
 
     setLoading(true);

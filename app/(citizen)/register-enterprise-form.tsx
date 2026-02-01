@@ -36,8 +36,6 @@ export default function RegisterEnterpriseFormScreen() {
   const [serviceDistrictIds, setServiceDistrictIds] = useState<string[]>([]);
   const [serviceWardIds, setServiceWardIds] = useState<string[]>([]);
 
-  const [startTime, setStartTime] = useState("08:00");
-  const [endTime, setEndTime] = useState("17:00");
 
   // Waste types selection
   const [selectedWasteTypes, setSelectedWasteTypes] = useState<WasteType[]>([]);
@@ -259,36 +257,6 @@ export default function RegisterEnterpriseFormScreen() {
       newErrors.mapLocation = "Vui lòng chọn vị trí trên bản đồ";
     }
 
-    // Validate working hours
-    const validateTime = (time: string): boolean => {
-      const timeRegex = /^([0-1]?[0-9]|2[0-4]):([0-5][0-9])$/;
-      if (!timeRegex.test(time)) return false;
-
-      const [hours, minutes] = time.split(':').map(Number);
-      return hours >= 0 && hours <= 24 && minutes >= 0 && minutes < 60;
-    };
-
-    const timeToMinutes = (time: string): number => {
-      const [hours, minutes] = time.split(':').map(Number);
-      return hours * 60 + minutes;
-    };
-
-    if (!startTime || !validateTime(startTime)) {
-      newErrors.startTime = "Giờ bắt đầu không hợp lệ (định dạng: HH:mm, 00:00-24:00)";
-    }
-
-    if (!endTime || !validateTime(endTime)) {
-      newErrors.endTime = "Giờ kết thúc không hợp lệ (định dạng: HH:mm, 00:00-24:00)";
-    }
-
-    if (startTime && endTime && validateTime(startTime) && validateTime(endTime)) {
-      const startMinutes = timeToMinutes(startTime);
-      const endMinutes = timeToMinutes(endTime);
-
-      if (endMinutes <= startMinutes) {
-        newErrors.endTime = "Giờ kết thúc phải sau giờ bắt đầu";
-      }
-    }
 
     // Validate service areas - require at least one selection
     if (serviceProvinceIds.length === 0) {
@@ -380,8 +348,6 @@ export default function RegisterEnterpriseFormScreen() {
         capacityKg: capacity,
         serviceAreas: JSON.stringify(formattedServiceAreas),
         wasteTypes: JSON.stringify(selectedWasteTypes),
-        startTime,
-        endTime,
       }
     } as any);
   };
@@ -494,28 +460,6 @@ export default function RegisterEnterpriseFormScreen() {
             error={errors.wasteTypes}
           />
 
-          {/* 
-          <Text style={styles.sectionTitle}>Giờ làm việc</Text>
-          <View style={styles.row}>
-            <View style={{ flex: 1, marginRight: 10 }}>
-              <Input
-                label="Bắt đầu"
-                value={startTime}
-                onChangeText={setStartTime}
-                placeholder="08:00"
-                error={errors.startTime}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Input
-                label="Kết thúc"
-                value={endTime}
-                onChangeText={setEndTime}
-                placeholder="17:00"
-                error={errors.endTime}
-              />
-            </View>
-          </View> */}
 
           <Button
             title="Tiếp tục chọn gói"

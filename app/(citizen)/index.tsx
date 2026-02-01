@@ -1,4 +1,4 @@
-import { Card, EmptyState } from "@/components/common";
+import { EmptyState } from "@/components/common";
 import { WasteReportCard } from "@/components/reports";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
@@ -287,21 +287,6 @@ export default function CitizenHomeScreen() {
             }}
           />
         )}
-      </View>
-
-      {/* Tips */}
-      <View style={styles.section}>
-        <Card variant="outlined" style={styles.tipCard}>
-          <View style={styles.tipContent}>
-            <Ionicons name="bulb" size={24} color={AppColors.warning} />
-            <View style={styles.tipTextContainer}>
-              <Text style={styles.tipTitle}>Mẹo thu gom rác</Text>
-              <Text style={styles.tipText}>
-                Phân loại rác trước khi báo cáo để nhận thêm điểm thưởng!
-              </Text>
-            </View>
-          </View>
-        </Card>
       </View>
     </ScrollView>
   );

@@ -126,15 +126,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (userData: Partial<User> & { password?: string }): Promise<boolean> => {
     try {
-      const response = await authService.signup({
+      const signupData: any = {
         email: userData.email || "",
         password: userData.password || "",
         fullName: userData.name || "",
         phone: userData.phone || "",
-        address: (userData as any).address || "",
-        latitude: (userData as any).latitude,
-        longitude: (userData as any).longitude,
-      });
+      };
+
+      if ((userData as any).address) signupData.address = (userData as any).address;
+      if ((userData as any).latitude) signupData.latitude = (userData as any).latitude;
+      if ((userData as any).longitude) signupData.longitude = (userData as any).longitude;
+
+      const response = await authService.signup(signupData);
 
       if (response.success) {
         // Registration successful. According to user requirement, 

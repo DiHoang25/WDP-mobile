@@ -62,3 +62,66 @@ export const getWasteTypeLabel = (type: string): string => {
   };
   return typeMap[s] || type;
 };
+
+/**
+ * Chuyển đổi từ mã tỉnh/quận/phường sang tên địa chỉ chi tiết
+ * @param provinceCode - Mã tỉnh/thành phố
+ * @param districtCode - Mã quận/huyện
+ * @param wardCode - Mã phường/xã
+ * @returns Object chứa tên của tỉnh, quận, phường và địa chỉ đầy đủ
+ */
+export const getLocationNamesFromCodes = async (
+  provinceCode?: string,
+  districtCode?: string,
+  wardCode?: string
+): Promise<{
+  province: string;
+  district: string;
+  ward: string;
+  fullAddress: string;
+}> => {
+  const result = {
+    province: "",
+    district: "",
+    ward: "",
+    fullAddress: "",
+  };
+
+  try {
+    // Fetch province name
+    if (provinceCode) {
+      const pRes = await fetch(`https://provinces.open-api.vn/api/p/${provinceCode}`);
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        result.province = pData.name || "";
+      }
+    }
+
+    // Fetch district name
+    if (districtCode) {
+      const dRes = await fetch(`https://provinces.open-api.vn/api/d/${districtCode}`);
+      if (dRes.ok) {
+        const dData = await dRes.json();
+        result.district = dData.name || "";
+      }
+    }
+
+    // Fetch ward name
+    if (wardCode) {
+      const wRes = await fetch(`https://provinces.open-api.vn/api/w/${wardCode}`);
+      if (wRes.ok) {
+        const wData = await wRes.json();
+        result.ward = wData.name || "";
+      }
+    }
+
+    // Build full address
+    result.fullAddress = [result.ward, result.district, result.province]
+      .filter(Boolean)
+      .join(", ");
+  } catch (error) {
+    console.error("Error fetching location names:", error);
+  }
+
+  return result;
+};

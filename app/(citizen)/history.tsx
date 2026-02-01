@@ -4,8 +4,8 @@ import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { wasteService } from "@/services/waste.service";
 import { WasteReport } from "@/types";
-import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -24,9 +24,12 @@ export default function HistoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<"all" | "pending" | "completed">("all");
 
-  useEffect(() => {
-    fetchHistory(true);
-  }, []);
+  // Re-fetch data every time the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchHistory(true);
+    }, [])
+  );
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);

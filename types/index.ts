@@ -147,10 +147,6 @@ export interface BusinessWasteType {
   weightKg?: number; // Added optional for business context if needed
 }
 
-export interface WorkingHour {
-  startTime: string;
-  endTime: string;
-}
 
 export interface BusinessRegistrationRequest {
   name: string;
@@ -160,7 +156,6 @@ export interface BusinessRegistrationRequest {
   capacityKg: number;
   serviceAreas: ServiceArea[];
   wasteTypes: { wasteType: string }[];
-  workingHour: WorkingHour;
   subscriptionPlanConfigId: number;
 }
 

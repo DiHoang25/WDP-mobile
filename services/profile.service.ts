@@ -24,7 +24,7 @@ export const profileService = {
 
     /**
      * Update user profile
-     * POST /api/v1/profile
+     * PATCH /api/v1/profile
      * Consumes: multipart/form-data
      */
     async updateProfile(data: UpdateProfileRequest): Promise<ApiResponse<User>> {
@@ -43,15 +43,15 @@ export const profileService = {
             formData.append('avatar', fileData);
         }
 
-        // Use postFormData to handle multipart/form-data correctly
-        return apiClient.postFormData<User>('/profile', formData);
+        // Use patchFormData to handle multipart/form-data with PATCH
+        return apiClient.patchFormData<User>('/profile', formData);
     },
 
     /**
      * Change password
-     * POST /api/v1/profile/change-password
+     * PUT /api/v1/profile/change-password
      */
     async changePassword(data: ChangePasswordRequest): Promise<ApiResponse<void>> {
-        return apiClient.post<void>('/profile/change-password', data);
+        return apiClient.put<void>('/profile/change-password', data);
     }
 };

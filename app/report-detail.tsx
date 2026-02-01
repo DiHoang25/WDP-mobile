@@ -314,29 +314,41 @@ export default function ReportDetailScreen() {
                             <Text style={styles.sectionTitle}>Thông tin rác</Text>
 
                             <View style={styles.wasteList}>
-                                {normalizedItems.length > 0 ? (
-                                    normalizedItems.map((item, index) => (
+                                {(() => {
+                                    // Group items by waste type and sum weights
+                                    const grouped = normalizedItems.length > 0
+                                        ? normalizedItems.reduce((acc: Array<{ wasteType: string; weightKg: number }>, item: any) => {
+                                            const wasteType = item.wasteType || item.WasteType || item.waste_type;
+                                            const weightKg = Number(item.weightKg || item.WeightKg || item.weight_kg) || 0;
+
+                                            const existing = acc.find((i: { wasteType: string; weightKg: number }) => i.wasteType === wasteType);
+                                            if (existing) {
+                                                existing.weightKg += weightKg;
+                                            } else {
+                                                acc.push({ wasteType, weightKg });
+                                            }
+                                            return acc;
+                                        }, [] as Array<{ wasteType: string; weightKg: number }>)
+                                        : [{
+                                            wasteType: report.wasteType || (report as any).WasteType || (report as any).waste_type,
+                                            weightKg: Number((report.weightKg || (report as any).WeightKg || (report as any).weight_kg) || 0)
+                                        }];
+
+                                    return grouped.map((item: { wasteType: string; weightKg: number }, index: number) => (
                                         <View key={index} style={styles.wasteItem}>
                                             <Text style={styles.wasteType}>
-                                                {getWasteTypeLabel(item.wasteType || item.WasteType || item.waste_type)}
+                                                {getWasteTypeLabel(item.wasteType)}
                                             </Text>
-                                            <Text style={styles.wasteWeight}>{item.weightKg || item.WeightKg || item.weight_kg} kg</Text>
+                                            <Text style={styles.wasteWeight}>{item.weightKg.toFixed(1)} kg</Text>
                                         </View>
-                                    ))
-                                ) : (
-                                    <View style={styles.wasteItem}>
-                                        <Text style={styles.wasteType}>
-                                            {getWasteTypeLabel(report.wasteType || (report as any).WasteType || (report as any).waste_type)}
-                                        </Text>
-                                        <Text style={styles.wasteWeight}>{(report.weightKg || (report as any).WeightKg || (report as any).weight_kg) || 0} kg</Text>
-                                    </View>
-                                )}
+                                    ));
+                                })()}
 
                                 <View style={styles.divider} />
 
                                 <View style={styles.totalRow}>
                                     <Text style={styles.totalLabel}>Tổng khối lượng</Text>
-                                    <Text style={styles.totalValue}>{totalWeight} kg</Text>
+                                    <Text style={styles.totalValue}>{totalWeight.toFixed(1)} kg</Text>
                                 </View>
 
                                 {points !== undefined && (
