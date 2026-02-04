@@ -309,7 +309,6 @@ const styles = StyleSheet.create({
   retryButton: { minWidth: 150 },
 
   heroBanner: {
-    backgroundColor: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
     backgroundColor: AppColors.primary + "12",
     borderRadius: 16,
     padding: 24,
