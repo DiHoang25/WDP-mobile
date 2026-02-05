@@ -8,7 +8,7 @@ export default function ActiveTaskScreen() {
   const activeTask = {
     id: "report2",
     type: "Giấy",
-    weight: 3.2,
+    weightKg: 3.2,
     address: "123 Lê Lợi, Quận 1",
     customer: "Nguyễn Văn A",
     phone: "0901234567",
@@ -58,7 +58,7 @@ export default function ActiveTaskScreen() {
 
           <View style={styles.taskSection}>
             <Text style={styles.taskLabel}>Khối lượng ước tính</Text>
-            <Text style={styles.taskValue}>{activeTask.weight} kg</Text>
+            <Text style={styles.taskValue}>{activeTask.weightKg} kg</Text>
           </View>
 
           <View style={styles.taskSection}>

@@ -36,7 +36,10 @@ export default function PaymentScreen() {
         let interval: any;
 
         if (status === "PENDING") {
-            interval = setInterval(checkPaymentStatus, 3000);
+            // Check immediately on mount/status change
+            checkPaymentStatus();
+            // Then poll every 2 seconds for faster response
+            interval = setInterval(checkPaymentStatus, 2000);
         }
 
         return () => {
@@ -46,9 +49,13 @@ export default function PaymentScreen() {
 
     const checkPaymentStatus = async () => {
         try {
+            console.log(`[Payment] Checking status for ${referenceCode}...`);
             const response = await businessService.getPayment(referenceCode);
+            console.log("[Payment] Response:", response);
             if (response.success && response.data) {
-                const currentStatus = response.data.status;
+                const currentStatus = response.data.status?.toUpperCase();
+                console.log(`[Payment] Status: ${currentStatus}`);
+
                 if (currentStatus === "PAID") {
                     setStatus("PAID");
                 } else if (currentStatus === "CANCELLED") {

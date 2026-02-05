@@ -1,6 +1,7 @@
-import { Button, Header, Input, MapLocationPicker, MultiSelectPicker } from "@/components/common";
+import { Button, Header, Input, MapLocationPicker, MultiSelectPicker, WasteTypeMultiSelector } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { District, locationService, Province, Ward } from "@/services/location.service";
+import { WasteType } from '@/types';
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -35,8 +36,9 @@ export default function RegisterEnterpriseFormScreen() {
   const [serviceDistrictIds, setServiceDistrictIds] = useState<string[]>([]);
   const [serviceWardIds, setServiceWardIds] = useState<string[]>([]);
 
-  const [startTime, setStartTime] = useState("08:00");
-  const [endTime, setEndTime] = useState("17:00");
+
+  // Waste types selection
+  const [selectedWasteTypes, setSelectedWasteTypes] = useState<WasteType[]>([]);
 
   const [errors, setErrors] = useState<any>({});
 
@@ -255,40 +257,15 @@ export default function RegisterEnterpriseFormScreen() {
       newErrors.mapLocation = "Vui lòng chọn vị trí trên bản đồ";
     }
 
-    // Validate working hours
-    const validateTime = (time: string): boolean => {
-      const timeRegex = /^([0-1]?[0-9]|2[0-4]):([0-5][0-9])$/;
-      if (!timeRegex.test(time)) return false;
-
-      const [hours, minutes] = time.split(':').map(Number);
-      return hours >= 0 && hours <= 24 && minutes >= 0 && minutes < 60;
-    };
-
-    const timeToMinutes = (time: string): number => {
-      const [hours, minutes] = time.split(':').map(Number);
-      return hours * 60 + minutes;
-    };
-
-    if (!startTime || !validateTime(startTime)) {
-      newErrors.startTime = "Giờ bắt đầu không hợp lệ (định dạng: HH:mm, 00:00-24:00)";
-    }
-
-    if (!endTime || !validateTime(endTime)) {
-      newErrors.endTime = "Giờ kết thúc không hợp lệ (định dạng: HH:mm, 00:00-24:00)";
-    }
-
-    if (startTime && endTime && validateTime(startTime) && validateTime(endTime)) {
-      const startMinutes = timeToMinutes(startTime);
-      const endMinutes = timeToMinutes(endTime);
-
-      if (endMinutes <= startMinutes) {
-        newErrors.endTime = "Giờ kết thúc phải sau giờ bắt đầu";
-      }
-    }
 
     // Validate service areas - require at least one selection
     if (serviceProvinceIds.length === 0) {
       newErrors.serviceArea = "Vui lòng chọn ít nhất một khu vực phục vụ";
+    }
+
+    // Validate waste types
+    if (selectedWasteTypes.length === 0) {
+      newErrors.wasteTypes = "Vui lòng chọn ít nhất một loại rác";
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -309,36 +286,52 @@ export default function RegisterEnterpriseFormScreen() {
       selectedProvince?.name
     ].filter(Boolean).join(', ');
 
-    // Build structured service areas
+    // Build structured service areas with hierarchical logic
     const formattedServiceAreas: any[] = [];
 
-    // Priority: Wards > Districts > Provinces
-    if (serviceWardIds.length > 0) {
-      serviceWardIds.forEach(wid => {
-        const ward = wards.find(w => w.code === wid);
-        if (ward) {
-          formattedServiceAreas.push({
-            provinceCode: ward.provinceCode,
-            districtCode: ward.districtCode,
-            wardCode: ward.code
+    // Logic: For each selected district, check if it has specific wards selected
+    // - If YES: return entries for each ward (provinceCode, districtCode, wardCode)
+    // - If NO: return one entry for entire district (provinceCode, districtCode, wardCode: null)
+    // - If only provinces selected (no districts): return province-level entries
+
+    if (serviceDistrictIds.length > 0) {
+      // Process each selected district
+      serviceDistrictIds.forEach(districtId => {
+        const district = districts.find(d => d.code === districtId);
+        if (!district) return;
+
+        // Check if this district has any selected wards
+        const wardsInThisDistrict = serviceWardIds.filter(wardId => {
+          const ward = wards.find(w => w.code === wardId);
+          return ward && ward.districtCode === districtId;
+        });
+
+        if (wardsInThisDistrict.length > 0) {
+          // District has specific wards selected -> add each ward
+          wardsInThisDistrict.forEach(wardId => {
+            const ward = wards.find(w => w.code === wardId);
+            if (ward) {
+              formattedServiceAreas.push({
+                provinceCode: district.provinceCode || ward.provinceCode,
+                districtCode: districtId,
+                wardCode: wardId
+              });
+            }
           });
-        }
-      });
-    } else if (serviceDistrictIds.length > 0) {
-      serviceDistrictIds.forEach(did => {
-        const district = districts.find(d => d.code === did);
-        if (district) {
+        } else {
+          // No wards selected for this district -> entire district
           formattedServiceAreas.push({
             provinceCode: district.provinceCode,
-            districtCode: district.code,
+            districtCode: districtId,
             wardCode: null
           });
         }
       });
     } else if (serviceProvinceIds.length > 0) {
-      serviceProvinceIds.forEach(pid => {
+      // Only provinces selected, no districts
+      serviceProvinceIds.forEach(provinceId => {
         formattedServiceAreas.push({
-          provinceCode: pid,
+          provinceCode: provinceId,
           districtCode: null,
           wardCode: null
         });
@@ -354,8 +347,7 @@ export default function RegisterEnterpriseFormScreen() {
         longitude: mapLocation!.longitude.toString(),
         capacityKg: capacity,
         serviceAreas: JSON.stringify(formattedServiceAreas),
-        startTime,
-        endTime,
+        wasteTypes: JSON.stringify(selectedWasteTypes),
       }
     } as any);
   };
@@ -456,28 +448,18 @@ export default function RegisterEnterpriseFormScreen() {
             onValuesChange={setServiceWardIds}
             disabled={serviceDistrictIds.length === 0}
           />
-          {/* 
-          <Text style={styles.sectionTitle}>Giờ làm việc</Text>
-          <View style={styles.row}>
-            <View style={{ flex: 1, marginRight: 10 }}>
-              <Input
-                label="Bắt đầu"
-                value={startTime}
-                onChangeText={setStartTime}
-                placeholder="08:00"
-                error={errors.startTime}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Input
-                label="Kết thúc"
-                value={endTime}
-                onChangeText={setEndTime}
-                placeholder="17:00"
-                error={errors.endTime}
-              />
-            </View>
-          </View> */}
+
+          {errors.serviceArea && (
+            <Text style={styles.errorText}>{errors.serviceArea}</Text>
+          )}
+
+          <WasteTypeMultiSelector
+            selectedTypes={selectedWasteTypes}
+            onTypesChange={setSelectedWasteTypes}
+            label="Loại rác thu gom"
+            error={errors.wasteTypes}
+          />
+
 
           <Button
             title="Tiếp tục chọn gói"
@@ -546,6 +528,11 @@ const styles = StyleSheet.create({
     color: AppColors.error,
     marginTop: 6,
     fontStyle: "italic",
+  },
+  errorText: {
+    fontSize: 12,
+    color: AppColors.error,
+    marginTop: 4,
   },
   submitButton: {
     marginTop: 30,

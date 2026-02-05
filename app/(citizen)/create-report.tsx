@@ -1,11 +1,11 @@
-import { Button, Card, Header, Input, MapLocationPicker } from "@/components/common";
+import { Button, Card, Header, Input, MapLocationPicker, Picker } from "@/components/common";
 import { WasteTypeSelector } from "@/components/waste";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { LOCATION_DATA, WASTE_TYPES } from "@/data/mockData";
 import { District, locationService, Province, Ward } from "@/services/location.service";
 import { wasteService } from "@/services/waste.service";
-import { BackendWasteItem } from "@/types";
+import { BackendWasteItem, WasteType } from "@/types";
 import { getWasteTypeLabel } from "@/utils/helpers";
 import { validateRequired } from "@/utils/validators";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,6 +14,7 @@ import * as ExpoLocation from "expo-location";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   ScrollView,
@@ -27,7 +28,7 @@ import {
 export default function CreateReportScreen() {
   const { user } = useAuth();
   const [wasteItems, setWasteItems] = useState<BackendWasteItem[]>([]);
-  const [currentType, setCurrentType] = useState("");
+  const [currentType, setCurrentType] = useState<WasteType>("ORGANIC");
   const [currentWeight, setCurrentWeight] = useState("");
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<string[]>([]);
@@ -39,6 +40,7 @@ export default function CreateReportScreen() {
     district?: string;
     ward?: string;
     street?: string;
+    location?: string;
   }>({});
 
   const [loading, setLoading] = useState(false);
@@ -117,9 +119,11 @@ export default function CreateReportScreen() {
       setMapLocation({ ...coords, address: "Đang xác định địa chỉ..." });
 
       // Run reverse geocoding
+      console.log('📍 Getting address for coords:', coords);
       const results = await ExpoLocation.reverseGeocodeAsync(coords);
       if (results && results.length > 0) {
         const res = results[0];
+        console.log('🌍 Reverse geocode result:', JSON.stringify(res, null, 2));
         const formattedAddress = [res.name, res.street, res.district, res.city].filter(Boolean).join(", ");
 
         const normalized = {
@@ -131,15 +135,18 @@ export default function CreateReportScreen() {
           name: res.name || ""
         };
 
+        console.log('📞 Calling handleMapLocationSelect with coords:', coords);
         handleMapLocationSelect({
           ...coords,
           address: formattedAddress,
           rawAddress: normalized
         });
 
-        // Explicitly set street address for Input field inside create-report state
-        const inputAddr = [res.name, res.street].filter(Boolean).join(", ");
-        if (inputAddr) setStreetAddress(inputAddr);
+        // Use the full formatted address for the street address input
+        if (formattedAddress) {
+          console.log('✏️ Setting streetAddress to:', formattedAddress);
+          setStreetAddress(formattedAddress);
+        }
       } else {
         // If reverse geocode fails, still keep the pin but show coordinates as address
         setMapLocation({
@@ -159,9 +166,30 @@ export default function CreateReportScreen() {
     if (!name) return "";
     return name
       .toLowerCase()
-      .replace(/^(tỉnh|thành phố|thành phồ|quận|huyện|thị xã|phường|xã|thị trấn|p\.|q\.)\s*/gi, "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d")
+      .replace(/^(tinh|thanh pho|thanh pho|quan|huyen|thi xa|phuong|xa|thi tran|p\.|q\.|tp\.)\s*/gi, "")
       .replace(/\s+/g, " ")
       .trim();
+  };
+
+  const handleProvinceChange = async (code: string) => {
+    setProvinceCode(code);
+    setDistrictCode("");
+    setWardCode("");
+    setDistricts([]);
+    setWards([]);
+    const res = await locationService.getDistricts(code);
+    if (res.success && res.data) setDistricts(res.data);
+  };
+
+  const handleDistrictChange = async (code: string) => {
+    setDistrictCode(code);
+    setWardCode("");
+    setWards([]);
+    const res = await locationService.getWards(code);
+    if (res.success && res.data) setWards(res.data);
   };
 
   const handleMapLocationSelect = async (loc: any) => {
@@ -173,24 +201,54 @@ export default function CreateReportScreen() {
       const raw = loc.rawAddress;
 
       // Update Detailed Address input immediately
-      // Combine name (e.g. building name) and street for a better detailed address
-      const mainAddress = [raw.name, raw.street].filter(Boolean).join(", ");
-      if (mainAddress) {
-        setStreetAddress(mainAddress);
-      } else if (loc.address && loc.address !== "Đang xác định...") {
-        // Fallback to the formatted address if street fields are missing
-        setStreetAddress(loc.address.split(',')[0].trim());
+      console.log('🗺️ Full location object:', JSON.stringify(loc, null, 2));
+      console.log('📍 Raw address from map:', JSON.stringify(raw, null, 2));
+
+      // PRIORITY 1: Try to construct from raw data (Cleanest)
+      if (raw.name || raw.street) {
+        let detailedAddress = "";
+        if (raw.name) detailedAddress = raw.name;
+        if (raw.street && raw.street !== raw.name) {
+          detailedAddress = detailedAddress ? `${detailedAddress}, ${raw.street}` : raw.street;
+        }
+        if (detailedAddress) {
+          console.log('✅ Setting street address from raw parts:', detailedAddress);
+          setStreetAddress(detailedAddress);
+        }
+      }
+      // PRIORITY 2: Fallback to full formatted address if constructed fails
+      else if (loc.address && loc.address !== "Đang xác định..." && loc.address !== "Đang xác định địa chỉ...") {
+        console.log('✅ Setting street address from full address:', loc.address);
+        setStreetAddress(loc.address);
+      }
+      else {
+        console.log('⚠️ No address data available');
+      }
+
+      // Wait for provinces to load if they haven't yet
+      let provincesData = provinces;
+      if (provincesData.length === 0) {
+        console.log('Provinces not loaded yet, fetching...');
+        const res = await locationService.getProvinces();
+        if (res.success && res.data) {
+          setProvinces(res.data);
+          provincesData = res.data;
+        }
       }
 
       const provinceName = raw.region || raw.city || "";
       const normProvince = normalizeLocationName(provinceName);
-      if (normProvince && provinces.length > 0) {
-        const matchedProvince = provinces.find((p: any) => {
+
+      console.log('Attempting to match province:', { provinceName, normProvince, provincesCount: provincesData.length });
+
+      if (normProvince && provincesData.length > 0) {
+        const matchedProvince = provincesData.find((p: any) => {
           const pNorm = normalizeLocationName(p.name);
           return normProvince.includes(pNorm) || pNorm.includes(normProvince);
         });
 
         if (matchedProvince) {
+          console.log('Matched province:', matchedProvince.name);
           setProvinceCode(matchedProvince.code);
           const distRes = await locationService.getDistricts(matchedProvince.code);
           if (distRes.success && distRes.data) {
@@ -203,6 +261,7 @@ export default function CreateReportScreen() {
             });
 
             if (matchedDistrict) {
+              console.log('Matched district:', matchedDistrict.name);
               setDistrictCode(matchedDistrict.code);
               const wardRes = await locationService.getWards(matchedDistrict.code);
               if (wardRes.success && wardRes.data) {
@@ -213,10 +272,25 @@ export default function CreateReportScreen() {
                   const wNorm = normalizeLocationName(w.name);
                   return normWard.includes(wNorm) || wNorm.includes(normWard);
                 });
-                if (matchedWard) setWardCode(matchedWard.code);
+                if (matchedWard) {
+                  console.log('Matched ward:', matchedWard.name);
+                  setWardCode(matchedWard.code);
+                } else {
+                  console.log('No matching ward found for:', wardName);
+                  setWardCode(""); // Clear ward if no match found
+                }
               }
+            } else {
+              console.log('No matching district found for:', districtName);
+              setDistrictCode("");
+              setWardCode("");
             }
           }
+        } else {
+          console.log('No matching province found for:', provinceName);
+          setProvinceCode("");
+          setDistrictCode("");
+          setWardCode("");
         }
       }
     }
@@ -250,11 +324,11 @@ export default function CreateReportScreen() {
 
     const newItem: BackendWasteItem = {
       wasteType: currentType,
-      weight: parseFloat(currentWeight),
+      weightKg: parseFloat(currentWeight),
     };
 
     setWasteItems([...wasteItems, newItem]);
-    setCurrentType("");
+    setCurrentType("ORGANIC");
     setCurrentWeight("");
     setErrors({ ...errors, type: undefined, weight: undefined, items: undefined });
   };
@@ -276,6 +350,11 @@ export default function CreateReportScreen() {
 
     if (!streetAddress.trim()) {
       newErrors.street = "Vui lòng nhập địa chỉ cụ thể hoặc chọn vị trí trên bản đồ";
+    }
+
+    if (!provinceCode || !districtCode || !wardCode) {
+      newErrors.location = "Vui lòng chọn vị trí trên bản đồ chính xác để xác định Phường/Xã";
+      Alert.alert("Vị trí chưa rõ ràng", "Hệ thống cần xác định chính xác Phường/Xã để gửi báo cáo cho doanh nghiệp phù hợp. Vui lòng chọn lại vị trí trên bản đồ nhenn.");
     }
 
     setErrors({ ...errors, ...newErrors });
@@ -365,34 +444,48 @@ export default function CreateReportScreen() {
         wardCode: wardCode || "",
         description: description,
         wasteItems: wasteItems.map((item) => ({
-          wasteType: item.wasteType.toUpperCase(),
-          weight: item.weight,
+          wasteType: item.wasteType,
+          weightKg: item.weightKg,
         })),
         files: images,
       };
 
+      console.log('🚀 Sending Report Data:', JSON.stringify(reportData, null, 2));
       const response = await wasteService.createReport(reportData);
+      console.log('📥 Server Response:', JSON.stringify(response, null, 2));
 
       if (response.success) {
+        // Assuming response.data contains the created report object with an id
+        const newReportId = response.data?.id;
+
         Alert.alert(
           "Thành công!",
-          "Báo cáo đã được gửi (Status: Pending).",
+          "Báo cáo rác đã được tạo thành công.",
           [
             {
-              text: "Xem lịch sử",
-              onPress: () => router.replace("/(citizen)/history"),
+              text: "Xem chi tiết",
+              onPress: () => {
+                if (newReportId) {
+                  router.replace({
+                    pathname: "/report-detail",
+                    params: { id: newReportId }
+                  });
+                } else {
+                  router.replace("/(citizen)/history");
+                }
+              },
             },
             {
-              text: "Tạo thêm",
-              onPress: () => {
-                setWasteItems([]);
-                setDescription("");
-                setImages([]);
-                setErrors({});
-              },
+              text: "Về danh sách",
+              onPress: () => router.replace("/(citizen)/history"),
             },
           ]
         );
+
+        setWasteItems([]);
+        setDescription("");
+        setImages([]);
+        setErrors({});
       } else {
         Alert.alert("Lỗi", response.error || "Không thể gửi báo cáo.");
       }
@@ -404,10 +497,10 @@ export default function CreateReportScreen() {
     }
   };
 
-  const totalWeight = wasteItems.reduce((sum, item) => sum + item.weight, 0);
+  const totalWeight = wasteItems.reduce((sum, item) => sum + item.weightKg, 0);
   const estimatedPoints = wasteItems.reduce((sum, item) => {
     const typeInfo = WASTE_TYPES.find((t: any) => t.value === item.wasteType);
-    return sum + (item.weight * (typeInfo?.points || 10));
+    return sum + (item.weightKg * (typeInfo?.points || 10));
   }, 0);
 
   return (
@@ -415,35 +508,97 @@ export default function CreateReportScreen() {
       <Header
         title="Tạo báo cáo rác"
         subtitle="Có thể thêm nhiều loại rác vào một báo cáo"
-        showBack={false}
+        showBack={true}
       />
 
       <View style={styles.content}>
-        {/* Address Info */}
+        {/* Location Section with Enhanced UX */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Vị trí rác</Text>
+          <Text style={styles.sectionTitle}>Địa chỉ lấy rác</Text>
+
+          {loading && (
+            <View style={styles.loadingCard}>
+              <ActivityIndicator size="small" color={AppColors.primary} />
+              <Text style={styles.loadingText}>Đang lấy vị trí hiện tại...</Text>
+            </View>
+          )}
+
           <MapLocationPicker
             label="Chọn vị trí chính xác trên bản đồ"
             onLocationSelect={handleMapLocationSelect}
             initialLocation={mapLocation ? { latitude: mapLocation.latitude, longitude: mapLocation.longitude } : undefined}
           />
-          {mapLocation && (
-            <View style={styles.addressDisplayCard}>
-              <View style={styles.addressRow}>
-                <Ionicons name="location" size={20} color={AppColors.primary} />
-                <View style={styles.addressInfo}>
-                  <Text style={styles.addressLabel}>Khu vực đã xác định:</Text>
-                  <Text style={styles.fullAddressText}>
-                    {[
-                      wardOptions.find((w: any) => w.value === wardCode)?.label,
-                      districtOptions.find((d: any) => d.value === districtCode)?.label,
-                      provinceOptions.find((p: any) => p.value === provinceCode)?.label
-                    ].filter(Boolean).join(", ") || "Đang xác định khu vực..."}
-                  </Text>
+
+          {mapLocation && (() => {
+            const wardLabel = wardOptions.find((w: any) => w.value === wardCode)?.label;
+            const districtLabel = districtOptions.find((d: any) => d.value === districtCode)?.label;
+            const provinceLabel = provinceOptions.find((p: any) => p.value === provinceCode)?.label;
+
+            console.log('Display card - Codes:', { provinceCode, districtCode, wardCode });
+            console.log('Display card - Labels:', { provinceLabel, districtLabel, wardLabel });
+            console.log('Display card - Options counts:', {
+              provinces: provinceOptions.length,
+              districts: districtOptions.length,
+              wards: wardOptions.length
+            });
+
+            const locationText = [wardLabel, districtLabel, provinceLabel]
+              .filter(Boolean)
+              .join(", ") || "Đang xác định khu vực...";
+
+            return (
+              <View style={styles.addressDisplayCard}>
+                <View style={styles.addressRow}>
+                  <Ionicons name="location" size={20} color={AppColors.primary} />
+                  <View style={styles.addressInfo}>
+                    <Text style={styles.addressLabel}>Khu vực:</Text>
+                    <Text style={styles.fullAddressText}>
+                      {locationText}
+                    </Text>
+
+                    <View style={styles.manualSelection}>
+                      <Picker
+                        label="Tỉnh/Thành phố"
+                        placeholder="Chọn Tỉnh/Thành"
+                        options={provinceOptions}
+                        selectedValue={provinceCode}
+                        onValueChange={handleProvinceChange}
+                        error={errors.province}
+                      />
+                      <Picker
+                        label="Quận/Huyện"
+                        placeholder="Chọn Quận/Huyện"
+                        options={districtOptions}
+                        selectedValue={districtCode}
+                        onValueChange={handleDistrictChange}
+                        disabled={!provinceCode}
+                        error={errors.district}
+                      />
+                      <Picker
+                        label="Phường/Xã"
+                        placeholder="Chọn Phường/Xã"
+                        options={wardOptions}
+                        selectedValue={wardCode}
+                        onValueChange={setWardCode}
+                        disabled={!districtCode}
+                        error={errors.ward}
+                      />
+                    </View>
+
+                    {(wardCode && districtCode && provinceCode) && (
+                      <View style={styles.confirmedBadge}>
+                        <Ionicons name="checkmark-circle" size={14} color={AppColors.success} />
+                        <Text style={styles.confirmedText}>
+                          Vị trí đã được xác nhận đầy đủ
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
               </View>
-            </View>
-          )}
+            );
+          })()}
+
           <Text style={styles.sectionTitle}>Địa chỉ chi tiết</Text>
           <Card variant="elevated" style={styles.locationCard}>
             <Input
@@ -462,19 +617,35 @@ export default function CreateReportScreen() {
           <Text style={styles.sectionTitle}>Danh sách rác đã thêm</Text>
           {wasteItems.length > 0 ? (
             <View style={styles.itemsList}>
-              {wasteItems.map((item, index) => (
-                <View key={index} style={styles.itemRow}>
-                  <View style={styles.itemInfo}>
-                    <Text style={styles.itemName}>
-                      {getWasteTypeLabel(item.wasteType)}
-                    </Text>
-                    <Text style={styles.itemWeight}>{item.weight} kg</Text>
+              {(() => {
+                // Group waste items by type and sum weights
+                const grouped = wasteItems.reduce((acc, item) => {
+                  const existing = acc.find(i => i.wasteType === item.wasteType);
+                  if (existing) {
+                    existing.weightKg += item.weightKg;
+                  } else {
+                    acc.push({ ...item });
+                  }
+                  return acc;
+                }, [] as BackendWasteItem[]);
+
+                return grouped.map((item, index) => (
+                  <View key={index} style={styles.itemRow}>
+                    <View style={styles.itemInfo}>
+                      <Text style={styles.itemName}>
+                        {getWasteTypeLabel(item.wasteType)}
+                      </Text>
+                      <Text style={styles.itemWeight}>{item.weightKg.toFixed(1)} kg</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => {
+                      // Remove all items of this type
+                      setWasteItems(wasteItems.filter(i => i.wasteType !== item.wasteType));
+                    }}>
+                      <Ionicons name="trash-outline" size={20} color={AppColors.error} />
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity onPress={() => removeWasteItem(index)}>
-                    <Ionicons name="trash-outline" size={20} color={AppColors.error} />
-                  </TouchableOpacity>
-                </View>
-              ))}
+                ));
+              })()}
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Tổng cộng:</Text>
                 <Text style={styles.totalValue}>{totalWeight.toFixed(1)} kg</Text>
@@ -525,12 +696,12 @@ export default function CreateReportScreen() {
           {errors.weight && <Text style={styles.errorText}>{errors.weight}</Text>}
         </Card>
 
-        {estimatedPoints > 0 && (
+        {/* {estimatedPoints > 0 && (
           <View style={styles.pointsEstimate}>
             <Text style={styles.estimateLabel}>Điểm dự kiến:</Text>
             <Text style={styles.estimateValue}>+{Math.round(estimatedPoints)} điểm</Text>
           </View>
-        )}
+        )} */}
 
         {/* Description */}
         <View style={styles.section}>
@@ -586,9 +757,9 @@ export default function CreateReportScreen() {
             <View style={styles.infoTextContainer}>
               <Text style={styles.infoTitle}>Lưu ý:</Text>
               <Text style={styles.infoText}>
-                • Phân loại rác đúng loại để nhận thêm điểm{"\n"}• Rửa sạch và
+                • Phân loại rác đúng loại {"\n"}• Rửa sạch và
                 để khô trước khi đóng gói{"\n"}• Chụp ảnh rõ ràng giúp shipper
-                dễ xác nhận{"\n"}• Shipper sẽ đến trong 24-48 giờ
+                dễ xác nhận
               </Text>
             </View>
           </View>
@@ -880,5 +1051,36 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: AppColors.textSecondary,
     lineHeight: 20,
+  },
+  loadingCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: AppColors.primary + "10",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    gap: 10,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: AppColors.primary,
+    fontWeight: "600",
+  },
+  confirmedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    gap: 4,
+  },
+  confirmedText: {
+    fontSize: 12,
+    color: AppColors.success,
+    fontWeight: "600",
+  },
+  manualSelection: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: AppColors.primary + "20",
   },
 });

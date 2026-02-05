@@ -2,8 +2,8 @@ import { Button, Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback } from "react";
 import {
   Alert,
   Image,
@@ -15,9 +15,17 @@ import {
 } from "react-native";
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshProfile } = useAuth();
+
+  // Refresh profile data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile();
+    }, [])
+  );
 
   const handleLogout = () => {
+    console.log("Hello");
     Alert.alert("Đăng xuất", "Bạn có chắc muốn đăng xuất?", [
       { text: "Hủy", style: "cancel" },
       {
@@ -35,15 +43,15 @@ export default function ProfileScreen() {
     // Show "Đăng ký doanh nghiệp" only for citizens (roleId = 1)
     ...(user?.roleId === 1
       ? [
-          {
-            icon: "business",
-            title: "Đăng ký doanh nghiệp",
-            subtitle: "Trở thành đối tác xử lý rác",
-            onPress: () =>
-              router.push("/(citizen)/register-enterprise-form" as any),
-            highlight: true,
-          },
-        ]
+        {
+          icon: "business",
+          title: "Đăng ký doanh nghiệp",
+          subtitle: "Trở thành đối tác xử lý rác",
+          onPress: () =>
+            router.push("/(citizen)/register-enterprise-form" as any),
+          highlight: true,
+        },
+      ]
       : []),
     {
       icon: "document-text",
@@ -62,20 +70,8 @@ export default function ProfileScreen() {
     {
       icon: "person",
       title: "Thông tin cá nhân",
-      subtitle: "Cập nhật thông tin",
-      onPress: () => Alert.alert("Thông báo", "Tính năng đang phát triển"),
-    },
-    {
-      icon: "location",
-      title: "Địa chỉ",
-      subtitle: user?.address,
-      onPress: () => Alert.alert("Thông báo", "Tính năng đang phát triển"),
-    },
-    {
-      icon: "notifications",
-      title: "Thông báo",
-      subtitle: "Cài đặt thông báo",
-      onPress: () => Alert.alert("Thông báo", "Tính năng đang phát triển"),
+      subtitle: "Cập nhật hồ sơ & Mật khẩu",
+      onPress: () => router.push("/(citizen)/profile-detail"),
     },
     {
       icon: "language",
@@ -154,45 +150,20 @@ export default function ProfileScreen() {
       {/* Menu Items */}
       <View style={styles.menuContainer}>
         {menuItems.map((item, index) => (
-          <TouchableOpacity key={index} onPress={item.onPress}>
-            <Card
-              variant="default"
-              style={StyleSheet.flatten([
-                styles.menuItem,
-                item.highlight && styles.menuItemHighlight,
-              ])}
-            >
-              <View style={styles.menuContent}>
-                <View
-                  style={StyleSheet.flatten([
-                    styles.menuIconContainer,
-                    item.highlight && styles.menuIconHighlight,
-                  ])}
-                >
-                  <Ionicons
-                    name={item.icon as any}
-                    size={22}
-                    color={
-                      item.highlight
-                        ? AppColors.primary
-                        : AppColors.textSecondary
-                    }
-                  />
+          <TouchableOpacity key={index} onPress={item.onPress} activeOpacity={0.8}>
+            {/* "Đuỷnh" Style for ALL items */}
+            <View style={styles.highlightedMenuContainer}>
+              <View style={styles.highlightedMenuInner}>
+                <View style={styles.highlightedIconBox}>
+                  <Ionicons name={item.icon as any} size={24} color={AppColors.primary} />
                 </View>
                 <View style={styles.menuTextContainer}>
-                  <Text
-                    style={StyleSheet.flatten([
-                      styles.menuTitle,
-                      item.highlight && styles.menuTitleHighlight,
-                    ])}
-                  >
-                    {item.title}
-                  </Text>
+                  <Text style={styles.highlightedMenuTitle}>{item.title}</Text>
                   <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
                 </View>
-                <Text style={styles.menuArrow}>›</Text>
+                <Ionicons name="chevron-forward" size={20} color={AppColors.gray[400]} />
               </View>
-            </Card>
+            </View>
           </TouchableOpacity>
         ))}
       </View>
@@ -317,6 +288,43 @@ const styles = StyleSheet.create({
   menuItem: {
     marginBottom: 0,
   },
+  // --- Highlighted "Double Layer" Styles ---
+  highlightedMenuContainer: {
+    backgroundColor: "#EAEDED", // Lớp vỏ xám
+    padding: 6,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  highlightedMenuInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: AppColors.white, // Lớp lõi trắng
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    // Shadow nhẹ cho lớp lõi
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  highlightedIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: AppColors.primary + "15", // Nền icon xanh nhạt
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  highlightedMenuTitle: {
+    fontSize: 16,
+    fontWeight: "700", // Chữ đậm hơn
+    color: AppColors.primary, // Màu xanh chủ đạo
+    marginBottom: 2,
+  },
+  // -----------------------------------------
   menuItemHighlight: {
     borderWidth: 1,
     borderColor: AppColors.primary + "30",

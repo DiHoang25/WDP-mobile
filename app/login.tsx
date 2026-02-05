@@ -23,6 +23,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     setError("");
+    console.log("Hello");
 
     if (!email || !password) {
       setError("Vui lòng nhập đầy đủ thông tin");
@@ -31,11 +32,14 @@ export default function LoginScreen() {
 
     setLoading(true);
     const success = await login(email, password);
+    console.log(success)
     setLoading(false);
 
     if (success) {
+      console.log("redirect")
       router.replace("/");
     } else {
+
       setError("Email hoặc mật khẩu không đúng");
     }
   };

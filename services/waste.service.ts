@@ -2,7 +2,7 @@ import { ApiResponse, apiClient } from '@/utils/api';
 
 export interface WasteItem {
     wasteType: string;
-    weight: number;
+    weightKg: number;
 }
 
 export interface CreateReportRequest {
@@ -51,6 +51,7 @@ export const wasteService = {
             });
         }
 
+        console.log('📦 FormData wasteItems:', formData.get('wasteItems'));
         return apiClient.postFormData<any>('/citizen/reports', formData);
     },
 
@@ -60,5 +61,21 @@ export const wasteService = {
      */
     async getHistory(): Promise<ApiResponse<any>> {
         return apiClient.get<any>('/citizen/reports');
+    },
+
+    /**
+     * Get report by ID
+     * GET /api/v1/citizen/reports/:id
+     */
+    async getReportById(reportId: number): Promise<ApiResponse<any>> {
+        return apiClient.get<any>(`/citizen/reports/${reportId}`);
+    },
+
+    /**
+     * Cancel waste report
+     * DELETE /api/v1/citizen/reports/:id/cancel
+     */
+    async cancelReport(reportId: number, cancelReason: string): Promise<ApiResponse<any>> {
+        return apiClient.delete<any>(`/citizen/reports/${reportId}/cancel`, { cancelReason });
     }
 };

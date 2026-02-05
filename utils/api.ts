@@ -101,12 +101,22 @@ class ApiClient {
         });
     }
 
-    async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-        return this.request<T>(endpoint, { method: 'DELETE' });
+    async patch<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+        return this.request<T>(endpoint, {
+            method: 'PATCH',
+            body: body ? JSON.stringify(body) : undefined,
+        });
+    }
+
+    async delete<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+        return this.request<T>(endpoint, {
+            method: 'DELETE',
+            body: body ? JSON.stringify(body) : undefined,
+        });
     }
 
     // For multipart/form-data (file uploads)
-    async postFormData<T>(endpoint: string, formData: FormData): Promise<ApiResponse<T>> {
+    private async requestFormData<T>(endpoint: string, formData: FormData, method: 'POST' | 'PATCH' = 'POST'): Promise<ApiResponse<T>> {
         const url = `${this.baseUrl}${endpoint}`;
 
         const headers: Record<string, string> = {};
@@ -116,7 +126,7 @@ class ApiClient {
 
         try {
             const response = await fetch(url, {
-                method: 'POST',
+                method,
                 headers,
                 body: formData,
             });
@@ -124,6 +134,11 @@ class ApiClient {
             const data = await response.json();
 
             if (!response.ok) {
+                console.error(`❌ API ${method} FormData Error Details:`, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    data
+                });
                 return {
                     success: false,
                     error: formatErrorMessage(data.message || data.error || 'Request failed'),
@@ -140,6 +155,14 @@ class ApiClient {
                 error: error.message || 'Network error',
             };
         }
+    }
+
+    async postFormData<T>(endpoint: string, formData: FormData): Promise<ApiResponse<T>> {
+        return this.requestFormData<T>(endpoint, formData, 'POST');
+    }
+
+    async patchFormData<T>(endpoint: string, formData: FormData): Promise<ApiResponse<T>> {
+        return this.requestFormData<T>(endpoint, formData, 'PATCH');
     }
 }
 

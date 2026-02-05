@@ -43,10 +43,13 @@ export const authService = {
      * POST /api/v1/auth/login
      */
     async login(email: string, password: string): Promise<ApiResponse<LoginResponse>> {
-        return apiClient.post<LoginResponse>('/auth/login', {
+        console.log(email, password)
+        const a = apiClient.post<LoginResponse>('/auth/login', {
             email,
             password,
         });
+        console.log(a)
+        return a
     },
 
     /**

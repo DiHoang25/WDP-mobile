@@ -1,4 +1,5 @@
 import { authService } from "@/services/auth.service";
+import { profileService } from "@/services/profile.service";
 import { User } from "@/types";
 import { apiClient } from "@/utils/api";
 import { getRoleNameByRoleId } from "@/utils/roleHelper";
@@ -12,6 +13,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   register: (userData: Partial<User>) => Promise<boolean>;
+  updateUser: (user: User) => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -43,66 +46,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Centralized user data normalization
+  const normalizeUser = (serverData: any, existingUser?: User | null): User => {
+    const data = serverData?.data ?? serverData;
+    const userData = data?.user || (data?.accessToken ? data : data);
+
+    const roleId = userData.roleId || existingUser?.roleId || 1;
+    const roleName = getRoleNameByRoleId(roleId);
+
+    const normalized: User = {
+      ...existingUser,
+      ...userData,
+      id: (userData.id || existingUser?.id || "unknown").toString(),
+      roleId: roleId,
+      role: roleName as any,
+      name: userData.name || userData.fullName || existingUser?.name || userData.email || "",
+      email: userData.email || existingUser?.email || "",
+      phone: userData.phone || existingUser?.phone || "",
+      address: userData.address || (userData as any).location || existingUser?.address || "",
+    };
+
+    return normalized;
+  };
+
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       const response = await authService.login(email, password);
-
       if (response.success && response.data) {
-        // Backend currently returns:
-        // {
-        //   success,
-        //   statusCode,
-        //   message,
-        //   data: {
-        //     user: { ... },
-        //     backendToken: {
-        //       accessToken,
-        //       refreshToken,
-        //       expiresIn
-        //     }
-        //   }
-        // }
         const raw = response.data as any;
         const data = raw?.data ?? raw;
 
         // Backend tokens are in backendToken property
         const accessToken = data?.backendToken?.accessToken || data?.accessToken;
-        const userData = data?.user || (data?.accessToken ? data : null);
 
-        if (!userData || !accessToken) {
-          console.error("Missing user or accessToken in response", {
-            data,
-            rawResponse: response.data,
-          });
+        if (!accessToken) {
+          console.error("Missing accessToken in response", data);
           return false;
         }
 
-        // Normalize user data: ensure roleId and role are properly set
-        const roleId = userData.roleId || 1;
-        const roleName = getRoleNameByRoleId(roleId);
-
-        const normalizedUser: User = {
-          ...userData,
-          id: userData.id?.toString() || "unknown",
-          roleId: roleId,
-          role: roleName as any,
-          name: userData.name || userData.fullName || userData.email || "",
-          email: userData.email || "",
-          phone: userData.phone || "",
-        };
+        const normalizedUser = normalizeUser(response.data);
 
         // Save to state
         setUser(normalizedUser);
 
-        // Save to storage - only save what exists
+        // Save to storage
         const savePromises = [
           storage.saveUser(normalizedUser),
           storage.saveToken(accessToken),
         ];
 
         await Promise.all(savePromises);
-
-        // Set token for API client
         apiClient.setToken(accessToken);
 
         return true;
@@ -133,15 +126,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (userData: Partial<User> & { password?: string }): Promise<boolean> => {
     try {
-      const response = await authService.signup({
+      const signupData: any = {
         email: userData.email || "",
         password: userData.password || "",
         fullName: userData.name || "",
         phone: userData.phone || "",
-        address: (userData as any).address || "",
-        latitude: (userData as any).latitude,
-        longitude: (userData as any).longitude,
-      });
+      };
+
+      if ((userData as any).address) signupData.address = (userData as any).address;
+      if ((userData as any).latitude) signupData.latitude = (userData as any).latitude;
+      if ((userData as any).longitude) signupData.longitude = (userData as any).longitude;
+
+      const response = await authService.signup(signupData);
 
       if (response.success) {
         // Registration successful. According to user requirement, 
@@ -157,6 +153,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateUser = async (updatedUser: User) => {
+    const normalized = normalizeUser(updatedUser, user);
+    setUser(normalized);
+    await storage.saveUser(normalized);
+  };
+
+  const refreshProfile = async () => {
+    try {
+      const response = await profileService.getProfile();
+      if (response.success && response.data) {
+        const normalizedUser = normalizeUser(response.data, user);
+        setUser(normalizedUser);
+        await storage.saveUser(normalizedUser);
+      }
+    } catch (error) {
+      console.error("Refresh profile error:", error);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -166,6 +181,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         register,
+        updateUser,
+        refreshProfile,
       }}
     >
       {children}
