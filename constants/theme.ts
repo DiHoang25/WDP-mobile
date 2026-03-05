@@ -1,5 +1,5 @@
 /**
- * EcoCollect App - Theme Colors for Environmental Waste Collection
+ * ECONNET App - Theme Colors for Environmental Waste Collection
  * Primary: Green (environment), Blue (trust), White (clean), Gray (neutral)
  */
 

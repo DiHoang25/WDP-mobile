@@ -1,3 +1,5 @@
+import i18n from '@/utils/i18n';
+
 export const formatDate = (date: Date): string => {
   const day = date.getDate().toString().padStart(2, "0");
   const month = (date.getMonth() + 1).toString().padStart(2, "0");
@@ -39,28 +41,18 @@ export const getStatusColor = (
 
 export const getStatusText = (status: string): string => {
   const s = status?.toLowerCase() || "";
-  const statusTexts: Record<string, string> = {
-    pending: "Chờ xử lý",
-    accepted: "Đã tiếp nhận",
-    assigned: "Đã phân công",
-    on_the_way: "Đang đến",
-    waiting_customer: "Đang chờ khách",
-    collected: "Đã thu gom",
-    completed: "Hoàn thành",
-    cancelled: "Đã hủy",
-  };
-  return statusTexts[s] || status;
+  const key = `status.${s}`;
+  const translated = i18n.t(key);
+  // If i18n returns the key itself, fall back to original status
+  return translated !== key ? translated : status;
 };
 
 export const getWasteTypeLabel = (type: string): string => {
-  if (!type) return "Rác khác";
+  if (!type) return i18n.t('wasteType.other');
   const s = String(type).toUpperCase();
-  const typeMap: Record<string, string> = {
-    ORGANIC: "Rác hữu cơ",
-    RECYCLABLE: "Rác tái chế",
-    HAZARDOUS: "Rác nguy hại",
-  };
-  return typeMap[s] || type;
+  const key = `wasteType.${s}`;
+  const translated = i18n.t(key);
+  return translated !== key ? translated : type;
 };
 
 /**

@@ -1,6 +1,7 @@
 import { Button, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { profileService } from "@/services/profile.service";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -22,6 +23,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ProfileEditScreen() {
     const { user, updateUser } = useAuth();
+    const { t } = useLanguage();
     const [loading, setLoading] = useState(false);
 
     const [fullName, setFullName] = useState(user?.name || "");
@@ -63,18 +65,18 @@ export default function ProfileEditScreen() {
                 setAvatar(result.assets[0]);
             }
         } catch (error) {
-            Alert.alert("Lỗi", "Không thể mở thư viện ảnh");
+            Alert.alert(t("common.error"), t("profileEdit.imageError"));
         }
     };
 
     const handleSave = async () => {
         console.log("handleSave START");
         if (!fullName.trim()) {
-            Alert.alert("Lỗi", "Vui lòng nhập họ tên đầy đủ");
+            Alert.alert(t("common.error"), t("profileEdit.nameRequired"));
             return;
         }
         if (!phone.trim()) {
-            Alert.alert("Lỗi", "Vui lòng nhập số điện thoại");
+            Alert.alert(t("common.error"), t("profileEdit.phoneRequired"));
             return;
         }
 
@@ -92,11 +94,11 @@ export default function ProfileEditScreen() {
 
             if (response.error) {
                 console.log("UPDATE ERROR:", response.error);
-                Alert.alert("Lỗi", response.error || "Không thể cập nhật hồ sơ");
+                Alert.alert(t("common.error"), response.error || t("profileEdit.saveError"));
             } else if (response.data) {
                 await updateUser(response.data as any);
 
-                Alert.alert("Thành công", "Cập nhật hồ sơ thành công", [
+                Alert.alert(t("common.success"), t("profileEdit.saveSuccess"), [
                     {
                         text: "OK", onPress: () => {
                             router.replace("/(citizen)/profile-detail");
@@ -106,7 +108,7 @@ export default function ProfileEditScreen() {
             }
         } catch (error) {
             console.error("Update profile error:", error);
-            Alert.alert("Lỗi", "Đã xảy ra lỗi khi cập nhật hồ sơ");
+            Alert.alert(t("common.error"), t("profileEdit.updateError"));
         } finally {
             setLoading(false);
         }
@@ -115,7 +117,7 @@ export default function ProfileEditScreen() {
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
             <Header
-                title="Chỉnh sửa hồ sơ"
+                title={t("profileEdit.title")}
                 showBack={true}
                 onBackPress={() => {
                     router.replace("/(citizen)/profile-detail");
@@ -146,28 +148,28 @@ export default function ProfileEditScreen() {
                                 </View>
                             </View>
                         </TouchableOpacity>
-                        <Text style={styles.avatarHint}>Chạm để thay đổi ảnh đại diện</Text>
+                        <Text style={styles.avatarHint}>{t("profileEdit.changeAvatar")}</Text>
                     </View>
 
                     <View style={styles.form}>
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Họ và tên</Text>
+                            <Text style={styles.label}>{t("profileDetail.name")}</Text>
                             <TextInput
                                 style={styles.input}
                                 value={fullName}
                                 onChangeText={setFullName}
-                                placeholder="Nhập họ và tên của bạn"
+                                placeholder={t("profileEdit.namePlaceholder")}
                                 placeholderTextColor={AppColors.gray[400]}
                             />
                         </View>
 
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Số điện thoại</Text>
+                            <Text style={styles.label}>{t("profileDetail.phone")}</Text>
                             <TextInput
                                 style={styles.input}
                                 value={phone}
                                 onChangeText={setPhone}
-                                placeholder="Nhập số điện thoại"
+                                placeholder={t("profileEdit.phonePlaceholder")}
                                 keyboardType="phone-pad"
                                 placeholderTextColor={AppColors.gray[400]}
                             />
@@ -178,7 +180,7 @@ export default function ProfileEditScreen() {
 
                     <View style={styles.footer}>
                         <Button
-                            title="Lưu thay đổi"
+                            title={t("profileEdit.save")}
                             onPress={handleSave}
                             loading={loading}
                             disabled={loading}
@@ -189,7 +191,7 @@ export default function ProfileEditScreen() {
                             onPress={() => router.push("/(citizen)/change-password")}
                         >
                             <Ionicons name="key-outline" size={20} color={AppColors.primary} />
-                            <Text style={styles.changePasswordText}>Đổi mật khẩu</Text>
+                            <Text style={styles.changePasswordText}>{t("profileDetail.changePassword")}</Text>
                         </TouchableOpacity>
                     </View>
                     <View style={{ height: 40 }} />

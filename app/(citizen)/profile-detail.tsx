@@ -1,6 +1,7 @@
 import { Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { profileService } from "@/services/profile.service";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -18,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ProfileDetailScreen() {
     const { user, updateUser, refreshProfile } = useAuth();
+    const { t, language } = useLanguage();
     const [loading, setLoading] = useState(false);
 
     useFocusEffect(
@@ -42,7 +44,7 @@ export default function ProfileDetailScreen() {
     const formatDate = (dateString?: string) => {
         if (!dateString) return "---";
         const date = new Date(dateString);
-        return date.toLocaleDateString("vi-VN");
+        return date.toLocaleDateString(language === 'en' ? 'en-US' : 'vi-VN');
     };
 
     const InfoRow = ({ icon, label, value, color = AppColors.textPrimary }: any) => (
@@ -60,7 +62,7 @@ export default function ProfileDetailScreen() {
     return (
         <SafeAreaView style={styles.container} edges={["top"]}>
             <Header
-                title="Thông tin chi tiết"
+                title={t("profileDetail.title")}
                 showBack={true}
                 onBackPress={() => {
                     router.replace("/(citizen)/profile");
@@ -73,7 +75,7 @@ export default function ProfileDetailScreen() {
                 </View>
             ) : !user ? (
                 <View style={styles.loadingContainer}>
-                    <Text style={{ color: AppColors.textSecondary }}>Không tìm thấy thông tin người dùng</Text>
+                    <Text style={{ color: AppColors.textSecondary }}>{t("profileDetail.notFound")}</Text>
                 </View>
             ) : (
                 <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -98,45 +100,45 @@ export default function ProfileDetailScreen() {
                             onPress={() => router.push("/(citizen)/profile-edit")}
                         >
                             <Ionicons name="create-outline" size={18} color={AppColors.white} />
-                            <Text style={styles.editButtonText}>Chỉnh sửa</Text>
+                            <Text style={styles.editButtonText}>{t("profileDetail.edit")}</Text>
                         </TouchableOpacity>
                     </View>
 
                     {/* Detailed Info */}
                     <View style={styles.infoSection}>
-                        <Text style={styles.sectionTitle}>Thông tin cá nhân</Text>
+                        <Text style={styles.sectionTitle}>{t("profileDetail.profileInfo")}</Text>
                         <View style={styles.card}>
                             <InfoRow
                                 icon="person-outline"
-                                label="Họ và tên"
+                                label={t("profileDetail.name")}
                                 value={user?.name}
                                 color={AppColors.primary}
                             />
                             <InfoRow
                                 icon="call-outline"
-                                label="Số điện thoại"
+                                label={t("profileDetail.phone")}
                                 value={user?.phone}
                                 color={AppColors.secondary}
                             />
                         </View>
 
-                        <Text style={styles.sectionTitle}>Thông tin tài khoản</Text>
+                        <Text style={styles.sectionTitle}>{t("profileDetail.accountInfo")}</Text>
                         <View style={styles.card}>
                             <InfoRow
                                 icon="ribbon-outline"
-                                label="Cấp bậc"
-                                value={user?.role === "citizen" ? "Công dân" : user?.role || "Thành viên"}
+                                label={t("profileDetail.rank")}
+                                value={user?.role === "citizen" ? t("profileDetail.citizen") : user?.role || t("profileDetail.member")}
                                 color={AppColors.warning}
                             />
                             <InfoRow
                                 icon="shield-checkmark-outline"
-                                label="Trạng thái"
-                                value={user?.status === "ACTIVE" ? "Đang hoạt động" : user?.status}
+                                label={t("profileDetail.status")}
+                                value={user?.status === "ACTIVE" ? t("profileDetail.active") : user?.status}
                                 color={AppColors.success}
                             />
                             <InfoRow
                                 icon="calendar-outline"
-                                label="Ngày tham gia"
+                                label={t("profileDetail.joinDate")}
                                 value={formatDate((user as any)?.createdAt)}
                                 color={AppColors.gray[400]}
                             />

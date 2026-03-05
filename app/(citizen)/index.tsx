@@ -2,6 +2,7 @@ import { EmptyState } from "@/components/common";
 import { WasteReportCard } from "@/components/reports";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { notificationService } from "@/services/notification.service";
 import { wasteService } from "@/services/waste.service";
 import { WasteReport } from "@/types";
@@ -12,7 +13,9 @@ import React, { useCallback, useState } from "react";
 import {
   Dimensions,
   Image,
+  Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -23,6 +26,7 @@ const { width } = Dimensions.get("window");
 
 export default function CitizenHomeScreen() {
   const { user, refreshProfile } = useAuth();
+  const { t } = useLanguage();
   const [unreadCount, setUnreadCount] = useState(0);
   const [allReports, setAllReports] = useState<WasteReport[]>([]);
   const [loadingReports, setLoadingReports] = useState(true);
@@ -47,7 +51,6 @@ export default function CitizenHomeScreen() {
       setLoadingReports(true);
       const response = await wasteService.getHistory();
       if (response.success && response.data) {
-        // Robust extraction logic
         let reportsList: WasteReport[] = [];
         const rawData = response.data;
 
@@ -75,50 +78,47 @@ export default function CitizenHomeScreen() {
 
   const stats = [
     {
-      label: "Điểm tích lũy",
+      label: t("home.stats.points"),
       value: user?.points || 0,
-
       color: AppColors.warning,
     },
     {
-      label: "Báo cáo",
+      label: t("home.stats.reports"),
       value: allReports.filter((r) => r.status?.toLowerCase() !== "completed").length,
-
       color: AppColors.primary,
     },
     {
-      label: "Đã thu gom",
+      label: t("home.stats.collected"),
       value: allReports.filter((r) => r.status?.toLowerCase() === "completed").length,
-
       color: AppColors.success,
     },
   ];
 
   const quickActions = [
     {
-      title: "Lịch sử",
-      subtitle: "Xem các báo cáo",
+      title: t("home.quickActions.history"),
+      subtitle: t("home.quickActions.historySubtitle"),
       icon: "document-text",
       color: AppColors.secondary,
       route: "/(citizen)/history",
     },
     {
-      title: "Xếp hạng",
-      subtitle: "Top công dân",
+      title: t("home.quickActions.leaderboard"),
+      subtitle: t("home.quickActions.leaderboardSubtitle"),
       icon: "trophy",
       color: AppColors.warning,
       route: "/(citizen)/leaderboard",
     },
     {
-      title: "Đổi thưởng",
-      subtitle: "Phần thưởng",
+      title: t("home.quickActions.rewards"),
+      subtitle: t("home.quickActions.rewardsSubtitle"),
       icon: "gift",
       color: AppColors.error,
       route: "/(citizen)/rewards",
     },
     {
-      title: "Đăng ký DN",
-      subtitle: "Trở thành đối tác",
+      title: t("home.quickActions.registerEnterprise"),
+      subtitle: t("home.quickActions.registerEnterpriseSubtitle"),
       icon: "business",
       color: AppColors.primary,
       route: "/(citizen)/register-enterprise-form",
@@ -134,7 +134,7 @@ export default function CitizenHomeScreen() {
       >
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.greeting}>Xin chào!</Text>
+            <Text style={styles.greeting}>{t("home.greeting")}</Text>
             <Text style={styles.userName}>{user?.name}</Text>
             <Text style={styles.location}>{user?.district}</Text>
           </View>
@@ -153,7 +153,7 @@ export default function CitizenHomeScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.avatar}>
+            <TouchableOpacity style={styles.avatar} onPress={() => router.push("/(citizen)/profile")}>
               {user?.avatar ? (
                 <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
               ) : (
@@ -202,9 +202,9 @@ export default function CitizenHomeScreen() {
                 <Ionicons name="create" size={28} color={AppColors.white} />
               </View>
               <View style={styles.mainActionTextContainer}>
-                <Text style={styles.mainActionTitle}>Tạo báo cáo rác</Text>
+                <Text style={styles.mainActionTitle}>{t("home.createReport")}</Text>
                 <Text style={styles.mainActionSubtitle}>
-                  Báo cáo vị trí rác thải ngay
+                  {t("home.createReportSubtitle")}
                 </Text>
               </View>
               <View style={styles.mainActionArrow}>
@@ -221,7 +221,7 @@ export default function CitizenHomeScreen() {
 
       {/* Quick Actions */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Chức năng</Text>
+        <Text style={styles.sectionTitle}>{t("home.features")}</Text>
         <View style={styles.actionsGrid}>
           {quickActions.map((action, index) => (
             <TouchableOpacity
@@ -251,12 +251,12 @@ export default function CitizenHomeScreen() {
       {/* Recent Reports */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Báo cáo gần đây</Text>
+          <Text style={styles.sectionTitle}>{t("home.recentReports")}</Text>
           <TouchableOpacity
             onPress={() => router.push("/(citizen)/history")}
             style={styles.seeAllButton}
           >
-            <Text style={styles.seeAllText}>Xem tất cả</Text>
+            <Text style={styles.seeAllText}>{t("common.seeAll")}</Text>
             <Ionicons
               name="chevron-forward"
               size={16}
@@ -279,10 +279,10 @@ export default function CitizenHomeScreen() {
         ) : (
           <EmptyState
             icon="document-text"
-            title="Chưa có báo cáo nào"
-            message="Tạo báo cáo đầu tiên để bắt đầu thu gom rác"
+            title={t("home.noReports")}
+            message={t("home.noReportsMsg")}
             action={{
-              label: "Tạo báo cáo",
+              label: t("home.createReport"),
               onPress: () => router.push("/(citizen)/create-report"),
             }}
           />
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.background,
   },
   header: {
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 20 : 60,
     paddingBottom: 30,
     paddingHorizontal: 20,
   },
@@ -478,11 +478,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   actionCard: {
-    width: (width - 55) / 3,
+    width: (width - 52) / 2,
     backgroundColor: AppColors.white,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 15,
+    marginBottom: 12,
     alignItems: "center",
   },
   actionIconContainer: {

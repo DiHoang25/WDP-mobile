@@ -2,6 +2,7 @@ import { EmptyState, Header } from "@/components/common";
 import { WasteReportCard } from "@/components/reports";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { wasteService } from "@/services/waste.service";
 import { WasteReport } from "@/types";
 import { router, useFocusEffect } from "expo-router";
@@ -19,6 +20,7 @@ import {
 
 export default function HistoryScreen() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [reports, setReports] = useState<WasteReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -76,15 +78,15 @@ export default function HistoryScreen() {
   });
 
   const filters = [
-    { value: "all" as const, label: "Tất cả", count: reports.length },
+    { value: "all" as const, label: t("common.all"), count: reports.length },
     {
       value: "pending" as const,
-      label: "Đang xử lý",
+      label: t("history.pending"),
       count: reports.filter((r) => r.status?.toLowerCase() !== "completed").length,
     },
     {
       value: "completed" as const,
-      label: "Hoàn thành",
+      label: t("history.completed"),
       count: reports.filter((r) => r.status?.toLowerCase() === "completed").length,
     },
   ];
@@ -92,8 +94,8 @@ export default function HistoryScreen() {
   return (
     <View style={styles.container}>
       <Header
-        title="Lịch sử báo cáo"
-        subtitle={`Tổng cộng: ${reports.length} báo cáo`}
+        title={t("history.title")}
+        subtitle={t("history.totalReports", { count: reports.length })}
         showBack={true}
         onBackPress={() => router.push("/(citizen)")}
       />
@@ -134,7 +136,7 @@ export default function HistoryScreen() {
         {loading && !refreshing ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={AppColors.primary} />
-            <Text style={styles.loadingText}>Đang tải lịch sử...</Text>
+            <Text style={styles.loadingText}>{t("history.loading")}</Text>
           </View>
         ) : filteredReports.length > 0 ? (
           <FlatList
@@ -172,13 +174,13 @@ export default function HistoryScreen() {
           >
             <EmptyState
               icon="clipboard"
-              title="Không có báo cáo nào"
+              title={t("history.noReports")}
               message={
                 filter === "all"
-                  ? "Bạn chưa tạo báo cáo nào"
+                  ? t("history.noReportsAll")
                   : filter === "pending"
-                    ? "Không có báo cáo đang xử lý"
-                    : "Không có báo cáo hoàn thành"
+                    ? t("history.noReportsPending")
+                    : t("history.noReportsCompleted")
               }
             />
           </ScrollView>

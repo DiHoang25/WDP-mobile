@@ -5,13 +5,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import {
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function ShipperProfileScreen() {
@@ -128,9 +128,9 @@ export default function ShipperProfileScreen() {
 
       {/* App Info */}
       <View style={styles.appInfo}>
-        <Text style={styles.appInfoText}>EcoCollect v1.0.0</Text>
+        <Text style={styles.appInfoText}>ECONNET v1.0.0</Text>
         <Text style={styles.appInfoText}>
-          © 2026 EcoCollect. All rights reserved.
+          © 2026 ECONNET. All rights reserved.
         </Text>
       </View>
     </ScrollView>

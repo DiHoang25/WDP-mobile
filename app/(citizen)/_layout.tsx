@@ -1,9 +1,12 @@
 import { TabIcon } from "@/components/ui";
 import { AppColors } from "@/constants/theme";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Tabs } from "expo-router";
 import React from "react";
 
 export default function CitizenLayout() {
+  const { t } = useLanguage();
+
   return (
     <Tabs
       screenOptions={{
@@ -13,30 +16,27 @@ export default function CitizenLayout() {
           backgroundColor: AppColors.white,
           borderTopWidth: 1,
           borderTopColor: AppColors.gray[200],
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
         },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Trang chủ",
+          title: t("tabs.home"),
           tabBarIcon: ({ color }) => <TabIcon name="home" color={color} />,
         }}
       />
       <Tabs.Screen
         name="leaderboard"
         options={{
-          title: "Xếp hạng",
+          title: t("tabs.leaderboard"),
           tabBarIcon: ({ color }) => <TabIcon name="trophy" color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Cá nhân",
+          title: t("tabs.profile"),
           tabBarIcon: ({ color }) => <TabIcon name="person" color={color} />,
         }}
       />

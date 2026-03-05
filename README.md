@@ -1,4 +1,4 @@
-# EcoCollect - Ứng dụng Thu Gom Rác Thông Minh 🌱♻️
+# ECONNET - Ứng dụng Thu Gom Rác Thông Minh 🌱♻️
 
 Ứng dụng mobile React Native với Expo giúp bảo vệ môi trường thông qua dịch vụ thu gom rác thông minh.
 

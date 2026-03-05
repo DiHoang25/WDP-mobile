@@ -99,7 +99,7 @@ export default function PaymentScreen() {
                     </View>
                     <Text style={styles.successTitle}>Đăng ký thành công!</Text>
                     <Text style={styles.successSubtitle}>
-                        Cảm ơn bạn đã tin dùng EcoCollect. Thanh toán đã được ghi nhận và yêu cầu đang chờ quản trị viên phê duyệt.
+                        Cảm ơn bạn đã tin dùng ECONNET. Thanh toán đã được ghi nhận và yêu cầu đang chờ quản trị viên phê duyệt.
                     </Text>
 
                     <Card variant="outlined" style={styles.successDetailCard}>

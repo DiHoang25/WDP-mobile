@@ -1,4 +1,4 @@
-// Types for the EcoCollect App
+// Types for the ECONNET App
 
 export type UserRole = "citizen" | "enterprise" | "shipper" | "admin";
 

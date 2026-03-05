@@ -1,5 +1,6 @@
 import { Button, Header, Input, MapLocationPicker, MultiSelectPicker, WasteTypeMultiSelector } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { District, locationService, Province, Ward } from "@/services/location.service";
 import { WasteType } from '@/types';
 import { Ionicons } from "@expo/vector-icons";
@@ -15,6 +16,7 @@ import {
 } from "react-native";
 
 export default function RegisterEnterpriseFormScreen() {
+  const { t } = useLanguage();
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [capacity, setCapacity] = useState("");
@@ -249,23 +251,23 @@ export default function RegisterEnterpriseFormScreen() {
   const nextStep = () => {
     // Basic validation
     const newErrors: any = {};
-    if (!name) newErrors.name = "Vui lòng nhập tên doanh nghiệp";
-    if (!address) newErrors.address = "Vui lòng nhập địa chỉ chi tiết";
-    if (!capacity || isNaN(parseFloat(capacity))) newErrors.capacity = "Khối lượng không hợp lệ";
+    if (!name) newErrors.name = t("registerEnterprise.nameRequired");
+    if (!address) newErrors.address = t("registerEnterprise.addressRequired");
+    if (!capacity || isNaN(parseFloat(capacity))) newErrors.capacity = t("registerEnterprise.capacityInvalid");
 
     if (!mapLocation) {
-      newErrors.mapLocation = "Vui lòng chọn vị trí trên bản đồ";
+      newErrors.mapLocation = t("registerEnterprise.mapRequired");
     }
 
 
     // Validate service areas - require at least one selection
     if (serviceProvinceIds.length === 0) {
-      newErrors.serviceArea = "Vui lòng chọn ít nhất một khu vực phục vụ";
+      newErrors.serviceArea = t("registerEnterprise.serviceAreaRequired");
     }
 
     // Validate waste types
     if (selectedWasteTypes.length === 0) {
-      newErrors.wasteTypes = "Vui lòng chọn ít nhất một loại rác";
+      newErrors.wasteTypes = t("registerEnterprise.wasteTypesRequired");
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -358,21 +360,21 @@ export default function RegisterEnterpriseFormScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Header title="Đăng ký doanh nghiệp" subtitle="Thông tin cơ bản" showBack />
+        <Header title={t("registerEnterprise.title")} subtitle={t("registerEnterprise.subtitle")} showBack />
 
         <View style={styles.form}>
           <Input
-            label="Tên doanh nghiệp"
-            placeholder="Công ty TNHH Môi trường Xanh"
+            label={t("registerEnterprise.name")}
+            placeholder={t("registerEnterprise.namePlaceholder")}
             value={name}
             onChangeText={setName}
             error={errors.name}
           />
 
-          <Text style={styles.sectionTitle}>Địa chỉ doanh nghiệp</Text>
+          <Text style={styles.sectionTitle}>{t("registerEnterprise.addressSection")}</Text>
 
           <MapLocationPicker
-            label="Chọn vị trí đoanh nghiệp trên bản đồ"
+            label={t("registerEnterprise.mapLabel")}
             onLocationSelect={handleMapLocationSelect}
             error={errors.mapLocation}
           />
@@ -382,13 +384,13 @@ export default function RegisterEnterpriseFormScreen() {
               <View style={styles.addressRow}>
                 <Ionicons name="location" size={20} color={AppColors.primary} />
                 <View style={styles.addressInfo}>
-                  <Text style={styles.addressLabel}>Khu vực đã xác định:</Text>
+                  <Text style={styles.addressLabel}>{t("registerEnterprise.areaDetected")}</Text>
                   <Text style={styles.fullAddressText}>
                     {[
                       addressWards.find(w => w.code === addressWardId)?.name,
                       addressDistricts.find(d => d.code === addressDistrictId)?.name,
                       provinces.find(p => p.code === addressProvinceId)?.name
-                    ].filter(Boolean).join(", ") || "Đang xác định khu vực..."}
+                    ].filter(Boolean).join(", ") || t("registerEnterprise.detectingArea")}
                   </Text>
                 </View>
               </View>
@@ -396,17 +398,17 @@ export default function RegisterEnterpriseFormScreen() {
           )}
 
           <Input
-            label="Địa chỉ chi tiết (nhập thủ công nếu cần)"
-            placeholder="Số nhà, tên đường..."
+            label={t("registerEnterprise.detailedAddress")}
+            placeholder={t("registerEnterprise.autoFill")}
             value={address}
-            onChangeText={setAddress}
+            editable={false}
             error={errors.address}
           />
 
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
               <Input
-                label="Khả năng xử lý (kg)"
+                label={t("registerEnterprise.capacity")}
                 placeholder="1000.5"
                 value={capacity}
                 onChangeText={setCapacity}
@@ -416,9 +418,9 @@ export default function RegisterEnterpriseFormScreen() {
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>Khu vực phục vụ mặc định</Text>
+          <Text style={styles.sectionTitle}>{t("registerEnterprise.serviceArea")}</Text>
           <MultiSelectPicker
-            label="Tỉnh / Thành phố"
+            label={t("registerEnterprise.serviceProvince")}
             options={provinces.map(p => ({ value: p.code, label: p.name }))}
             selectedValues={serviceProvinceIds}
             onValuesChange={setServiceProvinceIds}
@@ -426,7 +428,7 @@ export default function RegisterEnterpriseFormScreen() {
           />
 
           <MultiSelectPicker
-            label="Quận / Huyện phục vụ"
+            label={t("registerEnterprise.serviceDistrict")}
             options={districts.map(d => ({
               value: d.code,
               label: d.name,
@@ -438,7 +440,7 @@ export default function RegisterEnterpriseFormScreen() {
           />
 
           <MultiSelectPicker
-            label="Phường / Xã phục vụ"
+            label={t("registerEnterprise.serviceWard")}
             options={wards.map(w => ({
               value: w.code,
               label: w.name,
@@ -456,13 +458,13 @@ export default function RegisterEnterpriseFormScreen() {
           <WasteTypeMultiSelector
             selectedTypes={selectedWasteTypes}
             onTypesChange={setSelectedWasteTypes}
-            label="Loại rác thu gom"
+            label={t("registerEnterprise.wasteTypes")}
             error={errors.wasteTypes}
           />
 
 
           <Button
-            title="Tiếp tục chọn gói"
+            title={t("registerEnterprise.continue")}
             onPress={nextStep}
             style={styles.submitButton}
           />

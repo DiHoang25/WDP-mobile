@@ -1,6 +1,7 @@
 import { Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { MOCK_LEADERBOARD } from "@/data/mockData";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
@@ -8,12 +9,13 @@ import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 
 export default function LeaderboardScreen() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const userEntry = MOCK_LEADERBOARD.find((e) => e.userId === user?.id);
 
   return (
     <View style={styles.container}>
       <Header
-        title="Bảng xếp hạng"
+        title={t("leaderboard.title")}
         subtitle={user?.district || ""}
         showBack={false}
       />
@@ -23,18 +25,18 @@ export default function LeaderboardScreen() {
         <View style={styles.userRankSection}>
           <Card variant="elevated">
             <View style={styles.userRankContent}>
-              <Text style={styles.userRankLabel}>Hạng của bạn</Text>
+              <Text style={styles.userRankLabel}>{t("leaderboard.yourRank")}</Text>
               <Text style={styles.userRankNumber}>#{userEntry.rank}</Text>
             </View>
             <View style={styles.userRankStats}>
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{userEntry.points}</Text>
-                <Text style={styles.statLabel}>Điểm</Text>
+                <Text style={styles.statLabel}>{t("leaderboard.points")}</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>{userEntry.reportsCount}</Text>
-                <Text style={styles.statLabel}>Báo cáo</Text>
+                <Text style={styles.statLabel}>{t("leaderboard.reports")}</Text>
               </View>
             </View>
           </Card>
@@ -47,7 +49,7 @@ export default function LeaderboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.listHeader}>
-          <Text style={styles.listHeaderText}>Top người dùng tháng này</Text>
+          <Text style={styles.listHeaderText}>{t("leaderboard.topUsers")}</Text>
         </View>
 
         {MOCK_LEADERBOARD.map((entry, index) => {
@@ -101,7 +103,7 @@ export default function LeaderboardScreen() {
 
                 <View style={styles.userStats}>
                   <Text style={styles.userPoints}>{entry.points}</Text>
-                  <Text style={styles.userPointsLabel}>điểm</Text>
+                  <Text style={styles.userPointsLabel}>{t("leaderboard.pointsLabel")}</Text>
                 </View>
               </View>
             </Card>

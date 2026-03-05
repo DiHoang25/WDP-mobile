@@ -3,6 +3,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React from "react";
 import {
+  Platform,
+  StatusBar,
   StyleProp,
   StyleSheet,
   Text,
@@ -54,9 +56,12 @@ export default function Header({
   );
 }
 
+const STATUSBAR_HEIGHT = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0;
+
 const styles = StyleSheet.create({
   header: {
-    paddingTop: 15,
+    paddingTop: 15 + STATUSBAR_HEIGHT,
+
     paddingBottom: 20,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 30,

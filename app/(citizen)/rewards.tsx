@@ -1,27 +1,29 @@
 import { Button, Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { MOCK_VOUCHERS } from "@/data/mockData";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function RewardsScreen() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   const categories = [
-    { value: "all", label: "Tất cả" },
-    { value: "E-commerce", label: "Mua sắm" },
-    { value: "Cà phê", label: "Cà phê" },
-    { value: "Di chuyển", label: "Di chuyển" },
+    { value: "all", label: t("common.all") },
+    { value: "E-commerce", label: "E-commerce" },
+    { value: "Cà phê", label: "Coffee" },
+    { value: "Di chuyển", label: "Transport" },
   ];
 
   const filteredVouchers =
@@ -32,23 +34,23 @@ export default function RewardsScreen() {
   const handleRedeem = (voucher: any) => {
     if ((user?.points || 0) < voucher.pointsCost) {
       Alert.alert(
-        "Không đủ điểm",
-        `Bạn cần ${voucher.pointsCost - (user?.points || 0)} điểm nữa để đổi voucher này.`,
+        t("rewards.notEnoughPoints"),
+        t("rewards.notEnoughPointsMsg", { points: voucher.pointsCost - (user?.points || 0) }),
       );
       return;
     }
 
     Alert.alert(
-      "Xác nhận đổi thưởng",
-      `Đổi ${voucher.pointsCost} điểm lấy ${voucher.title}?`,
+      t("rewards.redeemConfirm"),
+      t("rewards.redeemConfirmMsg", { points: voucher.pointsCost, name: voucher.title }),
       [
-        { text: "Hủy", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Đổi ngay",
+          text: t("rewards.redeem"),
           onPress: () => {
             Alert.alert(
-              "Thành công!",
-              "Voucher đã được gửi đến email của bạn.",
+              t("common.success"),
+              t("rewards.redeemSuccess"),
             );
           },
         },
@@ -59,8 +61,8 @@ export default function RewardsScreen() {
   return (
     <View style={styles.container}>
       <Header
-        title="Đổi thưởng"
-        subtitle="Đổi điểm lấy voucher hấp dẫn"
+        title={t("rewards.title")}
+        subtitle={t("rewards.subtitle")}
         showBack={false}
       />
 
@@ -68,7 +70,7 @@ export default function RewardsScreen() {
       <View style={styles.pointsSection}>
         <Card variant="elevated">
           <View style={styles.pointsCard}>
-            <Text style={styles.pointsLabel}>Điểm của bạn</Text>
+            <Text style={styles.pointsLabel}>{t("rewards.yourPoints")}</Text>
             <View style={styles.pointsValueContainer}>
               <Ionicons name="star" size={24} color={AppColors.warning} />
               <Text style={styles.pointsValue}> {user?.points || 0}</Text>
@@ -90,7 +92,7 @@ export default function RewardsScreen() {
             style={[
               styles.categoryButton,
               selectedCategory === category.value &&
-                styles.categoryButtonActive,
+              styles.categoryButtonActive,
             ]}
             onPress={() => setSelectedCategory(category.value)}
           >
@@ -98,7 +100,7 @@ export default function RewardsScreen() {
               style={[
                 styles.categoryButtonText,
                 selectedCategory === category.value &&
-                  styles.categoryButtonTextActive,
+                styles.categoryButtonTextActive,
               ]}
             >
               {category.label}
@@ -157,7 +159,7 @@ export default function RewardsScreen() {
                     </Text>
                   </View>
                   <Button
-                    title={canAfford ? "Đổi ngay" : "Chưa đủ điểm"}
+                    title={canAfford ? t("rewards.redeem") : t("rewards.notEnoughPoints")}
                     onPress={() => handleRedeem(voucher)}
                     disabled={!canAfford}
                     variant={canAfford ? "primary" : "outline"}
