@@ -271,7 +271,14 @@
         "capacityInvalid": "Invalid capacity",
         "mapRequired": "Please select a location on the map",
         "serviceAreaRequired": "Please select at least one service area",
-        "wasteTypesRequired": "Please select at least one waste type"
+        "wasteTypesRequired": "Please select at least one waste type",
+        "selectedDistricts": "Selected {{count}}/{{total}} districts",
+        "districtsCount": "{{count}} districts",
+        "deselectAll": "Deselect all",
+        "selectAllDistricts": "Select all districts",
+        "wardsSelected": "{{count}} wards selected",
+        "selectAll": "Select all",
+        "loadingDistricts": "Loading districts..."
     },
     "reportCard": {
         "title": "Waste report status",

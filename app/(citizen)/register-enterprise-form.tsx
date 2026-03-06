@@ -1,4 +1,4 @@
-import { Button, Header, Input, MapLocationPicker, MultiSelectPicker, WasteTypeMultiSelector } from "@/components/common";
+import { Button, GroupedServiceAreaPicker, Header, Input, MapLocationPicker, MultiSelectPicker, WasteTypeMultiSelector } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { District, locationService, Province, Ward } from "@/services/location.service";
@@ -427,29 +427,21 @@ export default function RegisterEnterpriseFormScreen() {
             error={errors.serviceArea}
           />
 
-          <MultiSelectPicker
-            label={t("registerEnterprise.serviceDistrict")}
-            options={districts.map(d => ({
-              value: d.code,
-              label: d.name,
-              subLabel: d.provinceName
-            }))}
-            selectedValues={serviceDistrictIds}
-            onValuesChange={setServiceDistrictIds}
-            disabled={serviceProvinceIds.length === 0}
-          />
-
-          <MultiSelectPicker
-            label={t("registerEnterprise.serviceWard")}
-            options={wards.map(w => ({
-              value: w.code,
-              label: w.name,
-              subLabel: w.districtName
-            }))}
-            selectedValues={serviceWardIds}
-            onValuesChange={setServiceWardIds}
-            disabled={serviceDistrictIds.length === 0}
-          />
+          {serviceProvinceIds.length > 0 && (
+            <GroupedServiceAreaPicker
+              provinces={provinces
+                .filter(p => serviceProvinceIds.includes(p.code))
+                .map(p => ({ code: p.code, name: p.name }))}
+              districts={districts}
+              wards={wards}
+              selectedDistrictIds={serviceDistrictIds}
+              selectedWardIds={serviceWardIds}
+              onDistrictsChange={setServiceDistrictIds}
+              onWardsChange={setServiceWardIds}
+              districtLabel={t("registerEnterprise.serviceDistrict")}
+              wardLabel={t("registerEnterprise.serviceWard")}
+            />
+          )}
 
           {errors.serviceArea && (
             <Text style={styles.errorText}>{errors.serviceArea}</Text>

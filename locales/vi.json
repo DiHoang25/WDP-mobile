@@ -260,7 +260,7 @@
         "detailedAddress": "Địa chỉ chi tiết",
         "autoFill": "Chọn vị trí trên bản đồ để tự động điền",
         "capacity": "Khả năng xử lý (kg)",
-        "serviceArea": "Khu vực phục vụ mặc định",
+        "serviceArea": "Khu vực phục vụ",
         "serviceProvince": "Tỉnh / Thành phố",
         "serviceDistrict": "Quận / Huyện phục vụ",
         "serviceWard": "Phường / Xã phục vụ",
@@ -271,7 +271,14 @@
         "capacityInvalid": "Khối lượng không hợp lệ",
         "mapRequired": "Vui lòng chọn vị trí trên bản đồ",
         "serviceAreaRequired": "Vui lòng chọn ít nhất một khu vực phục vụ",
-        "wasteTypesRequired": "Vui lòng chọn ít nhất một loại rác"
+        "wasteTypesRequired": "Vui lòng chọn ít nhất một loại rác",
+        "selectedDistricts": "Đã chọn {{count}}/{{total}} huyện",
+        "districtsCount": "{{count}} huyện",
+        "deselectAll": "Bỏ chọn tất cả",
+        "selectAllDistricts": "Chọn tất cả huyện",
+        "wardsSelected": "{{count}} phường/xã đã chọn",
+        "selectAll": "Chọn tất cả",
+        "loadingDistricts": "Đang tải danh sách huyện..."
     },
     "reportCard": {
         "title": "Trạng thái báo cáo rác",

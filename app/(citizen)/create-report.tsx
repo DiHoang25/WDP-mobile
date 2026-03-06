@@ -523,11 +523,26 @@ export default function CreateReportScreen() {
       if (mapLocation && streetAddress.trim()) {
         const geoResult = await locationService.geocodeAddress(streetAddress, latitude, longitude);
         if (geoResult.success && geoResult.data) {
+          const newLat = geoResult.data.latitude;
+          const newLon = geoResult.data.longitude;
+
           const dist = locationService.haversineDistance(
             latitude, longitude,
-            geoResult.data.latitude, geoResult.data.longitude
+            newLat, newLon
           );
           console.log(`📏 Submit validation distance: ${dist.toFixed(3)} km`);
+
+          // Update the pin on the map to show where geocoding placed the address
+          setLatitude(newLat);
+          setLongitude(newLon);
+          if (mapLocation) {
+            setMapLocation({
+              ...mapLocation,
+              latitude: newLat,
+              longitude: newLon
+            });
+          }
+
           if (dist > 1.0) {
             setLoading(false);
             Alert.alert(
@@ -732,38 +747,6 @@ export default function CreateReportScreen() {
               icon="location-outline"
               containerStyle={{ marginBottom: 0 }}
             />
-            {streetAddress ? (
-              <TouchableOpacity
-                style={styles.validateBtn}
-                onPress={async () => {
-                  if (!mapLocation) {
-                    Alert.alert(t("common.notice"), t("createReport.selectMapFirst"));
-                    return;
-                  }
-                  // Build full address with ward/district/province for better geocoding accuracy
-                  const geoResult = await locationService.geocodeAddress(streetAddress, latitude, longitude);
-                  if (geoResult.success && geoResult.data) {
-                    const dist = locationService.haversineDistance(
-                      latitude, longitude,
-                      geoResult.data.latitude, geoResult.data.longitude
-                    );
-                    if (dist > 1.0) {
-                      Alert.alert(
-                        t("createReport.locationMismatch"),
-                        t("createReport.locationMismatchMsg", { distance: dist.toFixed(1) })
-                      );
-                    } else {
-                      Alert.alert(t("createReport.addressValid"), t("createReport.addressValidMsg", { distance: (dist * 1000).toFixed(0) }));
-                    }
-                  } else {
-                    Alert.alert(t("createReport.addressNotFound"), t("createReport.addressNotFoundMsg"));
-                  }
-                }}
-              >
-                <Ionicons name="checkmark-circle-outline" size={16} color={AppColors.primary} />
-                <Text style={styles.validateBtnText}>{t("createReport.checkAddress")}</Text>
-              </TouchableOpacity>
-            ) : null}
           </Card>
         </View>
 

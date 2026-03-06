@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "myApp",
-    "slug": "myApp",
+    "name": "EConnect",
+    "slug": "EConnect",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "icon": "./assets/images/logo.jpg",
+    "scheme": "EConnect",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
