@@ -18,7 +18,7 @@ export function getRouteByRoleId(roleId: number | undefined): string {
     case 2: // enterprise
       return "/(enterprise)";
     case 3: // collector/shipper
-      return "/(shipper)";
+      return "/(collectors)";
     case 4: // admin
       return "/(admin)";
     default:
@@ -42,7 +42,7 @@ export function getRoleNameByRoleId(roleId: number | undefined): string {
     case 2:
       return "enterprise";
     case 3:
-      return "shipper";
+      return "collector";
     case 4:
       return "admin";
     default:

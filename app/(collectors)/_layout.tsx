@@ -3,7 +3,7 @@ import { AppColors } from "@/constants/theme";
 import { Tabs } from "expo-router";
 import React from "react";
 
-export default function CitizenLayout() {
+export default function CollectorLayout() {
   return (
     <Tabs
       screenOptions={{
@@ -13,13 +13,6 @@ export default function CitizenLayout() {
           backgroundColor: AppColors.white,
           borderTopWidth: 1,
           borderTopColor: AppColors.gray[200],
-          height: 70,
-          paddingBottom: 10,
-          paddingTop: 10,
-        },
-        tabBarLabelStyle: {
-          fontSize: 13,
-          fontWeight: "600",
         },
       }}
     >
@@ -31,10 +24,17 @@ export default function CitizenLayout() {
         }}
       />
       <Tabs.Screen
-        name="leaderboard"
+        name="task-list"
         options={{
-          title: "Xếp hạng",
-          tabBarIcon: ({ color }) => <TabIcon name="trophy" color={color} />,
+          title: "Nhiệm vụ",
+          tabBarIcon: ({ color }) => <TabIcon name="list" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="history"
+        options={{
+          title: "Lịch sử",
+          tabBarIcon: ({ color }) => <TabIcon name="time" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -44,61 +44,62 @@ export default function CitizenLayout() {
           tabBarIcon: ({ color }) => <TabIcon name="person" color={color} />,
         }}
       />
-
-      {/* Hidden screens - accessible via navigation but not in tab bar */}
+      
+      {/* Hidden screens - không hiển thị trong tab bar */}
       <Tabs.Screen
-        name="create-report"
+        name="shift-control"
         options={{
-          href: null, // Hide from tab bar
+          href: null,
+          title: "Bật/Tắt ca làm",
         }}
       />
       <Tabs.Screen
-        name="history"
+        name="task-detail"
         options={{
-          href: null, // Hide from tab bar
+          href: null,
+          title: "Chi tiết nhiệm vụ",
         }}
       />
       <Tabs.Screen
-        name="rewards"
+        name="task-checkin"
         options={{
-          href: null, // Hide from tab bar
+          href: null,
+          title: "Check-in",
         }}
       />
       <Tabs.Screen
-        name="register-enterprise"
+        name="task-complete"
         options={{
-          href: null, // Hide from tab bar
+          href: null,
+          title: "Hoàn tất",
         }}
       />
       <Tabs.Screen
-        name="register-enterprise-form"
+        name="task-absent"
         options={{
-          href: null, // Hide from tab bar
+          href: null,
+          title: "Báo vắng",
         }}
       />
-
+      <Tabs.Screen
+        name="task-report-issue"
+        options={{
+          href: null,
+          title: "Báo cáo sự cố",
+        }}
+      />
       <Tabs.Screen
         name="notifications"
         options={{
-          href: null, // Hide from tab bar
+          href: null,
+          title: "Thông báo",
         }}
       />
       <Tabs.Screen
-        name="profile-edit"
+        name="active-task"
         options={{
-          href: null, // Hide from tab bar
-        }}
-      />
-      <Tabs.Screen
-        name="profile-detail"
-        options={{
-          href: null, // Hide from tab bar
-        }}
-      />
-      <Tabs.Screen
-        name="change-password"
-        options={{
-          href: null, // Hide from tab bar
+          href: null,
+          title: "Đang làm",
         }}
       />
     </Tabs>

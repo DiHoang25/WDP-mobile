@@ -32,10 +32,19 @@ export default function PaymentScreen() {
     const [loading, setLoading] = useState(false);
     const [checkingStatus, setCheckingStatus] = useState(false);
 
+    // Guard: If no valid reference code, don't render payment screen
+    useEffect(() => {
+        if (referenceCode === "PAY-UNKNOWN") {
+            console.log("[Payment] Invalid reference code, redirecting to login");
+            router.replace("/login");
+        }
+    }, [referenceCode]);
+
     useEffect(() => {
         let interval: any;
 
-        if (status === "PENDING") {
+        // Only poll if we have a valid reference code
+        if (status === "PENDING" && referenceCode !== "PAY-UNKNOWN") {
             // Check immediately on mount/status change
             checkPaymentStatus();
             // Then poll every 2 seconds for faster response
@@ -45,7 +54,7 @@ export default function PaymentScreen() {
         return () => {
             if (interval) clearInterval(interval);
         };
-    }, [status]);
+    }, [status, referenceCode]);
 
     const checkPaymentStatus = async () => {
         try {
