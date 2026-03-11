@@ -7,9 +7,10 @@ export { default as Header } from "./Header";
 export { default as Input } from "./Input";
 export { default as Loading } from "./Loading";
 export { MapLocationPicker } from "./MapLocationPicker";
+export { Circle, MapView, Marker, default as MockMapView, Polyline } from "./MockMapView";
 export { MultiSelectPicker } from "./MultiSelectPicker";
 export { Picker } from "./Picker";
+export { default as Toast } from "./Toast";
+export type { ToastType } from "./Toast";
 export { WasteTypeMultiSelector } from "./WasteTypeMultiSelector";
-export { default as MockMapView } from "./MockMapView";
-export { MapView, Marker, Circle, Polyline } from "./MockMapView";
 

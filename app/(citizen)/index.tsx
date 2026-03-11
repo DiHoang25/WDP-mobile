@@ -15,18 +15,19 @@ import {
   Image,
   Platform,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 
 export default function CitizenHomeScreen() {
   const { user, refreshProfile } = useAuth();
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   const [unreadCount, setUnreadCount] = useState(0);
   const [allReports, setAllReports] = useState<WasteReport[]>([]);
   const [loadingReports, setLoadingReports] = useState(true);
@@ -130,7 +131,7 @@ export default function CitizenHomeScreen() {
       {/* Header */}
       <LinearGradient
         colors={[AppColors.primary, AppColors.primaryDark]}
-        style={styles.header}
+        style={[styles.header, { paddingTop: Platform.OS === 'android' ? insets.top + 10 : insets.top }]}
       >
         <View style={styles.headerTop}>
           <View>
@@ -298,15 +299,14 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.background,
   },
   header: {
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 20 : 60,
-    paddingBottom: 30,
+    paddingBottom: 15,
     paddingHorizontal: 20,
   },
   headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 20,
+    marginBottom: 10,
   },
   greeting: {
     fontSize: 16,

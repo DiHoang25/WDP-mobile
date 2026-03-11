@@ -1,8 +1,10 @@
-import { Button, Card, Input } from "@/components/common";
+import type { ToastType } from "@/components/common";
+import { Button, Card, Toast } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { collectorService } from "@/services/collector.service";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
@@ -21,6 +23,14 @@ export default function TaskReportIssueScreen() {
 
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: ToastType }>({
+    visible: false, message: "", type: "success",
+  });
+
+  const showToast = (message: string, type: ToastType = "success") => {
+    setToast({ visible: true, message, type });
+  };
 
   const handlePickImage = async () => {
     const result = await ImagePicker.launchCameraAsync({
@@ -57,14 +67,26 @@ export default function TaskReportIssueScreen() {
         {
           text: "Gửi báo cáo",
           style: "destructive",
-          onPress: () => {
-            // TODO: Submit to API
-            Alert.alert("Đã gửi", "Báo cáo sự cố đã được gửi cho quản lý để xem xét.", [
-              {
-                text: "OK",
-                onPress: () => router.push("/(collectors)" as any),
-              },
-            ]);
+          onPress: async () => {
+            try {
+              setSubmitting(true);
+              const res = await collectorService.reportIssue(String(id), {
+                description: description.trim(),
+                issueImages: images,
+              });
+              if (res.success) {
+                showToast("Đã gửi báo cáo sự cố", "success");
+                setTimeout(() => {
+                  router.replace("/(collectors)" as any);
+                }, 1500);
+              } else {
+                showToast("Không thể gửi báo cáo", "error");
+              }
+            } catch (error) {
+              showToast("Đã có lỗi xảy ra", "error");
+            } finally {
+              setSubmitting(false);
+            }
           },
         },
       ],
@@ -73,6 +95,12 @@ export default function TaskReportIssueScreen() {
 
   return (
     <View style={styles.container}>
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast(t => ({ ...t, visible: false }))}
+      />
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {/* Warning banner */}
@@ -166,7 +194,8 @@ export default function TaskReportIssueScreen() {
             <Button
               title="Gửi báo cáo sự cố"
               onPress={handleSubmit}
-              disabled={description.trim().length < 5 || images.length === 0}
+              disabled={description.trim().length < 5 || images.length === 0 || submitting}
+              loading={submitting}
               variant="primary"
               style={{
                 backgroundColor: AppColors.error,

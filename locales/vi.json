@@ -204,11 +204,19 @@
     "status": {
         "pending": "Chờ xử lý",
         "accepted": "Đã tiếp nhận",
-        "assigned": "Đã phân công",
-        "on_the_way": "Đang đến",
+        "enterprise_reserved": "Doanh nghiệp đã nhận",
+        "collector_pending": "Chờ xác nhận",
+        "assigned": "Đã nhận đơn",
+        "on_the_way": "Đang di chuyển",
+        "arrived": "Đã đến nơi",
         "waiting_customer": "Đang chờ khách",
         "collected": "Đã thu gom",
         "completed": "Hoàn thành",
+        "failed": "Thất bại",
+        "failed_no_response": "Không phản hồi",
+        "failed_citizen_not_home": "Vắng khách",
+        "rescheduled": "Đã dời lịch",
+        "rejected": "Đã từ chối",
         "cancelled": "Đã hủy"
     },
     "wasteType": {

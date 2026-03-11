@@ -11,7 +11,7 @@ import { getWasteTypeLabel } from "@/utils/helpers";
 import { validateRequired } from "@/utils/validators";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import * as ExpoLocation from "expo-location";
+import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -65,7 +65,6 @@ export default function CreateReportScreen() {
 
   useEffect(() => {
     loadProvinces();
-    askToUseCurrentLocation();
   }, []);
 
   const loadProvinces = async () => {
@@ -92,7 +91,7 @@ export default function CreateReportScreen() {
 
   const getCurrentLocation = async () => {
     try {
-      let { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+      let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(t("common.error"), t("createReport.locationDenied"));
         return;
@@ -101,7 +100,7 @@ export default function CreateReportScreen() {
       setLoading(true);
 
       // Fast path: try last known position first for instant UI response
-      const lastKnown = await ExpoLocation.getLastKnownPositionAsync();
+      const lastKnown = await Location.getLastKnownPositionAsync();
       if (lastKnown) {
         const coords = { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude };
         setLatitude(coords.latitude);
@@ -110,8 +109,8 @@ export default function CreateReportScreen() {
       }
 
       // Precise path: get fresh location with balanced accuracy (faster than High)
-      let location = await ExpoLocation.getCurrentPositionAsync({
-        accuracy: ExpoLocation.Accuracy.Balanced,
+      let location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
       });
 
       const coords = {
@@ -126,7 +125,7 @@ export default function CreateReportScreen() {
 
       // Run reverse geocoding
       console.log('📍 Getting address for coords:', coords);
-      const results = await ExpoLocation.reverseGeocodeAsync(coords);
+      const results = await Location.reverseGeocodeAsync(coords);
       if (results && results.length > 0) {
         const res = results[0];
         console.log('🌍 Reverse geocode result:', JSON.stringify(res, null, 2));
@@ -158,12 +157,6 @@ export default function CreateReportScreen() {
           address: formattedAddress,
           rawAddress: normalized
         });
-
-        // Use the full formatted address for the street address input
-        if (formattedAddress) {
-          console.log('✏️ Setting streetAddress to:', formattedAddress);
-          setStreetAddress(formattedAddress);
-        }
       } else {
         // If reverse geocode fails, still keep the pin but show coordinates as address
         setMapLocation({
@@ -228,22 +221,33 @@ export default function CreateReportScreen() {
       console.log('🗺️ Full location object:', JSON.stringify(loc, null, 2));
       console.log('📍 Raw address from map:', JSON.stringify(raw, null, 2));
 
-      // PRIORITY 1: Use full formatted address if available (for complete info)
-      if (loc.address && loc.address !== "Đang xác định..." && loc.address !== "Đang xác định địa chỉ...") {
-        console.log('✅ Setting street address from full address:', loc.address);
-        setStreetAddress(loc.address);
-      }
-      // PRIORITY 2: Fallback to constructed address from raw data
-      else if (raw.name || raw.street) {
+      // PRIORITY 1: Fallback to constructed address from raw data (Street name)
+      if (raw.house_number || raw.road || raw.name || raw.street) {
         let detailedAddress = "";
-        if (raw.name) detailedAddress = raw.name;
-        if (raw.street && raw.street !== raw.name) {
-          detailedAddress = detailedAddress ? `${detailedAddress}, ${raw.street}` : raw.street;
+
+        // Add house number if available
+        if (raw.house_number) detailedAddress = raw.house_number;
+
+        // Add road/street
+        const streetPart = raw.road || raw.street || raw.name;
+        if (streetPart) {
+          detailedAddress = detailedAddress ? `${detailedAddress} ${streetPart}` : streetPart;
         }
+
+        // Add any other specific markers like building name
+        if (raw.name && raw.name !== raw.road && raw.name !== raw.street && raw.name !== raw.house_number) {
+          detailedAddress = detailedAddress ? `${detailedAddress}, ${raw.name}` : raw.name;
+        }
+
         if (detailedAddress) {
           console.log('✅ Setting street address from raw parts:', detailedAddress);
           setStreetAddress(detailedAddress);
         }
+      }
+      // PRIORITY 2: Use full formatted address ONLY if raw data yields nothing
+      else if (loc.address && loc.address !== "Đang xác định..." && loc.address !== "Đang xác định địa chỉ...") {
+        console.log('✅ Setting street address from full address:', loc.address);
+        setStreetAddress(loc.address);
       }
       else {
         console.log('⚠️ No address data available');
@@ -397,45 +401,88 @@ export default function CreateReportScreen() {
 
   const handleConfirmAddress = async () => {
     setIsAddressModalVisible(false);
-    setStreetAddress(tempAddress);
-    setErrors({ ...errors, street: undefined });
+
+    const isUnchanged = tempAddress.trim() === streetAddress.trim();
+    if (isUnchanged) return;
 
     if (mapLocation && tempAddress.trim()) {
       setLoading(true);
       try {
-        const geoResult = await locationService.geocodeAddress(tempAddress, latitude, longitude);
+        const selectedProvince = provinceOptions.find((p: any) => p.value === provinceCode)?.label;
+        const selectedDistrict = districtOptions.find((d: any) => d.value === districtCode)?.label;
+        const selectedWard = wardOptions.find((w: any) => w.value === wardCode)?.label;
+
+        const fullAddressToGeocode = [
+          tempAddress,
+          selectedWard,
+          selectedDistrict,
+          selectedProvince
+        ].filter(Boolean).join(', ');
+
+        const geoResult = await locationService.geocodeAddress(fullAddressToGeocode, latitude, longitude);
+
         if (geoResult.success && geoResult.data) {
           const newLat = geoResult.data.latitude;
           const newLon = geoResult.data.longitude;
+          const isFallback = geoResult.data.isFallback;
 
-          const dist = locationService.haversineDistance(
-            latitude, longitude,
-            newLat, newLon
-          );
+          const dist = locationService.haversineDistance(latitude, longitude, newLat, newLon);
+          console.log(`📏 Computed distance while confirming: ${dist.toFixed(3)} km. Fallback: ${isFallback}`);
 
+          if (isFallback) {
+            Alert.alert(
+              "Địa chỉ không cụ thể",
+              "Hệ thống chỉ tìm thấy khu vực (Phường) của địa chỉ này mà không thấy số nhà/tên đường cụ thể. Vui lòng ghim trực tiếp trên bản đồ để đảm bảo chính xác nhất.",
+              [
+                { text: "Để tôi ghim lại", style: "cancel" },
+                {
+                  text: "Dùng tạm vị trí này",
+                  onPress: () => {
+                    if (dist > 2.0) {
+                      Alert.alert("Lỗi", "Vị trí khu vực này quá xa điểm đã ghim (>2km). Vui lòng ghim lại.");
+                      return;
+                    }
+                    setStreetAddress(tempAddress);
+                    setLatitude(newLat);
+                    setLongitude(newLon);
+                    setMapLocation({
+                      latitude: newLat,
+                      longitude: newLon,
+                      address: fullAddressToGeocode
+                    });
+                  }
+                }
+              ]
+            );
+            return;
+          }
+
+          if (dist > 2.0) {
+            setLoading(false);
+            Alert.alert(
+              "Vị trí không hợp lệ",
+              `Địa chỉ bạn nhập cách vị trí đã ghim ${dist.toFixed(1)}km (vượt quá giới hạn 2km). Vui lòng nhập địa chỉ gần vị trí đã ghim hơn.`
+            );
+            return;
+          }
+
+          // Allowed: Exact match (isFallback = false) & within 2km
+          setStreetAddress(tempAddress);
+          setErrors({ ...errors, street: undefined });
           setLatitude(newLat);
           setLongitude(newLon);
-          if (mapLocation) {
-            setMapLocation({
-              ...mapLocation,
-              latitude: newLat,
-              longitude: newLon
-            });
-          }
+          setMapLocation({
+            latitude: newLat,
+            longitude: newLon,
+            address: fullAddressToGeocode
+          });
 
-          if (dist > 1.0) {
-            Alert.alert(
-              t("createReport.locationMismatch"),
-              t("createReport.locationMismatchMsg", { distance: dist.toFixed(1) })
-            );
-          } else {
-            Alert.alert(
-              t("createReport.addressValid"),
-              t("createReport.addressValidMsg", { distance: (dist * 1000).toFixed(0) })
-            );
-          }
+          Alert.alert("Xác nhận địa chỉ", "Đã cập nhật chi tiết địa chỉ và ghim lại bản đồ.");
         } else {
-          Alert.alert(t("createReport.addressNotFound"), t("createReport.addressNotFoundMsg"));
+          Alert.alert(
+            "Không thể xác minh",
+            "Hệ thống không thể xác định vị trí của địa chỉ này để kiểm tra khoảng cách. Vui lòng nhập rõ ràng hơn."
+          );
         }
       } catch (error) {
         console.error("Geocoding error:", error);
@@ -573,44 +620,10 @@ export default function CreateReportScreen() {
     setLoading(true);
 
     try {
-      // Distance validation: check if edited address is within 1km of pinned location
-      if (mapLocation && streetAddress.trim()) {
-        const geoResult = await locationService.geocodeAddress(streetAddress, latitude, longitude);
-        if (geoResult.success && geoResult.data) {
-          const newLat = geoResult.data.latitude;
-          const newLon = geoResult.data.longitude;
-
-          const dist = locationService.haversineDistance(
-            latitude, longitude,
-            newLat, newLon
-          );
-          console.log(`📏 Submit validation distance: ${dist.toFixed(3)} km`);
-
-          // Update the pin on the map to show where geocoding placed the address
-          setLatitude(newLat);
-          setLongitude(newLon);
-          if (mapLocation) {
-            setMapLocation({
-              ...mapLocation,
-              latitude: newLat,
-              longitude: newLon
-            });
-          }
-
-          if (dist > 1.0) {
-            setLoading(false);
-            Alert.alert(
-              t("createReport.locationMismatch"),
-              t("createReport.locationMismatchMsg", { distance: dist.toFixed(1) })
-            );
-            return;
-          }
-        }
-      }
-
-      const selectedProvince = provinceOptions.find((p: any) => p.value === provinceCode)?.label;
-      const selectedDistrict = districtOptions.find((d: any) => d.value === districtCode)?.label;
-      const selectedWard = wardOptions.find((w: any) => w.value === wardCode)?.label;
+      // Construct full address first so we can geocode it accurately
+      const selectedProvince = provinceOptions.find((p: { label: string, value: string }) => p.value === provinceCode)?.label;
+      const selectedDistrict = districtOptions.find((d: { label: string, value: string }) => d.value === districtCode)?.label;
+      const selectedWard = wardOptions.find((w: { label: string, value: string }) => w.value === wardCode)?.label;
 
       const fullAddress = [
         streetAddress,
@@ -618,6 +631,38 @@ export default function CreateReportScreen() {
         selectedDistrict,
         selectedProvince
       ].filter(Boolean).join(', ');
+
+      // Validate via reverse geocoding on submit: Ensure the pinned map coordinates
+      // roughly match the selected province/district dropdowns to prevent spoofing.
+      if (mapLocation && streetAddress.trim()) {
+        const reverseResults = await Location.reverseGeocodeAsync({ latitude, longitude });
+        if (reverseResults && reverseResults.length > 0) {
+          const mapAddress = reverseResults[0];
+          const mapCity = (mapAddress.city || mapAddress.region || mapAddress.subregion || "").toLowerCase();
+          const cleanSelectedProvince = (selectedProvince || "").replace(/(Thành phố|Tỉnh)\s+/i, '').toLowerCase();
+
+          // Check if Map Pin City matches Selected Province
+          // Mismatch means they pinned a location in Hanoi but selected HCM in the dropdown.
+          let isMismatch = false;
+          if (cleanSelectedProvince && mapCity && !mapCity.includes(cleanSelectedProvince) && !cleanSelectedProvince.includes(mapCity)) {
+            // Let's do a loose check. If they don't share any words, it's a mismatch.
+            const cityWords = mapCity.split(' ').filter((word: string) => word.length > 2);
+            const provWords = cleanSelectedProvince.split(' ').filter((pWord: string) => pWord.length > 2);
+            if (!cityWords.some((cw: string) => provWords.some((pw: string) => pw === cw || pw.includes(cw) || cw.includes(pw)))) {
+              isMismatch = true;
+            }
+          }
+
+          if (isMismatch) {
+            setLoading(false);
+            Alert.alert(
+              t("createReport.locationMismatch"),
+              `Thành phố/Tỉnh bạn chọn trên form không khớp với vị trí thực tế ghim trên bản đồ. Vui lòng kiểm tra lại để tránh gian lận.`
+            );
+            return;
+          }
+        }
+      }
 
       const reportData: any = {
         address: fullAddress || streetAddress,

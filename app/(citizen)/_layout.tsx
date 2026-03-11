@@ -3,9 +3,12 @@ import { AppColors } from "@/constants/theme";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Tabs } from "expo-router";
 import React from "react";
+import { Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function CitizenLayout() {
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -16,8 +19,8 @@ export default function CitizenLayout() {
           backgroundColor: AppColors.white,
           borderTopWidth: 1,
           borderTopColor: AppColors.gray[200],
-          height: 70,
-          paddingBottom: 10,
+          height: 60 + (Platform.OS === 'android' ? insets.bottom + 10 : insets.bottom),
+          paddingBottom: Platform.OS === 'android' ? insets.bottom + 10 : insets.bottom,
           paddingTop: 10,
         },
         tabBarLabelStyle: {

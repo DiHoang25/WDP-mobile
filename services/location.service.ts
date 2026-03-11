@@ -136,7 +136,13 @@ export const locationService = {
         address: string,
         pinnedLat?: number,
         pinnedLon?: number
-    ): Promise<ApiResponse<{ latitude: number, longitude: number }>> {
+    ): Promise<ApiResponse<{
+        latitude: number;
+        longitude: number;
+        isFallback?: boolean;
+        type?: string;
+        class?: string;
+    }>> {
         try {
             const cleaned = this._cleanAddressForGeocode(address);
             console.log('🔍 Geocoding cleaned address:', cleaned);
@@ -150,13 +156,23 @@ export const locationService = {
 
             // Try progressive queries: full → drop first segment → drop two segments
             const parts = cleaned.split(',').map(p => p.trim()).filter(Boolean);
-            const queries = [
-                cleaned,
-                parts.length > 2 ? parts.slice(1).join(', ') : null, // Drop most-specific segment (e.g. "Tòa S9.02")
-                parts.length > 3 ? parts.slice(2).join(', ') : null, // Drop two most-specific segments
-            ].filter(Boolean) as string[];
 
-            for (const query of queries) {
+            // Only allow queries with at least 3 parts (e.g., Ward, District, Province/City)
+            // Searching something like "Thành phố Thủ Đức, TP HCM" (2 parts) will return the geographic
+            // center of Thủ Đức, which is often >1km away from the user's actual street/ward.
+            const queries: string[] = [cleaned];
+
+            if (parts.length > 3) {
+                // Drop most-specific segment (e.g. "1.01 Tòa Nhà Chung Cư S10.05")
+                queries.push(parts.slice(1).join(', '));
+            }
+            if (parts.length > 4) {
+                // Drop two most-specific segments
+                queries.push(parts.slice(2).join(', '));
+            }
+
+            for (let i = 0; i < queries.length; i++) {
+                const query = queries[i];
                 console.log('🔍 Trying geocode query:', query);
                 const response = await fetch(
                     `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=vn${viewboxParam}`,
@@ -170,12 +186,19 @@ export const locationService = {
                 const data = await response.json();
 
                 if (data && data.length > 0) {
-                    console.log('✅ Geocode hit for query:', query);
+                    // Match found. If i > 0, it means the full query failed and we fell back
+                    // to a simpler one (like just the Ward name).
+                    const isFallback = i > 0;
+                    console.log(`✅ Geocode hit for query: ${query} (isFallback: ${isFallback})`);
+
                     return {
                         success: true,
                         data: {
                             latitude: parseFloat(data[0].lat),
                             longitude: parseFloat(data[0].lon),
+                            isFallback,
+                            type: data[0].type,
+                            class: data[0].class,
                         }
                     };
                 }

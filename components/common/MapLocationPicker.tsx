@@ -215,6 +215,8 @@ export const MapLocationPicker = ({
             }
 
             const rawAddress = {
+                house_number: addr.house_number || "",
+                road: addr.road || "",
                 city: addr.city || addr.town || addr.municipality || "",
                 province: addr.state || addr.province || "",
                 district: addr.city_district || addr.district || addr.county || "",
@@ -312,6 +314,8 @@ export const MapLocationPicker = ({
         }
 
         const rawAddress = {
+            house_number: addr.house_number || "",
+            road: addr.road || "",
             city: addr.city || addr.town || addr.municipality || "",
             province: addr.state || addr.province || "",
             district: addr.city_district || addr.district || addr.county || "",
@@ -432,6 +436,7 @@ export const MapLocationPicker = ({
                 activeOpacity={0.8}
             >
                 <WebView
+                    key={`preview-${htmlCoords.latitude}-${htmlCoords.longitude}`}
                     ref={previewWebViewRef}
                     originWhitelist={["*"]}
                     source={{ html: previewMapHtml }}
@@ -527,6 +532,7 @@ export const MapLocationPicker = ({
                     {/* Map Section */}
                     <View style={styles.fullMapContainer}>
                         <WebView
+                            key={`full-${htmlCoords.latitude}-${htmlCoords.longitude}`}
                             ref={webViewRef}
                             originWhitelist={["*"]}
                             source={{ html: mapHtml }}
@@ -596,40 +602,73 @@ export const MapLocationPicker = ({
                                 }
 
                                 const finalAddress = editedAddress || address;
+                                const pinLat = location.latitude;
+                                const pinLon = location.longitude;
 
                                 // Validation logic: If user edited the address, check distance
                                 if (editedAddress && editedAddress !== address) {
                                     setValidating(true);
-                                    const geoResult = await locationService.geocodeAddress(editedAddress);
+                                    // Use location bias to find address in the same area
+                                    const geoResult = await locationService.geocodeAddress(editedAddress, pinLat, pinLon);
 
                                     if (geoResult.success && geoResult.data) {
                                         const dist = locationService.haversineDistance(
-                                            location.latitude,
-                                            location.longitude,
+                                            pinLat,
+                                            pinLon,
                                             geoResult.data.latitude,
                                             geoResult.data.longitude
                                         );
 
-                                        console.log(`📏 Validation distance: ${dist.toFixed(3)} km`);
+                                        console.log(`📏 Validation distance from pin: ${dist.toFixed(3)} km`);
 
-                                        if (dist > 1.0) {
+                                        if (dist > 2.0) {
                                             setValidating(false);
                                             Alert.alert(
-                                                "Vị trí không khớp",
-                                                `Địa chỉ bạn nhập cách vị trí trên bản đồ ${dist.toFixed(1)}km. Vui lòng chỉnh sửa lại địa chỉ hoặc di chuyển bản đồ đến đúng vị trí (Giới hạn cho phép: 1km).`
+                                                "Vị trí không hợp lệ",
+                                                `Địa chỉ bạn nhập cách vị trí trên bản đồ ${dist.toFixed(1)}km (vượt quá giới hạn 2km). Vui lòng nhập địa chỉ gần vị trí đã ghim hơn.`
                                             );
                                             return;
                                         }
-                                    } else {
-                                        // If geocoding fails, we might still want to warn the user but could be more lenient
-                                        // or strictly forbid it. For now, let's just warn they might have a typo.
-                                        console.warn("Geocoding failed for validation, but proceeding with caution.");
-                                    }
-                                    setValidating(false);
-                                }
 
-                                setAddress(finalAddress);
-                                setModalVisible(false);
+                                        // Update internal state to new coordinates
+                                        const newLat = geoResult.data.latitude;
+                                        const newLon = geoResult.data.longitude;
+                                        setLocation({ latitude: newLat, longitude: newLon });
+
+                                        // Force UI to repin
+                                        const script = `window.updatePosition(${newLat}, ${newLon});`;
+                                        webViewRef.current?.injectJavaScript(script);
+
+                                        setValidating(false);
+                                        setAddress(finalAddress);
+                                        setModalVisible(false);
+
+                                        // Notify parent
+                                        onLocationSelect({
+                                            latitude: newLat,
+                                            longitude: newLon,
+                                            address: finalAddress,
+                                        });
+
+                                    } else {
+                                        setValidating(false);
+                                        Alert.alert(
+                                            "Không thể xác minh",
+                                            "Hệ thống không thể xác định vị trí của địa chỉ này để kiểm tra khoảng cách. Vui lòng nhập rõ ràng hơn."
+                                        );
+                                        return;
+                                    }
+                                } else {
+                                    // Address wasn't edited manually, just confirm the current map position.
+                                    setAddress(finalAddress);
+                                    setModalVisible(false);
+
+                                    onLocationSelect({
+                                        latitude: location.latitude,
+                                        longitude: location.longitude,
+                                        address: finalAddress,
+                                    });
+                                }
                             }}
                             disabled={validating}
                         >

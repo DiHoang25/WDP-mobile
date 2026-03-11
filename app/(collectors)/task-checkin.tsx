@@ -1,138 +1,197 @@
-import { Button, Card } from "@/components/common";
+import type { ToastType } from "@/components/common";
+import { Button, Card, Toast } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { collectorService } from "@/services/collector.service";
 import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
+  ActivityIndicator,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import MapView, { Circle, Marker } from "@/components/common/MockMapView";
 
 export default function TaskCheckinScreen() {
-  const { id } = useLocalSearchParams();
+  const { id, lat: destLat, lon: destLon } = useLocalSearchParams<{
+    id: string;
+    lat?: string;
+    lon?: string;
+  }>();
   const router = useRouter();
 
-  const [currentLocation, setCurrentLocation] = useState({
-    latitude: 10.7769,
-    longitude: 106.7009,
-  });
-
   const destinationLocation = {
-    latitude: 10.7769,
-    longitude: 106.7009,
+    latitude: destLat ? parseFloat(destLat) : 10.7769,
+    longitude: destLon ? parseFloat(destLon) : 106.7009,
   };
 
-  const [distance, setDistance] = useState(50); // meters
+  const [currentLocation, setCurrentLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [distance, setDistance] = useState<number | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [loadingLoc, setLoadingLoc] = useState(true);
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: ToastType }>({
+    visible: false, message: "", type: "success",
+  });
+
   const ALLOWED_RADIUS = 300; // 300m
 
-  const canCheckin = distance <= ALLOWED_RADIUS;
+  const showToast = (message: string, type: ToastType = "success") => {
+    setToast({ visible: true, message, type });
+  };
+
+  // Haversine formula to calculate distance between two GPS coordinates
+  const getDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371000; // Earth radius in meters
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
   useEffect(() => {
-    // TODO: Get real-time location
-    // Calculate distance between current and destination
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          showToast("Cần quyền truy cập vị trí để check-in", "error");
+          setLoadingLoc(false);
+          return;
+        }
+
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+
+        const coords = {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        };
+        setCurrentLocation(coords);
+
+        const dist = getDistanceMeters(
+          coords.latitude,
+          coords.longitude,
+          destinationLocation.latitude,
+          destinationLocation.longitude,
+        );
+        setDistance(Math.round(dist));
+      } catch (error) {
+        console.error("Error getting location:", error);
+        showToast("Không thể lấy vị trí hiện tại", "error");
+      } finally {
+        setLoadingLoc(false);
+      }
+    })();
   }, []);
 
-  const handleCheckin = () => {
-    if (!canCheckin) {
-      Alert.alert("Lỗi", `Bạn cần đến gần hơn ${ALLOWED_RADIUS}m để check-in`);
-      return;
-    }
+  const canCheckin = distance !== null && distance <= ALLOWED_RADIUS;
 
-    Alert.alert("Thành công", "Đã check-in thành công! Bây giờ hãy chờ Công dân.", [
-      {
-        text: "OK",
-        onPress: () => router.back(),
-      },
-    ]);
+  const handleCheckin = async () => {
+    if (!canCheckin || !currentLocation) return;
+
+    try {
+      setChecking(true);
+      const res = await collectorService.checkinArrived(
+        String(id),
+        currentLocation.latitude,
+        currentLocation.longitude,
+      );
+      if (res.success) {
+        showToast("✅ Đã check-in thành công!", "success");
+        setTimeout(() => router.back(), 1500);
+      } else {
+        showToast("Không thể check-in. Hãy thử lại.", "error");
+      }
+    } catch (error) {
+      showToast("Đã có lỗi xảy ra", "error");
+    } finally {
+      setChecking(false);
+    }
   };
 
   return (
     <View style={styles.container}>
-      {/* Map */}
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast(t => ({ ...t, visible: false }))}
+      />
+
+      {/* Map placeholder */}
       <View style={styles.mapContainer}>
-        <MapView
-          style={styles.map}
-          initialRegion={{
-            latitude: destinationLocation.latitude,
-            longitude: destinationLocation.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          }}
-        >
-          {/* Allowed radius circle */}
-          <Circle
-            center={destinationLocation}
-            radius={ALLOWED_RADIUS}
-            fillColor={canCheckin ? "rgba(76, 175, 80, 0.2)" : "rgba(239, 68, 68, 0.2)"}
-            strokeColor={canCheckin ? AppColors.success : AppColors.error}
-            strokeWidth={2}
-          />
-
-          {/* Destination marker */}
-          <Marker coordinate={destinationLocation} title="Điểm thu gom">
-            <View style={styles.markerDestination}>
-              <Ionicons name="home" size={24} color={AppColors.white} />
-            </View>
-          </Marker>
-
-          {/* Current location marker */}
-          <Marker coordinate={currentLocation} title="Vị trí của bạn">
-            <View style={styles.markerCurrent}>
-              <Ionicons name="person" size={24} color={AppColors.white} />
-            </View>
-          </Marker>
-        </MapView>
+        <View style={styles.mapPlaceholder}>
+          <Ionicons name="map" size={48} color={AppColors.primary} />
+          <Text style={styles.mapText}>Vị trí Check-in</Text>
+          <Text style={styles.mapSubtext}>(Cần custom dev client để xem map thật)</Text>
+        </View>
       </View>
 
       {/* Info */}
       <View style={styles.content}>
-        <Card
-          variant="elevated"
-          style={[
-            styles.statusCard,
-            { borderColor: canCheckin ? AppColors.success : AppColors.error },
-          ]}
-        >
-          <View style={styles.distanceInfo}>
-            <Ionicons
-              name={canCheckin ? "checkmark-circle" : "close-circle"}
-              size={48}
-              color={canCheckin ? AppColors.success : AppColors.error}
-            />
-            <View style={styles.distanceText}>
-              <Text style={styles.distanceLabel}>Khoảng cách đến điểm thu gom</Text>
+        {loadingLoc ? (
+          <Card variant="elevated" style={styles.statusCard}>
+            <View style={styles.loadingRow}>
+              <ActivityIndicator size="large" color={AppColors.primary} />
+              <Text style={styles.loadingText}>Đang lấy vị trí GPS...</Text>
+            </View>
+          </Card>
+        ) : (
+          <Card
+            variant="elevated"
+            style={[
+              styles.statusCard,
+              { borderColor: canCheckin ? AppColors.success : AppColors.error },
+            ]}
+          >
+            <View style={styles.distanceInfo}>
+              <Ionicons
+                name={canCheckin ? "checkmark-circle" : "close-circle"}
+                size={48}
+                color={canCheckin ? AppColors.success : AppColors.error}
+              />
+              <View style={styles.distanceText}>
+                <Text style={styles.distanceLabel}>Khoảng cách đến điểm thu gom</Text>
+                <Text
+                  style={[
+                    styles.distanceValue,
+                    { color: canCheckin ? AppColors.success : AppColors.error },
+                  ]}
+                >
+                  {distance !== null ? `${distance} mét` : "Không xác định"}
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={[
+                styles.statusBanner,
+                { backgroundColor: canCheckin ? AppColors.success + "10" : AppColors.error + "10" },
+              ]}
+            >
               <Text
                 style={[
-                  styles.distanceValue,
+                  styles.statusText,
                   { color: canCheckin ? AppColors.success : AppColors.error },
                 ]}
               >
-                {distance} mét
+                {canCheckin
+                  ? "✅ Trong bán kính cho phép — có thể check-in"
+                  : `❌ Còn cách ${distance}m, vui lòng đến gần hơn`}
               </Text>
             </View>
-          </View>
-
-          <View
-            style={[
-              styles.statusBanner,
-              { backgroundColor: canCheckin ? AppColors.success + "10" : AppColors.error + "10" },
-            ]}
-          >
-            <Text
-              style={[
-                styles.statusText,
-                { color: canCheckin ? AppColors.success : AppColors.error },
-              ]}
-            >
-              {canCheckin
-                ? "✅ Trong bán kính cho phép — có thể check-in"
-                : `❌ Còn cách ${distance}m, vui lòng đến gần hơn`}
-            </Text>
-          </View>
-        </Card>
+          </Card>
+        )}
 
         <Card variant="outlined" style={styles.infoCard}>
           <View style={styles.infoRow}>
@@ -153,7 +212,8 @@ export default function TaskCheckinScreen() {
           <Button
             title="Xác nhận đã đến"
             onPress={handleCheckin}
-            disabled={!canCheckin}
+            disabled={!canCheckin || checking}
+            loading={checking}
           />
           <Button
             title="Hủy"
@@ -172,31 +232,27 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.background,
   },
   mapContainer: {
-    height: 400,
+    height: 280,
     overflow: "hidden",
   },
-  map: {
+  mapPlaceholder: {
     flex: 1,
-  },
-  markerDestination: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: AppColors.error,
+    backgroundColor: AppColors.gray[100],
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 3,
-    borderColor: AppColors.white,
+    borderBottomWidth: 2,
+    borderBottomColor: AppColors.gray[200],
   },
-  markerCurrent: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: AppColors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 3,
-    borderColor: AppColors.white,
+  mapText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: AppColors.gray[600],
+    marginTop: 8,
+  },
+  mapSubtext: {
+    fontSize: 12,
+    color: AppColors.gray[500],
+    marginTop: 4,
   },
   content: {
     flex: 1,
@@ -205,6 +261,17 @@ const styles = StyleSheet.create({
   statusCard: {
     marginBottom: 16,
     borderWidth: 3,
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    paddingVertical: 16,
+  },
+  loadingText: {
+    fontSize: 15,
+    color: AppColors.gray[600],
   },
   distanceInfo: {
     flexDirection: "row",

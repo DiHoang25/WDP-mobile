@@ -1,5 +1,5 @@
 import { Button, Card } from "@/components/common";
-import { StatusBadge } from "@/components/collector";
+import MapView, { Circle, Marker } from "@/components/common/MockMapView";
 import { AppColors } from "@/constants/theme";
 import { CollectorStatus } from "@/types/collector";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,7 +13,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Circle, Marker } from "@/components/common/MockMapView";
 
 export default function ShiftControlScreen() {
   const router = useRouter();
@@ -41,7 +40,7 @@ export default function ShiftControlScreen() {
       return;
     }
 
-    Alert.alert("Thành công", "Đã bắt đầu ca làm việc. Bạn sẽ nhận nhiệm vụ mới!", [
+    Alert.alert("Thành công", "Đã bắt đầu ca làm việc. Bạn sẽ nhận Đơn hàng mới!", [
       {
         text: "OK",
         onPress: () => router.back(),
@@ -188,7 +187,7 @@ export default function ShiftControlScreen() {
             <Text style={styles.warningText}>
               • GPS bắt buộc phải được bật khi bắt đầu ca làm{"\n"}
               • Vị trí của bạn sẽ được theo dõi real-time{"\n"}
-              • Bạn sẽ nhận thông báo khi có nhiệm vụ mới
+              • Bạn sẽ nhận thông báo khi có Đơn hàng mới
             </Text>
           </Card>
 

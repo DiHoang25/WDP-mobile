@@ -78,9 +78,26 @@ export default function RegisterEnterpriseFormScreen() {
     if (loc.rawAddress) {
       const raw = loc.rawAddress;
 
-      // 1. Fill detailed address
-      const streetPart = [raw.name, raw.street].filter(Boolean).join(" ");
-      if (streetPart) setAddress(streetPart);
+      // 1. Fill detailed address (street level only)
+      if (raw.house_number || raw.road || raw.name || raw.street) {
+        let detailedAddress = "";
+
+        // Add house number if available
+        if (raw.house_number) detailedAddress = raw.house_number;
+
+        // Add road/street
+        const streetPart = raw.road || raw.street || raw.name;
+        if (streetPart) {
+          detailedAddress = detailedAddress ? `${detailedAddress} ${streetPart}` : streetPart;
+        }
+
+        // Add any other specific markers like building name
+        if (raw.name && raw.name !== raw.road && raw.name !== raw.street && raw.name !== raw.house_number) {
+          detailedAddress = detailedAddress ? `${detailedAddress}, ${raw.name}` : raw.name;
+        }
+
+        if (detailedAddress) setAddress(detailedAddress);
+      }
 
       // 2. Try to match Province
       const provinceName = raw.region || raw.city || "";
@@ -146,41 +163,89 @@ export default function RegisterEnterpriseFormScreen() {
 
   const handleConfirmAddress = async () => {
     setIsAddressModalVisible(false);
-    setAddress(tempAddress);
-    setErrors({ ...errors, address: undefined });
+
+    const isUnchanged = tempAddress.trim() === address.trim();
+    if (isUnchanged) return;
 
     if (mapLocation && tempAddress.trim()) {
       setLoading(true);
       try {
-        const geoResult = await locationService.geocodeAddress(tempAddress, mapLocation.latitude, mapLocation.longitude);
+        const selectedProvince = provinces.find(p => p.code === addressProvinceId);
+        const selectedDistrict = addressDistricts.find(d => d.code === addressDistrictId);
+        const selectedWard = addressWards.find(w => w.code === addressWardId);
+
+        const fullAddressToGeocode = [
+          tempAddress,
+          selectedWard?.name,
+          selectedDistrict?.name,
+          selectedProvince?.name
+        ].filter(Boolean).join(', ');
+
+        const geoResult = await locationService.geocodeAddress(fullAddressToGeocode, mapLocation.latitude, mapLocation.longitude);
+
         if (geoResult.success && geoResult.data) {
           const newLat = geoResult.data.latitude;
           const newLon = geoResult.data.longitude;
+          const isFallback = geoResult.data.isFallback;
 
           const dist = locationService.haversineDistance(
-            mapLocation.latitude, mapLocation.longitude,
-            newLat, newLon
+            mapLocation.latitude,
+            mapLocation.longitude,
+            newLat,
+            newLon
           );
+          console.log(`📏 Computed distance while confirming: ${dist.toFixed(3)} km. Fallback: ${isFallback}`);
 
+          if (isFallback) {
+            Alert.alert(
+              "Địa chỉ không cụ thể",
+              "Hệ thống chỉ tìm thấy khu vực (Phường) của địa chỉ này mà không thấy số nhà/tên đường cụ thể. Vui lòng ghim trực tiếp trên bản đồ để đảm bảo chính xác nhất.",
+              [
+                { text: "Để tôi ghim lại", style: "cancel" },
+                {
+                  text: "Dùng tạm vị trí này",
+                  onPress: () => {
+                    if (dist > 2.0) {
+                      Alert.alert("Lỗi", "Vị trí khu vực này quá xa điểm đã ghim (>2km). Vui lòng ghim lại.");
+                      return;
+                    }
+                    setAddress(tempAddress);
+                    setMapLocation({
+                      latitude: newLat,
+                      longitude: newLon,
+                      address: fullAddressToGeocode
+                    });
+                  }
+                }
+              ]
+            );
+            return;
+          }
+
+          if (dist > 2.0) {
+            setLoading(false);
+            Alert.alert(
+              "Vị trí không hợp lệ",
+              `Địa chỉ bạn nhập cách vị trí đã ghim ${dist.toFixed(1)}km (vượt quá giới hạn 2km). Vui lòng nhập địa chỉ gần vị trí đã ghim hơn.`
+            );
+            return;
+          }
+
+          // Allowed: Update text & re-pin
+          setAddress(tempAddress);
+          setErrors({ ...errors, address: undefined });
           setMapLocation({
-            ...mapLocation,
             latitude: newLat,
-            longitude: newLon
+            longitude: newLon,
+            address: fullAddressToGeocode
           });
 
-          if (dist > 1.0) {
-            Alert.alert(
-              t("createReport.locationMismatch"),
-              t("createReport.locationMismatchMsg", { distance: dist.toFixed(1) })
-            );
-          } else {
-            Alert.alert(
-              t("createReport.addressValid"),
-              t("createReport.addressValidMsg", { distance: (dist * 1000).toFixed(0) })
-            );
-          }
+          Alert.alert("Xác nhận địa chỉ", "Đã cập nhật chi tiết địa chỉ và ghim lại bản đồ.");
         } else {
-          Alert.alert(t("createReport.addressNotFound"), t("createReport.addressNotFoundMsg"));
+          Alert.alert(
+            "Không thể xác minh",
+            "Hệ thống không thể xác định vị trí của địa chỉ này để kiểm tra khoảng cách. Vui lòng nhập rõ ràng hơn."
+          );
         }
       } catch (error) {
         console.error("Geocoding error:", error);
@@ -431,6 +496,7 @@ export default function RegisterEnterpriseFormScreen() {
           <MapLocationPicker
             label={t("registerEnterprise.mapLabel")}
             onLocationSelect={handleMapLocationSelect}
+            initialLocation={mapLocation ? { latitude: mapLocation.latitude, longitude: mapLocation.longitude } : undefined}
             error={errors.mapLocation}
           />
 

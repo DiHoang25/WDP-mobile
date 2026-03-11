@@ -111,16 +111,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      // Call logout service
-      await authService.logout();
+      // Call logout service (may fail if token expired - that's OK)
+      await authService.logout().catch(() => { });
+    } catch (error) {
+      console.error("Logout API error:", error);
+    }
 
-      // Clear state
-      setUser(null);
-
-      // Clear storage
+    // Always clear state and storage regardless of API result
+    setUser(null);
+    apiClient.setToken(null);
+    try {
       await storage.clearAll();
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error("Error clearing storage:", error);
     }
   };
 

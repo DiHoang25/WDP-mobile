@@ -1,8 +1,10 @@
-import { Button, Card } from "@/components/common";
+import type { ToastType } from "@/components/common";
+import { Button, Card, Toast } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { collectorService } from "@/services/collector.service";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
   Alert,
   ScrollView,
@@ -15,8 +17,15 @@ export default function TaskAbsentScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
 
-  // Mock data - check if 20 minutes have passed
-  const canReport = true; // Set to true if 20 minutes have passed since check-in
+  const canReport = true;
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: ToastType }>({
+    visible: false, message: "", type: "success",
+  });
+
+  const showToast = (message: string, type: ToastType = "success") => {
+    setToast({ visible: true, message, type });
+  };
 
   const handleConfirm = () => {
     if (!canReport) {
@@ -32,14 +41,25 @@ export default function TaskAbsentScreen() {
         {
           text: "Xác nhận",
           style: "destructive",
-          onPress: () => {
-            // TODO: Submit to API
-            Alert.alert("Đã ghi nhận", "Báo cáo vắng khách đã được gửi. Nhiệm vụ sẽ bị đóng.", [
-              {
-                text: "OK",
-                onPress: () => router.push("/(collectors)" as any),
-              },
-            ]);
+          onPress: async () => {
+            try {
+              setSubmitting(true);
+              const res = await collectorService.reportAbsent(String(id), {
+                note: "Công dân vắng mặt sau 20 phút chờ",
+              });
+              if (res.success) {
+                showToast("Đã gửi báo cáo vắng khách", "success");
+                setTimeout(() => {
+                  router.replace("/(collectors)" as any);
+                }, 1500);
+              } else {
+                showToast("Không thể gửi báo cáo", "error");
+              }
+            } catch (error) {
+              showToast("Đã có lỗi xảy ra", "error");
+            } finally {
+              setSubmitting(false);
+            }
           },
         },
       ],
@@ -48,6 +68,12 @@ export default function TaskAbsentScreen() {
 
   return (
     <View style={styles.container}>
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast(t => ({ ...t, visible: false }))}
+      />
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {/* Warning banner */}
@@ -81,7 +107,7 @@ export default function TaskAbsentScreen() {
             <View style={styles.infoItem}>
               <Ionicons name="close-circle" size={20} color={AppColors.info} />
               <Text style={styles.infoText}>
-                Nhiệm vụ của bạn sẽ được đóng, không bị tính lỗi
+                Đơn hàng của bạn sẽ được đóng, không bị tính lỗi
               </Text>
             </View>
             <View style={styles.infoItem}>
@@ -136,7 +162,8 @@ export default function TaskAbsentScreen() {
             <Button
               title="Xác nhận Báo Vắng"
               onPress={handleConfirm}
-              disabled={!canReport}
+              disabled={!canReport || submitting}
+              loading={submitting}
               style={[
                 canReport && {
                   backgroundColor: AppColors.warning,

@@ -204,11 +204,19 @@
     "status": {
         "pending": "Pending",
         "accepted": "Accepted",
+        "enterprise_reserved": "Enterprise Reserved",
+        "collector_pending": "Collector Pending",
         "assigned": "Assigned",
         "on_the_way": "On the way",
+        "arrived": "Arrived",
         "waiting_customer": "Waiting for customer",
         "collected": "Collected",
         "completed": "Completed",
+        "failed": "Failed",
+        "failed_no_response": "No Response",
+        "failed_citizen_not_home": "Citizen Not Home",
+        "rescheduled": "Rescheduled",
+        "rejected": "Rejected",
         "cancelled": "Cancelled"
     },
     "wasteType": {

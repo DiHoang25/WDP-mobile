@@ -60,6 +60,38 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         return date.toLocaleDateString("vi-VN");
     };
 
+    // Dịch các status raw trong nội dung thông báo
+    const translateContent = (text: string) => {
+        const statusMap: Record<string, string> = {
+            "COLLECTOR_PENDING": "Đang chờ xác nhận",
+            "PENDING_COLLECTOR": "Đang chờ xác nhận",
+            "PENDING": "Đang chờ xử lý",
+            "ACCEPTED": "Đã chấp nhận",
+            "REJECTED": "Đã từ chối",
+            "ON_THE_WAY": "Đang di chuyển",
+            "ARRIVED": "Đã đến nơi",
+            "COLLECTING": "Đang thu gom",
+            "COMPLETED": "Hoàn thành",
+            "CANCELLED": "Đã huỷ",
+            "EXPIRED": "Hết hạn",
+            "CITIZEN_ABSENT": "Vắng khách",
+            "REPORTED_ISSUE": "Có sự cố",
+            "ENTERPRISE_PENDING": "Chờ doanh nghiệp",
+            "ENTERPRISE_ACCEPTED": "Doanh nghiệp đã nhận",
+            "ENTERPRISE_REJECTED": "Doanh nghiệp từ chối",
+            "IN_PROGRESS": "Đang xử lý",
+            "VERIFIED": "Đã xác minh",
+            "APPROVED": "Đã duyệt",
+            "PROCESSING": "Đang xử lý",
+        };
+
+        let result = text;
+        for (const [eng, vi] of Object.entries(statusMap)) {
+            result = result.replace(new RegExp(eng, "gi"), vi);
+        }
+        return result;
+    };
+
     return (
         <TouchableOpacity
             style={[styles.container, !isRead && styles.unreadContainer]}
@@ -77,9 +109,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                     <Text style={styles.senderName}>{getSenderName()}</Text>
                     <Text style={styles.time}>{formatTime(createdAt)}</Text>
                 </View>
-                <Text style={[styles.title, !isRead && styles.unreadText]}>{title}</Text>
+                <Text style={[styles.title, !isRead && styles.unreadText]}>{translateContent(title)}</Text>
                 <Text style={[styles.content, !isRead && styles.unreadText]}>
-                    {content}
+                    {translateContent(content)}
                 </Text>
             </View>
         </TouchableOpacity>

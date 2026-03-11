@@ -1,10 +1,13 @@
 import { EmptyState } from "@/components/common";
 import { AppColors } from "@/constants/theme";
-import { CollectorNotification } from "@/types/collector";
+import { notificationService } from "@/services/notification.service";
+import { Notification } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,89 +16,79 @@ import {
   View,
 } from "react-native";
 
-export default function NotificationsScreen() {
+export default function CollectorNotificationsScreen() {
   const router = useRouter();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Mock data - thay bằng API call
-  const [notifications, setNotifications] = useState<CollectorNotification[]>([
-    {
-      id: "1",
-      type: "NEW_TASK",
-      title: "Nhiệm vụ thu gom mới",
-      content: "Bạn có 5 phút để xác nhận nhiệm vụ thu gom #R123",
-      taskId: "123",
-      createdAt: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-      isRead: false,
-      priority: "URGENT",
-    },
-    {
-      id: "2",
-      type: "CITIZEN_PRESENT",
-      title: "Công dân đã xác nhận có mặt",
-      content: "Nguyễn Văn A đã xác nhận có mặt. Bạn có thể tiến hành thu gom.",
-      taskId: "122",
-      createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-      isRead: false,
-      priority: "HIGH",
-    },
-    {
-      id: "3",
-      type: "TASK_COMPLETED",
-      title: "Nhiệm vụ hoàn thành",
-      content: "Nhiệm vụ #R121 đã được hoàn thành thành công. +10 điểm tin cậy",
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      isRead: true,
-      priority: "MEDIUM",
-    },
-    {
-      id: "4",
-      type: "WARNING",
-      title: "Cảnh báo timeout",
-      content: "Nhiệm vụ #R120 đã hết thời gian chấp nhận. -5 điểm tin cậy.",
-      createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-      isRead: true,
-      priority: "HIGH",
-    },
-    {
-      id: "5",
-      type: "SYSTEM",
-      title: "Hệ thống tự động offline",
-      content: "Bạn đã tự động chuyển sang trạng thái ngoại tuyến do lâu không hoạt động.",
-      createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-      isRead: true,
-      priority: "LOW",
-    },
-  ]);
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    // TODO: Load data from API
-    setTimeout(() => setRefreshing(false), 1000);
-  };
-
-  const handleNotificationPress = (notification: CollectorNotification) => {
-    // Mark as read
-    setNotifications(
-      notifications.map((n) => (n.id === notification.id ? { ...n, isRead: true } : n)),
-    );
-
-    // Navigate if has taskId
-    if (notification.taskId) {
-      router.push(`/(collectors)/task-detail?id=${notification.taskId}` as any);
+  const fetchNotifications = async () => {
+    try {
+      const response = await notificationService.getNotifications(1, 50);
+      if (response.success && response.data) {
+        setNotifications(response.data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching notifications:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const getNotificationIcon = (type: CollectorNotification["type"]) => {
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifications();
+    }, [])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchNotifications();
+  };
+
+  const handleNotificationPress = async (notification: Notification) => {
+    // Mark as read
+    if (!notification.isRead) {
+      try {
+        await notificationService.markAsRead(notification.id);
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notification.id ? { ...n, isRead: true } : n))
+        );
+      } catch (error) {
+        console.error("Mark as read error:", error);
+      }
+    }
+
+    // Navigate to task detail if has reportId or taskId
+    if (notification.meta?.taskId) {
+      router.push({
+        pathname: "/(collectors)/task-detail",
+        params: { id: String(notification.meta.taskId) },
+      } as any);
+    } else if (notification.meta?.reportId) {
+      router.push({
+        pathname: "/(collectors)/task-detail",
+        params: { id: String(notification.meta.reportId), reportId: String(notification.meta.reportId) },
+      } as any);
+    }
+  };
+
+  const getNotificationIcon = (type: string) => {
     switch (type) {
+      case "REPORT_STATUS_CHANGED":
+        return { name: "document-text", color: AppColors.primary };
+      case "TASK_ASSIGNED":
       case "NEW_TASK":
         return { name: "add-circle", color: AppColors.primary };
+      case "TASK_ACCEPTED":
       case "CITIZEN_PRESENT":
         return { name: "checkmark-circle", color: AppColors.success };
       case "TASK_COMPLETED":
         return { name: "checkmark-done-circle", color: AppColors.success };
       case "WARNING":
         return { name: "warning", color: AppColors.warning };
+      case "BROADCAST":
       case "SYSTEM":
         return { name: "information-circle", color: AppColors.info };
       default:
@@ -106,7 +99,7 @@ export default function NotificationsScreen() {
   const getTimeAgo = (dateString: string) => {
     const now = new Date().getTime();
     const time = new Date(dateString).getTime();
-    const diff = Math.floor((now - time) / 1000); // seconds
+    const diff = Math.floor((now - time) / 1000);
 
     if (diff < 60) return "Vừa xong";
     if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
@@ -114,18 +107,62 @@ export default function NotificationsScreen() {
     return `${Math.floor(diff / 86400)} ngày trước`;
   };
 
+  // Dịch status raw sang tiếng Việt
+  const translateContent = (text: string) => {
+    const statusMap: Record<string, string> = {
+      "COLLECTOR_PENDING": "Đang chờ xác nhận",
+      "PENDING_COLLECTOR": "Đang chờ xác nhận",
+      "PENDING": "Đang chờ xử lý",
+      "ACCEPTED": "Đã chấp nhận",
+      "REJECTED": "Đã từ chối",
+      "ON_THE_WAY": "Đang di chuyển",
+      "ARRIVED": "Đã đến nơi",
+      "COLLECTING": "Đang thu gom",
+      "COMPLETED": "Hoàn thành",
+      "CANCELLED": "Đã huỷ",
+      "EXPIRED": "Hết hạn",
+      "CITIZEN_ABSENT": "Vắng khách",
+      "REPORTED_ISSUE": "Có sự cố",
+      "ENTERPRISE_PENDING": "Chờ doanh nghiệp",
+      "ENTERPRISE_ACCEPTED": "Doanh nghiệp đã nhận",
+      "ENTERPRISE_REJECTED": "Doanh nghiệp từ chối",
+      "IN_PROGRESS": "Đang xử lý",
+      "VERIFIED": "Đã xác minh",
+      "APPROVED": "Đã duyệt",
+      "PROCESSING": "Đang xử lý",
+    };
+
+    let result = text;
+    for (const [eng, vi] of Object.entries(statusMap)) {
+      result = result.replace(new RegExp(eng, "gi"), vi);
+    }
+    return result;
+  };
+
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <LinearGradient colors={[AppColors.primary, AppColors.primaryDark]} style={styles.headerGradient}>
+          <Text style={styles.headerTitle}>Thông báo</Text>
+        </LinearGradient>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={AppColors.primary} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      {unreadCount > 0 && (
-        <View style={styles.header}>
-          <Text style={styles.unreadText}>
-            Bạn có {unreadCount} thông báo chưa đọc
-          </Text>
-        </View>
-      )}
+      {/* Header - Safe area */}
+      <LinearGradient colors={[AppColors.primary, AppColors.primaryDark]} style={styles.headerGradient}>
+        <Text style={styles.headerTitle}>Thông báo</Text>
+        {unreadCount > 0 && (
+          <Text style={styles.headerSubtitle}>{unreadCount} thông báo chưa đọc</Text>
+        )}
+      </LinearGradient>
 
       {/* Notification list */}
       <ScrollView
@@ -155,13 +192,13 @@ export default function NotificationsScreen() {
                 <View style={styles.notificationContent}>
                   <View style={styles.notificationHeader}>
                     <Text style={styles.notificationTitle}>
-                      {notification.title}
-                      {!notification.isRead && <Text style={styles.newBadge}> • NEW</Text>}
+                      {translateContent(notification.title)}
+                      {!notification.isRead && <Text style={styles.newBadge}> • MỚI</Text>}
                     </Text>
                     <Text style={styles.notificationTime}>{getTimeAgo(notification.createdAt)}</Text>
                   </View>
                   <Text style={styles.notificationText} numberOfLines={2}>
-                    {notification.content}
+                    {translateContent(notification.content)}
                   </Text>
                 </View>
 
@@ -170,6 +207,7 @@ export default function NotificationsScreen() {
             );
           })
         )}
+        <View style={{ height: 20 }} />
       </ScrollView>
     </View>
   );
@@ -180,17 +218,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: AppColors.background,
   },
-  header: {
-    backgroundColor: AppColors.primary + "10",
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: AppColors.primary + "30",
+  headerGradient: {
+    paddingTop: 50,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
   },
-  unreadText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: AppColors.primary,
-    textAlign: "center",
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: AppColors.white,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.8)",
+    marginTop: 4,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
   content: {
     flex: 1,
@@ -201,10 +247,10 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: AppColors.white,
     borderBottomWidth: 1,
-    borderBottomColor: AppColors.gray[200],
+    borderBottomColor: AppColors.gray[100],
   },
   unread: {
-    backgroundColor: AppColors.primary + "05",
+    backgroundColor: AppColors.primary + "08",
   },
   iconContainer: {
     width: 48,

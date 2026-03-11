@@ -9,6 +9,7 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,18 +28,24 @@ export default function ProfileScreen() {
     }, [])
   );
 
-  const handleLogout = () => {
-    Alert.alert(t("profile.logout"), t("profile.logoutConfirm"), [
-      { text: t("common.cancel"), style: "cancel" },
-      {
-        text: t("profile.logout"),
-        style: "destructive",
-        onPress: () => {
-          logout();
-          router.replace("/login");
-        },
-      },
-    ]);
+  const handleLogout = async () => {
+    const doLogout = async () => {
+      try {
+        await logout();
+      } catch (e) {
+        console.error("Logout error:", e);
+      }
+      router.replace("/login");
+    };
+
+    if (Platform.OS === "web") {
+      await doLogout();
+    } else {
+      Alert.alert(t("profile.logout"), t("profile.logoutConfirm"), [
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("profile.logout"), style: "destructive", onPress: doLogout },
+      ]);
+    }
   };
 
   const menuItems = [

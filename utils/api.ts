@@ -57,7 +57,19 @@ class ApiClient {
                 headers,
             });
 
-            const responseData = await response.json();
+            const contentType = response.headers.get("content-type");
+            let responseData;
+
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                responseData = await response.json();
+            } else {
+                const textData = await response.text();
+                return {
+                    success: false,
+                    error: `Unexpected response format. Status: ${response.status}`,
+                    message: textData.substring(0, 150), // Show part of the HTML/text
+                };
+            }
 
             if (!response.ok) {
                 return {
@@ -131,7 +143,17 @@ class ApiClient {
                 body: formData,
             });
 
-            const data = await response.json();
+            const contentType = response.headers.get("content-type");
+            let data;
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                data = await response.json();
+            } else {
+                const textData = await response.text();
+                return {
+                    success: false,
+                    error: `Unexpected response format. Status: ${response.status}`,
+                };
+            }
 
             if (!response.ok) {
                 console.error(`❌ API ${method} FormData Error Details:`, {

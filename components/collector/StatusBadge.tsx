@@ -1,4 +1,3 @@
-import { AppColors } from "@/constants/theme";
 import { CollectorStatus } from "@/types/collector";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -10,7 +9,7 @@ interface StatusBadgeProps {
 
 export function StatusBadge({ status, size = "small" }: StatusBadgeProps) {
   const config = getStatusConfig(status);
-  
+
   return (
     <View
       style={[
@@ -43,6 +42,7 @@ function getStatusConfig(status: CollectorStatus) {
         textColor: "#991B1B",
       };
     case "AVAILABLE":
+    case "ONLINE_AVAILABLE":
       return {
         label: "Sẵn sàng",
         bgColor: "#D1FAE5",

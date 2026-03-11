@@ -29,11 +29,19 @@ export const getStatusColor = (
   const statusColors: Record<string, { bg: string; text: string }> = {
     pending: { bg: "#FEF3C7", text: "#92400E" },
     accepted: { bg: "#DBEAFE", text: "#1E40AF" },
+    enterprise_reserved: { bg: "#DBEAFE", text: "#1E40AF" },
+    collector_pending: { bg: "#FEF3C7", text: "#92400E" },
     assigned: { bg: "#DBEAFE", text: "#1E40AF" },
     on_the_way: { bg: "#E0E7FF", text: "#4338CA" },
+    arrived: { bg: "#E0E7FF", text: "#4338CA" },
     waiting_customer: { bg: "#FDF2F2", text: "#9B1C1C" },
-    collected: { bg: "#E0E7FF", text: "#4338CA" },
+    collected: { bg: "#D1FAE5", text: "#065F46" },
     completed: { bg: "#D1FAE5", text: "#065F46" },
+    failed: { bg: "#FEE2E2", text: "#B91C1C" },
+    failed_no_response: { bg: "#FEE2E2", text: "#B91C1C" },
+    failed_citizen_not_home: { bg: "#FEE2E2", text: "#B91C1C" },
+    rescheduled: { bg: "#FEF3C7", text: "#92400E" },
+    rejected: { bg: "#FEE2E2", text: "#B91C1C" },
     cancelled: { bg: "#F3F4F6", text: "#6B7280" },
   };
   return statusColors[s] || { bg: "#F3F4F6", text: "#6B7280" };
