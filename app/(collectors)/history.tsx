@@ -153,7 +153,15 @@ export default function HistoryScreen() {
             const report = isHistoryItem ? task : (task.report || {});
             const dateStr = isHistoryItem ? task.completedAt : task.createdAt;
             const displayAddress = isHistoryItem ? task.address : (report.address || "N/A");
-            const firstImage = !isHistoryItem ? (report.images?.[0]?.imageUrl) : null;
+
+            // Extract first image for thumbnail
+            let firstImage = null;
+            if (isHistoryItem) {
+              const imgs = task.images || [];
+              firstImage = imgs.length > 0 ? (imgs[0].imageUrl || imgs[0]) : null;
+            } else {
+              firstImage = report.images?.[0]?.imageUrl || report.images?.[0];
+            }
             const wasteItems = report.wasteItems || [];
             const totalWeight = isHistoryItem
               ? (task.actualWeight || wasteItems.reduce((sum: number, item: any) => sum + (item.weight || 0), 0))

@@ -36,10 +36,19 @@ export default function TaskListScreen() {
 
   const fetchTasks = useCallback(async () => {
     try {
-      const data = await collectorService.getTasks();
-      setTasks(data);
+      setLoading(true);
+      const [pending, accepted] = await Promise.all([
+        collectorService.getTasks(),
+        collectorService.getAcceptedTasks()
+      ]);
+      console.log(`[task-list] Fetched ${pending?.length || 0} pending and ${accepted?.length || 0} accepted tasks`);
+
+      // Combine and filter unique cases if necessary, but usually they are distinct status-wise
+      const combined = [...(pending || []), ...(accepted || [])];
+      setTasks(combined);
     } catch (error) {
       console.error("Error fetching tasks:", error);
+      showToast("Lỗi khi tải danh sách đơn hàng", "error");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -126,7 +135,9 @@ export default function TaskListScreen() {
     );
   }
 
-  const displayTasks = tasks.filter(t => t.status === "PENDING_COLLECTOR" || t.status === "COLLECTOR_PENDING");
+  const displayTasks = tasks.filter(t =>
+    ["PENDING_COLLECTOR", "COLLECTOR_PENDING", "ACCEPTED", "ON_THE_WAY", "ARRIVED", "COLLECTED"].includes(t.status)
+  );
 
   return (
     <View style={styles.container}>
@@ -144,7 +155,7 @@ export default function TaskListScreen() {
             <Text style={styles.headerTitle}>Đơn hàng</Text>
             <Text style={styles.headerSubtitle}>
               {displayTasks.length > 0
-                ? `${displayTasks.length} đơn đang xử lý`
+                ? `${displayTasks.length} đơn cần xử lý`
                 : "Không có đơn nào cần xử lý"}
             </Text>
           </View>
@@ -227,39 +238,52 @@ export default function TaskListScreen() {
                     </View>
                   </View>
 
-                  {/* Action Buttons - Đồng ý / Từ chối */}
-                  {task.status === "PENDING_COLLECTOR" && (
-                    <View style={styles.actionRow}>
+                  {/* Action Buttons */}
+                  <View style={styles.actionRow}>
+                    {task.status === "PENDING_COLLECTOR" || task.status === "COLLECTOR_PENDING" ? (
+                      <>
+                        <TouchableOpacity
+                          style={styles.rejectButton}
+                          onPress={(e) => { e.stopPropagation(); handleRespond(task, false); }}
+                          disabled={isResponding}
+                        >
+                          {isResponding ? (
+                            <ActivityIndicator size="small" color={AppColors.error} />
+                          ) : (
+                            <>
+                              <Ionicons name="close-circle" size={18} color={AppColors.error} />
+                              <Text style={styles.rejectText}>Từ chối</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.acceptButton}
+                          onPress={(e) => { e.stopPropagation(); handleRespond(task, true); }}
+                          disabled={isResponding}
+                        >
+                          {isResponding ? (
+                            <ActivityIndicator size="small" color={AppColors.white} />
+                          ) : (
+                            <>
+                              <Ionicons name="checkmark-circle" size={18} color={AppColors.white} />
+                              <Text style={styles.acceptText}>Chấp nhận</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </>
+                    ) : (
                       <TouchableOpacity
-                        style={styles.rejectButton}
-                        onPress={(e) => { e.stopPropagation(); handleRespond(task, false); }}
-                        disabled={isResponding}
+                        style={styles.activeTaskButton}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          router.push(`/(collectors)/active-task?id=${task.id}` as any);
+                        }}
                       >
-                        {isResponding ? (
-                          <ActivityIndicator size="small" color={AppColors.error} />
-                        ) : (
-                          <>
-                            <Ionicons name="close-circle" size={18} color={AppColors.error} />
-                            <Text style={styles.rejectText}>Từ chối</Text>
-                          </>
-                        )}
+                        <Ionicons name="play-circle" size={20} color={AppColors.white} />
+                        <Text style={styles.acceptText}>Tiếp tục nhiệm vụ</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.acceptButton}
-                        onPress={(e) => { e.stopPropagation(); handleRespond(task, true); }}
-                        disabled={isResponding}
-                      >
-                        {isResponding ? (
-                          <ActivityIndicator size="small" color={AppColors.white} />
-                        ) : (
-                          <>
-                            <Ionicons name="checkmark-circle" size={18} color={AppColors.white} />
-                            <Text style={styles.acceptText}>Chấp nhận</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  )}
+                    )}
+                  </View>
 
 
                 </Card>

@@ -55,7 +55,8 @@
       "reactCompiler": true
     },
     "extra": {
-      "apiUrl": "https://crowdsourced-collection-recycling-platform-dnbye7h0d0c6gkaj.southeastasia-01.azurewebsites.net/api/v1"
+      "apiUrl": "https://crowdsourced-collection-recycling-platform-dnbye7h0d0c6gkaj.southeastasia-01.azurewebsites.net/api/v1",
+      "mapboxDirectionsKey": ""
     }
   }
 }

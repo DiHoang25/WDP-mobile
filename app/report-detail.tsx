@@ -1,5 +1,6 @@
 import { Card, Header, Loading } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { collectorService } from "@/services/collector.service";
 import { wasteService } from "@/services/waste.service";
 import { WasteReport } from "@/types";
 import { getStatusColor, getStatusText, getWasteTypeLabel } from "@/utils/helpers";
@@ -7,13 +8,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function ReportDetailScreen() {
@@ -128,6 +130,7 @@ export default function ReportDetailScreen() {
         );
     };
 
+
     const createdAt = report?.createdAt;
     const updatedAt = report?.updatedAt;
     const address = report?.address;
@@ -188,11 +191,12 @@ export default function ReportDetailScreen() {
                 {/* Status Card - Always show if we have status */}
                 {(status || report) && (
                     <View style={styles.statusCard}>
-                        <View>
+                        <View style={{ flex: 1 }}>
                             <Text style={styles.label}>Trạng thái</Text>
                             <Text style={[styles.statusText, { color: getStatusColor(status!).text }]}>
                                 {getStatusText(status!)}
                             </Text>
+                            {/* Nút Theo dõi shipper đã được loại bỏ theo yêu cầu */}
                         </View>
                         <View style={styles.dateContainer}>
                             <Text style={styles.label}>Cập nhật lúc</Text>
@@ -395,6 +399,7 @@ export default function ReportDetailScreen() {
 
                 <View style={styles.bottomSpacer} />
             </ScrollView>
+
         </View>
     );
 }
@@ -628,6 +633,68 @@ const styles = StyleSheet.create({
         opacity: 0.6,
     },
     cancelButtonText: {
+        color: AppColors.white,
+        fontSize: 16,
+        fontWeight: "bold",
+    },
+    trackingButton: {
+        backgroundColor: AppColors.primary,
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        marginTop: 8,
+        alignSelf: "flex-start",
+        gap: 6,
+    },
+    trackingButtonText: {
+        color: AppColors.white,
+        fontSize: 13,
+        fontWeight: "600",
+    },
+    modalContainer: {
+        flex: 1,
+        backgroundColor: AppColors.white,
+    },
+    modalHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: AppColors.gray[100],
+    },
+    closeModalBtn: {
+        width: 40,
+        height: 40,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: "bold",
+        color: AppColors.textPrimary,
+    },
+    modalFooter: {
+        padding: 16,
+        borderTopWidth: 1,
+        borderTopColor: AppColors.gray[100],
+    },
+    pollingText: {
+        textAlign: "center",
+        fontSize: 12,
+        color: AppColors.textSecondary,
+        marginBottom: 12,
+    },
+    doneBtn: {
+        backgroundColor: AppColors.primary,
+        padding: 14,
+        borderRadius: 12,
+        alignItems: "center",
+    },
+    doneBtnText: {
         color: AppColors.white,
         fontSize: 16,
         fontWeight: "bold",

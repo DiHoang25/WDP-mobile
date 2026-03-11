@@ -2,10 +2,7 @@ import {
   CollectorProfile,
   CollectorStatus,
   CollectorTask,
-  CollectorTaskItem,
-  CompleteTaskData,
-  ReportAbsentData,
-  ReportIssueData
+  CollectorTaskItem
 } from "@/types/collector";
 import { apiClient } from "@/utils/api";
 
@@ -53,9 +50,11 @@ export const collectorService = {
    * Lấy danh sách task đang chờ xác nhận
    */
   async getTasks(): Promise<CollectorTaskItem[]> {
-    const response = await apiClient.get<CollectorTaskItem[]>("/collectors/tasks");
-    if (response.success && Array.isArray(response.data)) {
-      return response.data;
+    const response = await apiClient.get<any>("/collectors/tasks");
+    console.log("📡 getTasks raw response:", JSON.stringify(response));
+    if (response.success) {
+      if (Array.isArray(response.data)) return response.data;
+      if (response.data && Array.isArray(response.data.data)) return response.data.data;
     }
     return [];
   },
@@ -65,6 +64,7 @@ export const collectorService = {
    */
   async getAcceptedTasks(): Promise<CollectorTaskItem[]> {
     const response = await apiClient.get<any>("/collectors/reports/accepted");
+    console.log("📡 getAcceptedTasks raw response:", JSON.stringify(response));
     if (response.success) {
       if (Array.isArray(response.data)) return response.data;
       if (response.data && Array.isArray(response.data.data)) return response.data.data;
@@ -154,82 +154,108 @@ export const collectorService = {
   },
 
   /**
-   * Check-in đã đến nơi (validate GPS trong 300m)
+   * Check-in đã đến nơi (Sử dụng API mới: PATCH /api/v1/collectors/reports/{reportId}/arrived)
    */
   async checkinArrived(
-    taskId: string,
+    reportId: number,
     latitude: number,
     longitude: number,
-  ): Promise<{ success: boolean; distance?: number }> {
-    const response = await apiClient.post<{ success: boolean; distance?: number }>(`/collector/tasks/${taskId}/checkin`, {
-      latitude,
-      longitude,
-    });
-    return response.data as { success: boolean; distance?: number };
+  ): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await apiClient.patch<any>(`/collectors/reports/${reportId}/arrived`, {
+        latitude,
+        longitude,
+      });
+      return { success: response?.success !== false, message: response?.message };
+    } catch (error: any) {
+      console.error("📡 checkinArrived error:", error);
+      return { success: false, message: error?.message || "Lỗi khi xác nhận đã đến nơi" };
+    }
   },
 
   /**
-   * Hoàn tất thu gom
+   * Hoàn tất thu gom rác (Sử dụng API mới: PATCH /api/v1/collectors/reports/complete)
    */
   async completeTask(
-    taskId: string,
-    data: CompleteTaskData,
-  ): Promise<{ success: boolean }> {
-    const formData = new FormData();
-    formData.append("actualWeightKg", data.actualWeightKg.toString());
-    formData.append("accuracyRating", data.accuracyRating);
+    data: {
+      reportId: number;
+      weightOrganic?: number;
+      weightRecyclable?: number;
+      weightHazardous?: number;
+      accuracyBucket: "MATCH" | "MODERATE" | "HEAVY";
+      files: string[];
+    }
+  ): Promise<{ success: boolean; message?: string }> {
+    try {
+      const formData = new FormData();
+      formData.append("reportId", data.reportId.toString());
+      if (data.weightOrganic !== undefined) formData.append("weightOrganic", data.weightOrganic.toString());
+      if (data.weightRecyclable !== undefined) formData.append("weightRecyclable", data.weightRecyclable.toString());
+      if (data.weightHazardous !== undefined) formData.append("weightHazardous", data.weightHazardous.toString());
+      formData.append("accuracyBucket", data.accuracyBucket);
 
-    // Upload ảnh
-    data.collectionImages.forEach((imageUri, index) => {
-      formData.append("images", {
-        uri: imageUri,
-        type: "image/jpeg",
-        name: `collection_${index}.jpg`,
-      } as any);
-    });
+      data.files.forEach((uri, index) => {
+        const filename = uri.split('/').pop() || `image_${index}.jpg`;
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : `image`;
 
-    const response = await apiClient.postFormData<{ success: boolean }>(
-      `/collector/tasks/${taskId}/complete`,
-      formData
-    );
-    return response.data as { success: boolean };
+        formData.append("files", {
+          uri,
+          name: filename,
+          type,
+        } as any);
+      });
+
+      const response = await apiClient.patchFormData<any>("/collectors/reports/complete", formData);
+      return { success: response?.success !== false, message: response?.message };
+    } catch (error: any) {
+      console.error("📡 completeTask error:", error);
+      return { success: false, message: error?.message || "Lỗi khi hoàn tất thu gom" };
+    }
   },
 
   /**
-   * Báo vắng khách (sau 20 phút chờ)
+   * Báo vắng khách (PATCH /api/v1/collectors/reports/{reportId}/no-response)
    */
-  async reportAbsent(
-    taskId: string,
-    data: ReportAbsentData,
-  ): Promise<{ success: boolean }> {
-    const response = await apiClient.post<{ success: boolean }>(`/collector/tasks/${taskId}/absent`, data);
-    return response.data as { success: boolean };
+  async markNoResponse(reportId: number): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await apiClient.patch<any>(`/collectors/reports/${reportId}/no-response`);
+      return { success: response?.success !== false, message: response?.message };
+    } catch (error: any) {
+      console.error("📡 markNoResponse error:", error);
+      return { success: false, message: error?.message || "Lỗi khi báo vắng khách" };
+    }
   },
 
   /**
-   * Báo cáo sự cố/lừa đảo
+   * Báo cáo sự cố/Lừa đảo (POST /api/v1/collectors/reports/{reportId}/dispute)
    */
-  async reportIssue(
-    taskId: string,
-    data: ReportIssueData,
-  ): Promise<{ success: boolean }> {
-    const formData = new FormData();
-    formData.append("description", data.description);
+  async reportDispute(
+    reportId: number,
+    data: { reason: string; files: string[] }
+  ): Promise<{ success: boolean; message?: string }> {
+    try {
+      const formData = new FormData();
+      formData.append("reason", data.reason);
 
-    // Upload ảnh bằng chứng
-    data.issueImages.forEach((imageUri, index) => {
-      formData.append("images", {
-        uri: imageUri,
-        type: "image/jpeg",
-        name: `issue_${index}.jpg`,
-      } as any);
-    });
+      data.files.forEach((uri, index) => {
+        const filename = uri.split('/').pop() || `dispute_${index}.jpg`;
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : `image`;
 
-    const response = await apiClient.postFormData<{ success: boolean }>(
-      `/collector/tasks/${taskId}/report-issue`,
-      formData
-    );
-    return response.data as { success: boolean };
+        formData.append("files", {
+          uri,
+          name: filename,
+          type,
+        } as any);
+      });
+
+      const response = await apiClient.postFormData<any>(`/collectors/reports/${reportId}/dispute`, formData);
+      return { success: response?.success !== false, message: response?.message };
+    } catch (error: any) {
+      console.error("📡 reportDispute error:", error);
+      return { success: false, message: error?.message || "Lỗi khi báo cáo sự cố" };
+    }
   },
 
   /**
@@ -273,6 +299,17 @@ export const collectorService = {
       longitude,
     });
     return response.data as { success: boolean };
+  },
+
+  /**
+   * Lấy vị trí hiện tại của collector (dành cho User tracking)
+   */
+  async getCollectorLocation(collectorId: number): Promise<{ success: boolean; data?: { latitude: number; longitude: number } }> {
+    const response = await apiClient.get<any>(`/collector/location/${collectorId}`);
+    return {
+      success: response.success,
+      data: response.data
+    };
   },
 
   /**

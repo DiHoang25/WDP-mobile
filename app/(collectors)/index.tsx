@@ -41,6 +41,12 @@ export default function CollectorDashboard() {
     try {
       setLoading(refreshing ? false : true);
       const data = await collectorService.getProfile();
+      console.log("👤 Collector Profile:", JSON.stringify({
+        id: data.id,
+        code: data.employeeCode,
+        enterprise: data.enterprise.name,
+        availability: data.status.availability
+      }));
       setProfile(data);
     } catch (error) {
       console.error("Dashboard error:", error);

@@ -102,12 +102,23 @@ export default function TaskDetailScreen() {
             return;
           }
 
-          // Fallback to fetch report correctly
-          try {
-            // If we really can't find the task, we might be looking at a report that hasn't been assigned yet? 
-            // Or an API issue. Let's just log it.
-            console.log(`Could not find any task referencing reportId ${searchReportId} in pending/accepted tasks`);
-          } catch (e) { }
+          // 4. Try finding in history if still not found
+          console.log(`Searching for report in history: ${searchReportId}`);
+          const historyTasks = await collectorService.getCompletedTasks();
+          const foundHistory = historyTasks.find(
+            (t: any) => String(t.id) === String(searchReportId) || String(t.reportId) === String(searchReportId)
+          );
+          if (foundHistory) {
+            console.log(`Found task in history with ID: ${foundHistory.id || foundHistory.reportId}`);
+            // Completed tasks are usually reports directly
+            const normalizedHistory = {
+              ...foundHistory,
+              report: foundHistory,
+              status: foundHistory.status || "COMPLETED"
+            };
+            setTask(normalizedHistory);
+            return;
+          }
         } catch (e) {
           console.log("Error finding task by report ID in task lists", e);
         }
@@ -222,7 +233,26 @@ export default function TaskDetailScreen() {
   const wasteItems = report.wasteItems || [];
   const totalWeight = wasteItems.reduce((sum: number, item: any) => sum + (item.weightKg || item.weight || 0), 0);
   const citizen = report.citizen;
-  const taskId = task.id || id;
+  const taskId = task.id || task.reportId || id;
+
+  // Normalize images for display
+  // images: Usually [{imageUrl: "..."}]
+  // evidenceImages or files: Usually ["https://..."]
+
+  let rawReportImages = Array.isArray(report.images) ? report.images : [];
+  let rawEvidenceImages = Array.isArray(report.evidenceImages) ? report.evidenceImages :
+    (Array.isArray(report.files) ? report.files : []);
+
+  const reportImages = rawReportImages;
+  const evidenceImages = rawEvidenceImages;
+
+  console.log(`[task-detail] Rendering ID ${taskId}`);
+  console.log(`[task-detail] Found ${reportImages.length} customer images, ${evidenceImages.length} evidence images`);
+
+  if (reportImages.length === 0 && evidenceImages.length === 0) {
+    console.log(`[task-detail] No images found. Available keys:`, Object.keys(report));
+    console.log(`[task-detail] Data snippet:`, JSON.stringify(report).substring(0, 300));
+  }
 
   return (
     <View style={styles.container}>
@@ -261,8 +291,16 @@ export default function TaskDetailScreen() {
             <Text style={styles.cardTitle}>Thông tin đơn hàng</Text>
 
             <InfoRow icon="document-text" label="Mã đơn" value={`#${task.reportId || report.id}`} />
-            <InfoRow icon="flag" label="Trạng thái" value={getReportStatusLabel(report.status)} />
-            <InfoRow icon="calendar" label="Ngày tạo" value={formatDate(report.createdAt)} />
+            <InfoRow
+              icon="flag"
+              label="Trạng thái"
+              value={getReportStatusLabel(report.status || task.status)}
+            />
+            <InfoRow
+              icon="calendar"
+              label={task.status === "COMPLETED" || (report as any).completedAt ? "Ngày hoàn tất" : "Ngày tạo"}
+              value={formatDate(report.createdAt || (report as any).completedAt)}
+            />
             {task.expiredAt && (
               <InfoRow icon="timer" label="Hạn xác nhận" value={formatDate(task.expiredAt)} />
             )}
@@ -279,13 +317,17 @@ export default function TaskDetailScreen() {
           )}
 
           {/* Report Images */}
-          {!!(report.images && report.images.length > 0) && (
+          {reportImages.length > 0 && (
             <Card variant="elevated" style={styles.card}>
-              <Text style={styles.cardTitle}>Hình ảnh</Text>
+              <Text style={styles.cardTitle}>Hình ảnh từ khách hàng</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.imagesRow}>
-                  {report.images.map((img: any) => (
-                    <Image key={img.id || img} source={{ uri: img.imageUrl || img }} style={styles.reportImage} />
+                  {reportImages.map((img: any, idx: number) => (
+                    <Image
+                      key={img.id || `img-${idx}`}
+                      source={{ uri: img.imageUrl || img }}
+                      style={styles.reportImage}
+                    />
                   ))}
                 </View>
               </ScrollView>
@@ -326,13 +368,17 @@ export default function TaskDetailScreen() {
           )}
 
           {/* Evidence Images */}
-          {!!(report.evidenceImages && report.evidenceImages.length > 0) && (
+          {evidenceImages.length > 0 && (
             <Card variant="elevated" style={styles.card}>
               <Text style={styles.cardTitle}>Ảnh bằng chứng thu gom</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={styles.imagesRow}>
-                  {report.evidenceImages.map((url: string, idx: number) => (
-                    <Image key={idx} source={{ uri: url }} style={styles.reportImage} />
+                  {evidenceImages.map((img: any, idx: number) => (
+                    <Image
+                      key={`evid-${idx}`}
+                      source={{ uri: img.imageUrl || img }}
+                      style={styles.reportImage}
+                    />
                   ))}
                 </View>
               </ScrollView>

@@ -41,6 +41,8 @@ export interface WasteReport {
   citizenName: string;
   enterpriseName?: string;
   address: string;
+  latitude: number;
+  longitude: number;
   district: string;
   wasteType: string;
   weightKg: number; // kg
