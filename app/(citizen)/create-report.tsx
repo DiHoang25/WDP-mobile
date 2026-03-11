@@ -18,6 +18,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -58,6 +59,9 @@ export default function CreateReportScreen() {
   const [latitude, setLatitude] = useState(10.7769);
   const [longitude, setLongitude] = useState(106.7009);
   const [mapLocation, setMapLocation] = useState<any>(null);
+
+  const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
+  const [tempAddress, setTempAddress] = useState("");
 
   useEffect(() => {
     loadProvinces();
@@ -389,6 +393,56 @@ export default function CreateReportScreen() {
         setWardCode("");
       } // end if (matchedProvince)
     } // end if (loc.rawAddress)
+  };
+
+  const handleConfirmAddress = async () => {
+    setIsAddressModalVisible(false);
+    setStreetAddress(tempAddress);
+    setErrors({ ...errors, street: undefined });
+
+    if (mapLocation && tempAddress.trim()) {
+      setLoading(true);
+      try {
+        const geoResult = await locationService.geocodeAddress(tempAddress, latitude, longitude);
+        if (geoResult.success && geoResult.data) {
+          const newLat = geoResult.data.latitude;
+          const newLon = geoResult.data.longitude;
+
+          const dist = locationService.haversineDistance(
+            latitude, longitude,
+            newLat, newLon
+          );
+
+          setLatitude(newLat);
+          setLongitude(newLon);
+          if (mapLocation) {
+            setMapLocation({
+              ...mapLocation,
+              latitude: newLat,
+              longitude: newLon
+            });
+          }
+
+          if (dist > 1.0) {
+            Alert.alert(
+              t("createReport.locationMismatch"),
+              t("createReport.locationMismatchMsg", { distance: dist.toFixed(1) })
+            );
+          } else {
+            Alert.alert(
+              t("createReport.addressValid"),
+              t("createReport.addressValidMsg", { distance: (dist * 1000).toFixed(0) })
+            );
+          }
+        } else {
+          Alert.alert(t("createReport.addressNotFound"), t("createReport.addressNotFoundMsg"));
+        }
+      } catch (error) {
+        console.error("Geocoding error:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   // Derive options based on selections - fallback to mock if API fails
@@ -732,21 +786,25 @@ export default function CreateReportScreen() {
 
           <Text style={styles.sectionTitle}>{t("createReport.detailedAddress")}</Text>
           <Card variant="elevated" style={styles.locationCard}>
-            <Input
-              label={t("createReport.streetPlaceholder")}
-              placeholder={t("createReport.streetAutoFill")}
-              value={streetAddress}
-              onChangeText={(text: string) => {
-                setStreetAddress(text);
-                setErrors({ ...errors, street: undefined });
-              }}
-              editable={true}
-              multiline={true}
-              numberOfLines={3}
-              error={errors.street}
-              icon="location-outline"
-              containerStyle={{ marginBottom: 0 }}
-            />
+            <TouchableOpacity onPress={() => { setTempAddress(streetAddress); setIsAddressModalVisible(true); }} activeOpacity={0.7}>
+              <View pointerEvents="none">
+                <Input
+                  label={t("createReport.streetPlaceholder")}
+                  placeholder={t("createReport.streetAutoFill")}
+                  value={streetAddress}
+                  onChangeText={(text: string) => {
+                    setStreetAddress(text);
+                    setErrors({ ...errors, street: undefined });
+                  }}
+                  editable={false}
+                  multiline={true}
+                  numberOfLines={3}
+                  error={errors.street}
+                  icon="location-outline"
+                  containerStyle={{ marginBottom: 0 }}
+                />
+              </View>
+            </TouchableOpacity>
           </Card>
         </View>
 
@@ -909,6 +967,42 @@ export default function CreateReportScreen() {
           disabled={loading}
         />
       </View>
+
+      {/* Address Edit Modal */}
+      <Modal
+        visible={isAddressModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsAddressModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>{t("createReport.detailedAddress")}</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={tempAddress}
+              onChangeText={setTempAddress}
+              placeholder={t("createReport.streetPlaceholder")}
+              multiline
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setIsAddressModalVisible(false)}
+              >
+                <Text style={styles.modalButtonTextCancel}>{t("common.cancel")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={handleConfirmAddress}
+              >
+                <Text style={styles.modalButtonTextConfirm}>{t("common.confirm")}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -1251,5 +1345,59 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: AppColors.primary,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContainer: {
+    width: "100%",
+    backgroundColor: AppColors.white,
+    borderRadius: 16,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: AppColors.textPrimary,
+    marginBottom: 15,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: AppColors.gray[300],
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: AppColors.textPrimary,
+    minHeight: 100,
+    textAlignVertical: "top",
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+  },
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  modalButtonCancel: {
+    backgroundColor: AppColors.gray[200],
+  },
+  modalButtonConfirm: {
+    backgroundColor: AppColors.primary,
+  },
+  modalButtonTextCancel: {
+    color: AppColors.textPrimary,
+    fontWeight: "600",
+  },
+  modalButtonTextConfirm: {
+    color: AppColors.white,
+    fontWeight: "600",
   },
 });

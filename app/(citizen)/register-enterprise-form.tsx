@@ -7,12 +7,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
-  View,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 
 export default function RegisterEnterpriseFormScreen() {
@@ -51,6 +56,10 @@ export default function RegisterEnterpriseFormScreen() {
     address: string;
     rawAddress?: any;
   } | null>(null);
+
+  const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
+  const [tempAddress, setTempAddress] = useState("");
+  const [loading, setLoading] = useState(false);
 
   // Helper to normalize and compare Vietnamese location names
   const normalizeLocationName = (name: string): string => {
@@ -131,6 +140,52 @@ export default function RegisterEnterpriseFormScreen() {
             }
           }
         }
+      }
+    }
+  };
+
+  const handleConfirmAddress = async () => {
+    setIsAddressModalVisible(false);
+    setAddress(tempAddress);
+    setErrors({ ...errors, address: undefined });
+
+    if (mapLocation && tempAddress.trim()) {
+      setLoading(true);
+      try {
+        const geoResult = await locationService.geocodeAddress(tempAddress, mapLocation.latitude, mapLocation.longitude);
+        if (geoResult.success && geoResult.data) {
+          const newLat = geoResult.data.latitude;
+          const newLon = geoResult.data.longitude;
+
+          const dist = locationService.haversineDistance(
+            mapLocation.latitude, mapLocation.longitude,
+            newLat, newLon
+          );
+
+          setMapLocation({
+            ...mapLocation,
+            latitude: newLat,
+            longitude: newLon
+          });
+
+          if (dist > 1.0) {
+            Alert.alert(
+              t("createReport.locationMismatch"),
+              t("createReport.locationMismatchMsg", { distance: dist.toFixed(1) })
+            );
+          } else {
+            Alert.alert(
+              t("createReport.addressValid"),
+              t("createReport.addressValidMsg", { distance: (dist * 1000).toFixed(0) })
+            );
+          }
+        } else {
+          Alert.alert(t("createReport.addressNotFound"), t("createReport.addressNotFoundMsg"));
+        }
+      } catch (error) {
+        console.error("Geocoding error:", error);
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -397,13 +452,26 @@ export default function RegisterEnterpriseFormScreen() {
             </View>
           )}
 
-          <Input
-            label={t("registerEnterprise.detailedAddress")}
-            placeholder={t("registerEnterprise.autoFill")}
-            value={address}
-            editable={false}
-            error={errors.address}
-          />
+          {loading && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 10 }}>
+              <ActivityIndicator size="small" color={AppColors.primary} />
+              <Text style={{ marginLeft: 8, color: AppColors.primary }}>Đang kiểm tra vị trí...</Text>
+            </View>
+          )}
+
+          <TouchableOpacity onPress={() => { setTempAddress(address); setIsAddressModalVisible(true); }} activeOpacity={0.7}>
+            <View pointerEvents="none">
+              <Input
+                label={t("registerEnterprise.detailedAddress")}
+                placeholder={t("registerEnterprise.autoFill")}
+                value={address}
+                editable={false}
+                error={errors.address}
+                multiline={true}
+                numberOfLines={3}
+              />
+            </View>
+          </TouchableOpacity>
 
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
@@ -459,8 +527,45 @@ export default function RegisterEnterpriseFormScreen() {
             title={t("registerEnterprise.continue")}
             onPress={nextStep}
             style={styles.submitButton}
+            disabled={loading}
           />
         </View>
+
+        {/* Address Edit Modal */}
+        <Modal
+          visible={isAddressModalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setIsAddressModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>{t("registerEnterprise.detailedAddress")}</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={tempAddress}
+                onChangeText={setTempAddress}
+                placeholder={t("createReport.streetPlaceholder")}
+                multiline
+                autoFocus
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => setIsAddressModalVisible(false)}
+                >
+                  <Text style={styles.modalButtonTextCancel}>{t("common.cancel")}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonConfirm]}
+                  onPress={handleConfirmAddress}
+                >
+                  <Text style={styles.modalButtonTextConfirm}>{t("common.confirm")}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -531,5 +636,59 @@ const styles = StyleSheet.create({
   submitButton: {
     marginTop: 30,
     marginBottom: 50,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContainer: {
+    width: "100%",
+    backgroundColor: AppColors.white,
+    borderRadius: 16,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: AppColors.textPrimary,
+    marginBottom: 15,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: AppColors.gray[300],
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: AppColors.textPrimary,
+    minHeight: 100,
+    textAlignVertical: "top",
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+  },
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  modalButtonCancel: {
+    backgroundColor: AppColors.gray[200],
+  },
+  modalButtonConfirm: {
+    backgroundColor: AppColors.primary,
+  },
+  modalButtonTextCancel: {
+    color: AppColors.textPrimary,
+    fontWeight: "600",
+  },
+  modalButtonTextConfirm: {
+    color: AppColors.white,
+    fontWeight: "600",
   },
 });
