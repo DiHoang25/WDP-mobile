@@ -16,6 +16,13 @@ export default function CitizenLayout() {
           backgroundColor: AppColors.white,
           borderTopWidth: 1,
           borderTopColor: AppColors.gray[200],
+          height: 70,
+          paddingBottom: 10,
+          paddingTop: 10,
+        },
+        tabBarLabelStyle: {
+          fontSize: 13,
+          fontWeight: "600",
         },
       }}
     >

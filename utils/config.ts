@@ -1,5 +1,6 @@
-import Constants from 'expo-constants';
+import Constants from "expo-constants";
 
 export const config = {
-    apiUrl: Constants.expoConfig?.extra?.apiUrl || 'http://192.168.1.9:8000/api/v1',
+  apiUrl:
+    Constants.expoConfig?.extra?.apiUrl || "http://192.168.137.1:8000/api/v1",
 };

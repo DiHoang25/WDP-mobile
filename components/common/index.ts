@@ -10,4 +10,6 @@ export { MapLocationPicker } from "./MapLocationPicker";
 export { MultiSelectPicker } from "./MultiSelectPicker";
 export { Picker } from "./Picker";
 export { WasteTypeMultiSelector } from "./WasteTypeMultiSelector";
+export { default as MockMapView } from "./MockMapView";
+export { MapView, Marker, Circle, Polyline } from "./MockMapView";
 
