@@ -3,12 +3,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React from "react";
 import {
-  StyleProp,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  ViewStyle,
+    SafeAreaView,
+    StyleProp,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+    ViewStyle
 } from "react-native";
 
 interface HeaderProps {
@@ -32,31 +33,32 @@ export default function Header({
 }: HeaderProps) {
   return (
     <LinearGradient colors={colors} style={[styles.header, style]}>
-      <View style={styles.headerContent}>
-        {showBack && (
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={onBackPress || (() => router.back())}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.backIcon}>←</Text>
-          </TouchableOpacity>
-        )}
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>{title}</Text>
-          {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+      <SafeAreaView>
+        <View style={styles.headerContent}>
+          {showBack && (
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={onBackPress || (() => router.back())}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.backIcon}>←</Text>
+            </TouchableOpacity>
+          )}
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>{title}</Text>
+            {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+          </View>
+          {rightComponent && (
+            <View style={styles.rightComponent}>{rightComponent}</View>
+          )}
         </View>
-        {rightComponent && (
-          <View style={styles.rightComponent}>{rightComponent}</View>
-        )}
-      </View>
+      </SafeAreaView>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   header: {
-    paddingTop: 15,
     paddingBottom: 20,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 30,

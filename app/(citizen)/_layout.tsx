@@ -101,6 +101,12 @@ export default function CitizenLayout() {
           href: null, // Hide from tab bar
         }}
       />
+      <Tabs.Screen
+        name="complaints"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
     </Tabs>
   );
 }

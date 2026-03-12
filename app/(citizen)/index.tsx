@@ -10,13 +10,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-  Dimensions,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 const { width } = Dimensions.get("window");
@@ -34,7 +34,7 @@ export default function CitizenHomeScreen() {
       refreshProfile();
       checkUnreadNotifications();
       fetchReports();
-    }, [])
+    }, []),
   );
 
   const checkUnreadNotifications = async () => {
@@ -59,8 +59,10 @@ export default function CitizenHomeScreen() {
           reportsList = rawData.items;
         } else if (rawData.reports && Array.isArray(rawData.reports)) {
           reportsList = rawData.reports;
-        } else if (typeof rawData === 'object' && rawData !== null) {
-          const firstArrayKey = Object.keys(rawData).find(key => Array.isArray(rawData[key]));
+        } else if (typeof rawData === "object" && rawData !== null) {
+          const firstArrayKey = Object.keys(rawData).find((key) =>
+            Array.isArray(rawData[key]),
+          );
           if (firstArrayKey) reportsList = rawData[firstArrayKey];
         }
 
@@ -82,13 +84,15 @@ export default function CitizenHomeScreen() {
     },
     {
       label: "Báo cáo",
-      value: allReports.filter((r) => r.status?.toLowerCase() !== "completed").length,
+      value: allReports.filter((r) => r.status?.toLowerCase() !== "completed")
+        .length,
 
       color: AppColors.primary,
     },
     {
       label: "Đã thu gom",
-      value: allReports.filter((r) => r.status?.toLowerCase() === "completed").length,
+      value: allReports.filter((r) => r.status?.toLowerCase() === "completed")
+        .length,
 
       color: AppColors.success,
     },
@@ -97,28 +101,35 @@ export default function CitizenHomeScreen() {
   const quickActions = [
     {
       title: "Lịch sử",
-      subtitle: "Xem các báo cáo",
+      
       icon: "document-text",
       color: AppColors.secondary,
       route: "/(citizen)/history",
     },
     {
       title: "Xếp hạng",
-      subtitle: "Top công dân",
+      
       icon: "trophy",
       color: AppColors.warning,
       route: "/(citizen)/leaderboard",
     },
     {
+      title: "Khiếu nại",
+      
+      icon: "chatbubble-ellipses",
+      color: AppColors.info,
+      route: "/(citizen)/complaints",
+    },
+    {
       title: "Đổi thưởng",
-      subtitle: "Phần thưởng",
+      
       icon: "gift",
       color: AppColors.error,
       route: "/(citizen)/rewards",
     },
     {
       title: "Đăng ký DN",
-      subtitle: "Trở thành đối tác",
+      
       icon: "business",
       color: AppColors.primary,
       route: "/(citizen)/register-enterprise-form",
@@ -143,7 +154,11 @@ export default function CitizenHomeScreen() {
               style={styles.notificationButton}
               onPress={() => router.push("/(citizen)/notifications")}
             >
-              <Ionicons name="notifications" size={24} color={AppColors.white} />
+              <Ionicons
+                name="notifications"
+                size={24}
+                color={AppColors.white}
+              />
               {unreadCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>
@@ -155,12 +170,13 @@ export default function CitizenHomeScreen() {
 
             <TouchableOpacity style={styles.avatar}>
               {user?.avatar ? (
-                <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+                <Image
+                  source={{ uri: user.avatar }}
+                  style={styles.avatarImage}
+                />
               ) : (
                 <Text style={styles.avatarText}>
-                  {user?.name?.charAt(0) ||
-                    user?.email?.charAt(0) ||
-                    "?"}
+                  {user?.name?.charAt(0) || user?.email?.charAt(0) || "?"}
                 </Text>
               )}
             </TouchableOpacity>
@@ -242,7 +258,7 @@ export default function CitizenHomeScreen() {
                 />
               </View>
               <Text style={styles.actionTitle}>{action.title}</Text>
-              <Text style={styles.actionSubtitle}>{action.subtitle}</Text>
+              
             </TouchableOpacity>
           ))}
         </View>
@@ -270,10 +286,12 @@ export default function CitizenHomeScreen() {
             <WasteReportCard
               key={report.id}
               report={report}
-              onPress={() => router.push({
-                pathname: "/report-detail",
-                params: { id: report.id }
-              })}
+              onPress={() =>
+                router.push({
+                  pathname: "/report-detail",
+                  params: { id: report.id },
+                })
+              }
             />
           ))
         ) : (
@@ -475,14 +493,14 @@ const styles = StyleSheet.create({
   actionsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
+    gap: 10,
   },
   actionCard: {
-    width: (width - 55) / 3,
+    width: (width - 60) / 3,
     backgroundColor: AppColors.white,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 15,
+    marginBottom: 5,
     alignItems: "center",
   },
   actionIconContainer: {
