@@ -27,7 +27,7 @@
         "greeting": "Xin chào!",
         "stats": {
             "points": "Điểm tích lũy",
-            "reports": "Báo cáo",
+            "reports": "Đang xử lý",
             "collected": "Đã thu gom"
         },
         "createReport": "Tạo báo cáo rác",
