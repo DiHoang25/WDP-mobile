@@ -40,5 +40,29 @@ export const businessService = {
      */
     async testPaymentSuccess(referenceCode: string): Promise<ApiResponse<any>> {
         return apiClient.post<any>(`/enterprise/webhook/sepay/test/${referenceCode}`);
+    },
+
+    /**
+     * Get current subscription info
+     * GET /api/v1/enterprise/subscription
+     */
+    async getSubscription(): Promise<ApiResponse<any>> {
+        return apiClient.get<any>('/enterprise/subscription');
+    },
+
+    /**
+     * Renew subscription (when EXPIRED or about to expire)
+     * POST /api/v1/enterprise/subscription/renew
+     */
+    async renewSubscription(planId: number): Promise<ApiResponse<any>> {
+        return apiClient.post<any>('/enterprise/subscription/renew', { planId });
+    },
+
+    /**
+     * Get transaction history
+     * GET /api/v1/enterprise/transactions
+     */
+    async getTransactions(): Promise<ApiResponse<any>> {
+        return apiClient.get<any>('/enterprise/transactions');
     }
 };

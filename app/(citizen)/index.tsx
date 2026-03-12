@@ -1,16 +1,19 @@
-import { EmptyState } from "@/components/common";
+import { EmptyState, Toast, ToastType } from "@/components/common";
 import { WasteReportCard } from "@/components/reports";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { businessService } from "@/services/business.service";
 import { notificationService } from "@/services/notification.service";
 import { wasteService } from "@/services/waste.service";
+import { citizenService } from "@/services/citizen.service";
 import { WasteReport } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
+  Alert,
   Dimensions,
   Image,
   Platform,
@@ -31,14 +34,27 @@ export default function CitizenHomeScreen() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [allReports, setAllReports] = useState<WasteReport[]>([]);
   const [loadingReports, setLoadingReports] = useState(true);
+  const [checkingSubscription, setCheckingSubscription] = useState(false);
+  const [hasPendingPaymentAlertShown, setHasPendingPaymentAlertShown] = useState(false);
+  const [presenceSubmitting, setPresenceSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: ToastType; reportId?: string | number }>({
+    visible: false,
+    message: "",
+    type: "info",
+    reportId: undefined,
+  });
 
   const recentReports = allReports.slice(0, 3);
+  const latestArrivedReport = allReports
+    .filter(r => r.status?.toString().toUpperCase() === "ARRIVED")
+    .sort((a, b) => new Date(b.updatedAt || (b.createdAt as any)).getTime() - new Date(a.updatedAt || (a.createdAt as any)).getTime())[0];
 
   useFocusEffect(
     useCallback(() => {
       refreshProfile();
       checkUnreadNotifications();
       fetchReports();
+      checkPendingEnterpriseSubscription();
     }, [])
   );
 
@@ -76,6 +92,122 @@ export default function CitizenHomeScreen() {
       setLoadingReports(false);
     }
   };
+
+  const handleOpenLatestArrivedDetail = () => {
+    if (!latestArrivedReport) return;
+    router.push({
+      pathname: "/report-detail",
+      params: { id: latestArrivedReport.id },
+    } as any);
+  };
+
+  const checkPendingEnterpriseSubscription = async () => {
+    if (checkingSubscription) return;
+
+    try {
+      setCheckingSubscription(true);
+      const response = await businessService.getSubscription();
+      console.log("[CitizenHome] Subscription info:", JSON.stringify(response));
+      if (!response.success || !response.data) return;
+
+      const data: any = response.data;
+      const rawStatus = (data.status || data.subscriptionStatus || data.enterpriseStatus || "").toString().toUpperCase();
+
+      // Chỉ quan tâm khi đang chờ thanh toán
+      if (rawStatus !== "PENDING") return;
+      if (hasPendingPaymentAlertShown) return;
+
+      // Cố gắng trích thông tin payment để mở lại màn thanh toán
+      const payment =
+        data.pendingPayment || // cấu trúc mới từ BE
+        data.payment ||
+        data.latestPayment ||
+        data.currentPayment ||
+        data.transaction ||
+        (Array.isArray(data.transactions) ? data.transactions[0] : undefined);
+
+      const referenceCode =
+        payment?.referenceCode ||
+        payment?.code ||
+        data.referenceCode ||
+        "";
+
+      const amount = Number(
+        payment?.amount ||
+        data.amount ||
+        0
+      );
+
+      const planName =
+        payment?.planName ||
+        data.plan?.name ||
+        data.subscriptionPlan?.name ||
+        data.planName ||
+        "Gói đăng ký";
+
+      const qrCode = payment?.qrCode || data.qrCode || {};
+      const qrUrl = qrCode.qrUrl || "";
+      const bankInfo = qrCode.bankInfo || payment?.bankInfo || {};
+      const bankName = bankInfo.bankCode || bankInfo.bankName || "";
+      const accountNumber = bankInfo.accountNumber || "";
+      const accountHolder = bankInfo.accountHolder || "";
+      const transferContent =
+        bankInfo.transferContent ||
+        payment?.referenceCode ||
+        referenceCode ||
+        "";
+
+      if (!referenceCode) {
+        console.warn("[CitizenHome] Pending subscription detected but no referenceCode found");
+        return;
+      }
+
+      setHasPendingPaymentAlertShown(true);
+
+      Alert.alert(
+        "Dịch vụ chưa thanh toán",
+        "Bạn có 1 dịch vụ chưa thanh toán, vui lòng thanh toán.",
+        [
+          {
+            text: "Thanh toán ngay",
+            onPress: () => {
+              router.push({
+                pathname: "/payment",
+                params: {
+                  referenceCode,
+                  amount: amount.toString(),
+                  planName,
+                  qrUrl,
+                  bankName,
+                  accountNumber,
+                  accountHolder,
+                  transferContent,
+                },
+              } as any);
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("[CitizenHome] checkPendingEnterpriseSubscription error:", error);
+    } finally {
+      setCheckingSubscription(false);
+    }
+  };
+
+  // Show top toast when there is an ARRIVED report
+  useFocusEffect(
+    useCallback(() => {
+      if (latestArrivedReport) {
+        setToast({
+          visible: true,
+          message: "Shipper đã đến nơi! Chạm để xem chi tiết báo cáo.",
+          type: "info",
+          reportId: latestArrivedReport.id,
+        });
+      }
+    }, [latestArrivedReport?.id])
+  );
 
   const stats = [
     {
@@ -289,6 +421,16 @@ export default function CitizenHomeScreen() {
           />
         )}
       </View>
+
+      {/* Top toast notification (e.g., Shipper đã đến nơi) */}
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        duration={10000}
+        onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
+        onPress={handleOpenLatestArrivedDetail}
+      />
     </ScrollView>
   );
 }
@@ -525,5 +667,76 @@ const styles = StyleSheet.create({
   tipText: {
     fontSize: 14,
     color: AppColors.textSecondary,
+  },
+  // Shipper arrived banner styles
+  presenceWrapper: {
+    paddingHorizontal: 20,
+    marginTop: -10,
+  },
+  presenceCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: AppColors.primary,
+    backgroundColor: AppColors.primary + "08",
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  presenceHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    gap: 8,
+  },
+  presenceTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: AppColors.primary,
+  },
+  presenceDesc: {
+    fontSize: 13,
+    color: AppColors.textSecondary,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  presenceActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  confirmBtn: {
+    flex: 1.4,
+    backgroundColor: AppColors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  confirmBtnText: {
+    color: AppColors.white,
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  absentBtn: {
+    flex: 1,
+    backgroundColor: AppColors.gray[100],
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  absentBtnText: {
+    color: AppColors.textSecondary,
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });

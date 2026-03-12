@@ -314,6 +314,8 @@ export default function ActiveTaskScreen() {
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportType, setReportType] = useState<"ABSENT" | "ISSUE">("ABSENT");
   const [disputeReason, setDisputeReason] = useState("");
+  const [citizenPresence, setCitizenPresence] = useState<"PENDING" | "CONFIRMED" | "ABSENT">("PENDING");
+  const [checkingPresence, setCheckingPresence] = useState(false);
 
   // Weights state for completion
   const [weights, setWeights] = useState({
@@ -324,6 +326,39 @@ export default function ActiveTaskScreen() {
   const [accuracyLevel, setAccuracyLevel] = useState<"MATCH" | "MODERATE" | "HEAVY">("MATCH");
   const [evidenceImages, setEvidenceImages] = useState<string[]>([]);
   const [reportImages, setReportImages] = useState<string[]>([]);
+
+  // Real-time clock for expiration check
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const isExpired = useMemo(() => {
+    if (!task?.expiredAt) return false;
+    const expDate = new Date(task.expiredAt);
+    return now.getTime() > expDate.getTime();
+  }, [now, task?.expiredAt]);
+
+  const remainingSeconds = useMemo(() => {
+    if (!task?.expiredAt || isExpired) return 0;
+    const diff = new Date(task.expiredAt).getTime() - now.getTime();
+    return Math.max(0, Math.floor(diff / 1000));
+  }, [now, task?.expiredAt, isExpired]);
+
+  const formatRemainingTime = (totalSeconds: number) => {
+    const hours = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    const secs = totalSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}:${mins < 10 ? "0" : ""}${mins}:${secs < 10 ? "0" : ""}${secs}`;
+    }
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  };
 
   // Keep ref in sync
   useEffect(() => {
@@ -660,6 +695,63 @@ export default function ActiveTaskScreen() {
     citizen?.avatar,
   ]);
 
+  // Poll for citizen presence when arrived
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    if (phase === "ARRIVED" && citizenPresence === "PENDING" && task?.reportId) {
+      const poll = async () => {
+        try {
+          console.log(`[Presence] Polling task ${task.id} (Report ${task.reportId}) for presence confirmation...`);
+
+          let updatedReportData: any = null;
+
+          // Use getTaskById as the primary poll source for collectors
+          const res = await collectorService.getTaskById(task.id);
+
+          if (res && res.report) {
+            updatedReportData = res.report;
+            console.log(`📡 [Presence] Fetched latest report data via task endpoint`);
+          }
+
+          if (updatedReportData) {
+            const currentStatus = updatedReportData.status?.toUpperCase();
+            const citizenConfirmed = !!updatedReportData.citizenConfirmedAt;
+            const citizenAbsented = !!updatedReportData.citizenAbsentAt;
+
+            console.log(`[Presence] Report ${task.reportId} status: ${currentStatus}, confirmed: ${citizenConfirmed}, absent: ${citizenAbsented}`);
+
+            // Determine presence based on status or timestamp
+            const isConfirmed = citizenConfirmed || currentStatus === "CONFIRMED_PRESENCE" || currentStatus === "COLLECTING";
+            const isAbsented = citizenAbsented || currentStatus === "REPORTED_ABSENT" || currentStatus === "ABSENT";
+
+            if (isConfirmed) {
+              console.log("✅ [Presence] Citizen confirmed presence!");
+              setCitizenPresence("CONFIRMED");
+              showToast("Công dân đã xác nhận có mặt!", "success");
+            } else if (isAbsented) {
+              console.log("❌ [Presence] Citizen reported absent!");
+              setCitizenPresence("ABSENT");
+              showToast("Công dân báo vắng mặt. Đơn hàng sẽ kết thúc.", "info");
+              setTimeout(() => router.replace("/(collectors)" as any), 2000);
+            }
+          } else {
+            console.error(`❌ [Presence] FAILED to get updated report data for reportId: ${task.reportId}`);
+          }
+        } catch (error) {
+          console.error("[Presence] Critical poll error:", error);
+        }
+      };
+
+      poll(); // Immediate check
+      interval = setInterval(poll, 5000); // Check every 5s
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [phase, citizenPresence, task?.reportId, id]);
+
   // Handle status changes
   const handleUpdateStatus = async (newStatus: string, statusLabel: string) => {
     // Nếu là ARRIVED, cần check khoảng cách
@@ -800,6 +892,12 @@ export default function ActiveTaskScreen() {
       setUpdating(true);
       let res;
       if (reportType === "ABSENT") {
+        // Nếu công dân đã xác nhận đang có mặt thì không cho phép báo vắng mặt nữa
+        if (citizenPresence === "CONFIRMED") {
+          showToast("Khách đã xác nhận có mặt, không thể báo vắng mặt.", "error");
+          setUpdating(false);
+          return;
+        }
         res = await collectorService.markNoResponse(task!.reportId);
       } else {
         if (!disputeReason || disputeReason.length < 5) {
@@ -991,6 +1089,25 @@ export default function ActiveTaskScreen() {
                 </View>
               ))}
             </View>
+            <Button
+              title={citizenPresence === "CONFIRMED" ? "Hoàn tất đơn hàng" : "Đang chờ khách xác nhận..."}
+              onPress={() => {
+                if (citizenPresence !== "CONFIRMED") {
+                  Alert.alert(
+                    "Chưa thể hoàn thành",
+                    "Vui lòng đợi khách hàng xác nhận đang có mặt tại điểm thu gom."
+                  );
+                  return;
+                }
+                handleCompleteTask();
+              }}
+              loading={updating}
+              disabled={updating || citizenPresence !== "CONFIRMED"}
+              style={[
+                { marginTop: 24, marginBottom: 12 },
+                citizenPresence !== "CONFIRMED" && { opacity: 0.6 }
+              ]}
+            />
           </Card>
         ) : (
           <>
@@ -1151,10 +1268,6 @@ export default function ActiveTaskScreen() {
                   </>
                 )}
               </TouchableOpacity>
-
-              <Text style={styles.pollingNote}>
-                📡 Vị trí đang được cập nhật mỗi 50 giây
-              </Text>
             </>
           )}
 
@@ -1176,16 +1289,45 @@ export default function ActiveTaskScreen() {
               </TouchableOpacity>
 
               <View style={styles.secondaryActions}>
-                <TouchableOpacity
-                  style={styles.secondaryBtn}
-                  onPress={() => {
-                    setReportType("ABSENT");
-                    setReportModalVisible(true);
-                  }}
-                >
-                  <Ionicons name="person-remove" size={18} color={AppColors.warning} />
-                  <Text style={[styles.secondaryBtnText, { color: AppColors.warning }]}>Báo vắng khách</Text>
-                </TouchableOpacity>
+                {citizenPresence !== "CONFIRMED" && (
+                  <TouchableOpacity
+                    style={[
+                      styles.secondaryBtn,
+                      (!isExpired || updating) && { opacity: 0.6 }
+                    ]}
+                    onPress={() => {
+                      if (!isExpired) {
+                        Alert.alert(
+                          "Chưa đủ thời gian chờ",
+                          `Vui lòng chờ thêm ${formatRemainingTime(remainingSeconds)} trước khi có thể báo vắng khách.`
+                        );
+                        return;
+                      }
+                      setReportType("ABSENT");
+                      setReportModalVisible(true);
+                    }}
+                    disabled={updating || !isExpired}
+                  >
+                    <Ionicons
+                      name="person-remove"
+                      size={18}
+                      color={isExpired ? AppColors.warning : AppColors.gray[400]}
+                    />
+                    <View style={{ marginLeft: 8 }}>
+                      <Text style={[
+                        styles.secondaryBtnText,
+                        { color: isExpired ? AppColors.warning : AppColors.gray[500] }
+                      ]}>
+                        Báo vắng khách
+                      </Text>
+                      {!isExpired && (
+                        <Text style={{ fontSize: 10, color: AppColors.gray[400] }}>
+                          Chờ {formatRemainingTime(remainingSeconds)}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                )}
 
                 <TouchableOpacity
                   style={styles.secondaryBtn}

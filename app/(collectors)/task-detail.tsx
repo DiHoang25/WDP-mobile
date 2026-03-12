@@ -4,6 +4,7 @@ import { AppColors } from "@/constants/theme";
 import { collectorService } from "@/services/collector.service";
 import { CollectorTaskItem } from "@/types/collector";
 import { getStatusText, getWasteTypeLabel } from "@/utils/helpers";
+import { extractMediaUrls } from "../../utils/media";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -235,16 +236,9 @@ export default function TaskDetailScreen() {
   const citizen = report.citizen;
   const taskId = task.id || task.reportId || id;
 
-  // Normalize images for display
-  // images: Usually [{imageUrl: "..."}]
-  // evidenceImages or files: Usually ["https://..."]
-
-  let rawReportImages = Array.isArray(report.images) ? report.images : [];
-  let rawEvidenceImages = Array.isArray(report.evidenceImages) ? report.evidenceImages :
-    (Array.isArray(report.files) ? report.files : []);
-
-  const reportImages = rawReportImages;
-  const evidenceImages = rawEvidenceImages;
+  // Extract & normalize images (string absolute URLs) from various possible fields based on API
+  const reportImages = extractMediaUrls((report as any).images || (report as any).files);
+  const evidenceImages = extractMediaUrls((report as any).evidenceImages || (report as any).collectorImages);
 
   console.log(`[task-detail] Rendering ID ${taskId}`);
   console.log(`[task-detail] Found ${reportImages.length} customer images, ${evidenceImages.length} evidence images`);
@@ -310,7 +304,7 @@ export default function TaskDetailScreen() {
           {citizen && (
             <Card variant="elevated" style={styles.card}>
               <Text style={styles.cardTitle}>Thông tin khách hàng</Text>
-              <InfoRow icon="person" label="Tên" value={citizen.fullName || (citizen as any).name || "—"} />
+              <InfoRow icon="person" label="Tên" value={citizen.fullName || (citizen as any).name || (report as any).fullName || (report as any).citizenName || (report as any).name || "—"} />
               <InfoRow icon="call" label="Số điện thoại" value={citizen.phone || "—"} />
               <InfoRow icon="mail" label="Email" value={citizen.email || "—"} />
             </Card>
@@ -324,8 +318,8 @@ export default function TaskDetailScreen() {
                 <View style={styles.imagesRow}>
                   {reportImages.map((img: any, idx: number) => (
                     <Image
-                      key={img.id || `img-${idx}`}
-                      source={{ uri: img.imageUrl || img }}
+                      key={`img-${idx}`}
+                      source={{ uri: img }}
                       style={styles.reportImage}
                     />
                   ))}
@@ -376,7 +370,7 @@ export default function TaskDetailScreen() {
                   {evidenceImages.map((img: any, idx: number) => (
                     <Image
                       key={`evid-${idx}`}
-                      source={{ uri: img.imageUrl || img }}
+                      source={{ uri: img }}
                       style={styles.reportImage}
                     />
                   ))}

@@ -21,7 +21,9 @@ export default function TaskCompleteScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
 
-  const [actualWeight, setActualWeight] = useState("");
+  const [weightOrganic, setWeightOrganic] = useState("");
+  const [weightRecyclable, setWeightRecyclable] = useState("");
+  const [weightHazardous, setWeightHazardous] = useState("");
   const [accuracy, setAccuracy] = useState<AccuracyRating>("MATCH");
   const [images, setImages] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -56,8 +58,12 @@ export default function TaskCompleteScreen() {
   };
 
   const handleSubmit = () => {
-    if (!actualWeight || parseFloat(actualWeight) <= 0) {
-      Alert.alert("Lỗi", "Vui lòng nhập khối lượng thực tế");
+    const wOrg = parseFloat(weightOrganic) || 0;
+    const wRec = parseFloat(weightRecyclable) || 0;
+    const wHaz = parseFloat(weightHazardous) || 0;
+
+    if (wOrg <= 0 && wRec <= 0 && wHaz <= 0) {
+      Alert.alert("Lỗi", "Vui lòng nhập ít nhất một loại khối lượng rác");
       return;
     }
 
@@ -73,10 +79,13 @@ export default function TaskCompleteScreen() {
         onPress: async () => {
           try {
             setSubmitting(true);
-            const res = await collectorService.completeTask(String(id), {
-              actualWeightKg: parseFloat(actualWeight),
-              accuracyRating: accuracy,
-              collectionImages: images,
+            const res = await collectorService.completeTask({
+              reportId: Number(id),
+              weightOrganic: wOrg || undefined,
+              weightRecyclable: wRec || undefined,
+              weightHazardous: wHaz || undefined,
+              accuracyBucket: accuracy as any,
+              files: images,
             });
             if (res.success) {
               showToast("Đã hoàn tất Đơn hàng!", "success");
@@ -84,9 +93,10 @@ export default function TaskCompleteScreen() {
                 router.replace("/(collectors)" as any);
               }, 1500);
             } else {
-              showToast("Không thể hoàn tất Đơn hàng", "error");
+              showToast(res.message || "Không thể hoàn tất Đơn hàng", "error");
             }
           } catch (error) {
+            console.error("completeTask error:", error);
             showToast("Đã có lỗi xảy ra", "error");
           } finally {
             setSubmitting(false);
@@ -108,15 +118,33 @@ export default function TaskCompleteScreen() {
         <View style={styles.content}>
           {/* Weight input */}
           <Card variant="elevated" style={styles.section}>
-            <Text style={styles.sectionTitle}>Khối lượng thực tế</Text>
-            <Input
-              label="Khối lượng (kg)"
-              value={actualWeight}
-              onChangeText={setActualWeight}
-              placeholder="Nhập khối lượng thực tế"
-              keyboardType="numeric"
-              icon="scale"
-            />
+            <Text style={styles.sectionTitle}>Khối lượng thu gom thực tế</Text>
+            <View style={{ gap: 12 }}>
+              <Input
+                label="Rác Hữu cơ (kg)"
+                value={weightOrganic}
+                onChangeText={setWeightOrganic}
+                placeholder="0.0"
+                keyboardType="numeric"
+                icon="leaf"
+              />
+              <Input
+                label="Rác Tái chế (kg)"
+                value={weightRecyclable}
+                onChangeText={setWeightRecyclable}
+                placeholder="0.0"
+                keyboardType="numeric"
+                icon="refresh"
+              />
+              <Input
+                label="Rác Nguy hại (kg)"
+                value={weightHazardous}
+                onChangeText={setWeightHazardous}
+                placeholder="0.0"
+                keyboardType="numeric"
+                icon="warning"
+              />
+            </View>
           </Card>
 
           {/* Accuracy rating */}
@@ -200,7 +228,7 @@ export default function TaskCompleteScreen() {
             <Button
               title="Xác nhận hoàn tất"
               onPress={handleSubmit}
-              disabled={!actualWeight || images.length === 0 || submitting}
+              disabled={(parseFloat(weightOrganic) || 0) + (parseFloat(weightRecyclable) || 0) + (parseFloat(weightHazardous) || 0) <= 0 || images.length === 0 || submitting}
               loading={submitting}
             />
             <Button title="Hủy" variant="outline" onPress={() => router.back()} />

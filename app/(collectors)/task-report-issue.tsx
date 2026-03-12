@@ -70,9 +70,9 @@ export default function TaskReportIssueScreen() {
           onPress: async () => {
             try {
               setSubmitting(true);
-              const res = await collectorService.reportIssue(String(id), {
-                description: description.trim(),
-                issueImages: images,
+              const res = await collectorService.reportDispute(Number(id), {
+                reason: description.trim(),
+                files: images,
               });
               if (res.success) {
                 showToast("Đã gửi báo cáo sự cố", "success");

@@ -40,7 +40,10 @@ class ApiClient {
         endpoint: string,
         options: RequestInit = {}
     ): Promise<ApiResponse<T>> {
-        const url = `${this.baseUrl}${endpoint}`;
+        // Allow calling absolute URLs (starting with http/https) without prefixing baseUrl.
+        const url = endpoint.startsWith('http://') || endpoint.startsWith('https://')
+            ? endpoint
+            : `${this.baseUrl}${endpoint}`;
 
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',

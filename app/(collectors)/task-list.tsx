@@ -6,7 +6,7 @@ import { CollectorTaskItem } from "@/types/collector";
 import { getWasteTypeLabel } from "@/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -22,6 +22,7 @@ import {
 
 export default function TaskListScreen() {
   const router = useRouter();
+  const { refreshKey } = useLocalSearchParams<{ refreshKey?: string }>();
   const [tasks, setTasks] = useState<CollectorTaskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,7 +59,7 @@ export default function TaskListScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchTasks();
-    }, [fetchTasks])
+    }, [fetchTasks, refreshKey])
   );
 
   const onRefresh = () => {
@@ -180,11 +181,14 @@ export default function TaskListScreen() {
             message="Các đơn hàng mới và đang xử lý sẽ xuất hiện ở đây"
           />
         ) : (
-          displayTasks.map((task) => {
-            const report = task.report;
+          displayTasks.map((task: any) => {
+            // Backend có thể trả task dạng attempt, luôn fallback về task nếu thiếu report
+            const report = (task?.report || task) as any;
             const statusInfo = getStatusLabel(task.status);
             const firstImage = report.images?.[0]?.imageUrl;
-            const totalWeight = report.wasteItems.reduce((sum, item) => sum + item.weightKg, 0);
+            const totalWeight = Array.isArray(report.wasteItems)
+              ? report.wasteItems.reduce((sum: number, item: any) => sum + Number(item?.weightKg || item?.weight || 0), 0)
+              : 0;
             const isResponding = respondingId === task.id;
 
             return (
@@ -207,12 +211,12 @@ export default function TaskListScreen() {
                   {/* Address */}
                   <View style={styles.infoRow}>
                     <Ionicons name="location" size={18} color={AppColors.primary} />
-                    <Text style={styles.addressText} numberOfLines={2}>{report.address}</Text>
+                    <Text style={styles.addressText} numberOfLines={2}>{report.address || task.address || "—"}</Text>
                   </View>
 
                   {/* Waste types */}
                   <View style={styles.wasteRow}>
-                    {report.wasteItems.map((item, idx) => (
+                    {(Array.isArray(report.wasteItems) ? report.wasteItems : []).map((item: any, idx: number) => (
                       <View key={idx} style={styles.wasteTag}>
                         <Text style={styles.wasteTagText}>{getWasteTypeLabel(item.wasteType)}</Text>
                       </View>
@@ -224,19 +228,21 @@ export default function TaskListScreen() {
                   </View>
 
                   {/* Citizen */}
-                  <View style={styles.citizenRow}>
-                    <View style={styles.citizenAvatar}>
-                      {report.citizen.avatar ? (
-                        <Image source={{ uri: report.citizen.avatar }} style={styles.avatarImage} />
-                      ) : (
-                        <Ionicons name="person" size={16} color={AppColors.white} />
-                      )}
+                  {!!report?.citizen && (
+                    <View style={styles.citizenRow}>
+                      <View style={styles.citizenAvatar}>
+                        {report.citizen.avatar ? (
+                          <Image source={{ uri: report.citizen.avatar }} style={styles.avatarImage} />
+                        ) : (
+                          <Ionicons name="person" size={16} color={AppColors.white} />
+                        )}
+                      </View>
+                      <View style={styles.citizenInfoContainer}>
+                        <Text style={styles.citizenName}>{report.citizen.fullName}</Text>
+                        <Text style={styles.citizenPhone}>{report.citizen.phone}</Text>
+                      </View>
                     </View>
-                    <View style={styles.citizenInfoContainer}>
-                      <Text style={styles.citizenName}>{report.citizen.fullName}</Text>
-                      <Text style={styles.citizenPhone}>{report.citizen.phone}</Text>
-                    </View>
-                  </View>
+                  )}
 
                   {/* Action Buttons */}
                   <View style={styles.actionRow}>

@@ -44,16 +44,14 @@ export default function TaskAbsentScreen() {
           onPress: async () => {
             try {
               setSubmitting(true);
-              const res = await collectorService.reportAbsent(String(id), {
-                note: "Công dân vắng mặt sau 20 phút chờ",
-              });
+              const res = await collectorService.markNoResponse(Number(id));
               if (res.success) {
                 showToast("Đã gửi báo cáo vắng khách", "success");
                 setTimeout(() => {
                   router.replace("/(collectors)" as any);
                 }, 1500);
               } else {
-                showToast("Không thể gửi báo cáo", "error");
+                showToast(res.message || "Không thể gửi báo cáo", "error");
               }
             } catch (error) {
               showToast("Đã có lỗi xảy ra", "error");

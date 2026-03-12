@@ -206,6 +206,7 @@
         "accepted": "Đã tiếp nhận",
         "enterprise_reserved": "Doanh nghiệp đã nhận",
         "collector_pending": "Chờ xác nhận",
+        "pending_collector": "Chờ xác nhận",
         "assigned": "Đã nhận đơn",
         "on_the_way": "Đang di chuyển",
         "arrived": "Đã đến nơi",
@@ -214,7 +215,7 @@
         "completed": "Hoàn thành",
         "failed": "Thất bại",
         "failed_no_response": "Không phản hồi",
-        "failed_citizen_not_home": "Vắng khách",
+        "failed_citizen_not_home": "Khách không có mặt",
         "rescheduled": "Đã dời lịch",
         "rejected": "Đã từ chối",
         "cancelled": "Đã hủy"

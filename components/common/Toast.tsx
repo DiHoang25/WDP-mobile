@@ -10,6 +10,7 @@ interface ToastProps {
     type?: ToastType;
     duration?: number;
     onHide: () => void;
+    onPress?: () => void;
 }
 
 export default function Toast({
@@ -18,6 +19,7 @@ export default function Toast({
     type = "success",
     duration = 2500,
     onHide,
+    onPress,
 }: ToastProps) {
     const translateY = useRef(new Animated.Value(-100)).current;
     const opacity = useRef(new Animated.Value(0)).current;
@@ -78,7 +80,12 @@ export default function Toast({
             ]}
         >
             <Ionicons name={config.icon} size={22} color={config.iconColor} />
-            <Text style={[styles.text, { color: config.iconColor }]}>{message}</Text>
+            <Text
+                style={[styles.text, { color: config.iconColor }]}
+                onPress={onPress}
+            >
+                {message}
+            </Text>
         </Animated.View>
     );
 }

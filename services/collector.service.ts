@@ -52,10 +52,20 @@ export const collectorService = {
   async getTasks(): Promise<CollectorTaskItem[]> {
     const response = await apiClient.get<any>("/collectors/tasks");
     console.log("📡 getTasks raw response:", JSON.stringify(response));
-    if (response.success) {
-      if (Array.isArray(response.data)) return response.data;
-      if (response.data && Array.isArray(response.data.data)) return response.data.data;
+    if (!response.success) return [];
+
+    const raw = response.data;
+    if (Array.isArray(raw)) return raw as CollectorTaskItem[];
+    if (raw && Array.isArray(raw.data)) return raw.data as CollectorTaskItem[];
+    if (raw && raw.data && Array.isArray(raw.data.data)) return raw.data.data as CollectorTaskItem[];
+    if (raw && Array.isArray(raw.items)) return raw.items as CollectorTaskItem[];
+    if (raw && raw.payload && Array.isArray(raw.payload)) return raw.payload as CollectorTaskItem[];
+
+    if (raw && typeof raw === "object") {
+      const firstArrayKey = Object.keys(raw).find((k) => Array.isArray((raw as any)[k]));
+      if (firstArrayKey) return (raw as any)[firstArrayKey] as CollectorTaskItem[];
     }
+
     return [];
   },
 
@@ -92,7 +102,6 @@ export const collectorService = {
       console.log(`📡 Calling respondTask API: PATCH ${endpoint}`);
       const response = await apiClient.patch<any>(endpoint);
       console.log("📡 respondTask API response:", JSON.stringify(response));
-      // API might return standard wrapper or just 200 OK. If no error is thrown, it's generally a success
       const isSuccess = response?.success !== false;
       return { success: isSuccess, message: response?.message };
     } catch (error: any) {
@@ -102,14 +111,51 @@ export const collectorService = {
   },
 
   /**
-   * Lấy chi tiết một Đơn hàng (theo ID mới)
+   * Lấy chi tiết một Đơn hàng (theo ID mới) - Fetch trực tiếp từ server
    */
   async getTaskById(taskId: number): Promise<CollectorTaskItem> {
-    const acceptedTasks = await this.getAcceptedTasks();
-    const task = acceptedTasks.find((t: any) => t.id === taskId);
-    if (task) {
-      return task as CollectorTaskItem;
+    console.log(`🔍 [getTaskById] Searching for taskId: ${taskId}`);
+    try {
+      const response = await apiClient.get<CollectorTaskItem>(`/collectors/tasks/${taskId}`);
+      if (response.success && response.data) {
+        console.log(`✅ [getTaskById] Found via direct API: /collectors/tasks/${taskId}`);
+        return response.data;
+      }
+      console.log(`⚠️ [getTaskById] Direct API returned success but no data or success=false:`, JSON.stringify(response));
+    } catch (error) {
+      console.warn(`📡 [getTaskById] Direct fetch failed for taskId ${taskId}, falling back to list search`, error);
     }
+
+    // Fallback: Tìm trong danh sách
+    console.log(`🔦 [getTaskById] Falling back to list search...`);
+    const [pendingTasks, acceptedTasks] = await Promise.all([
+      this.getTasks(),
+      this.getAcceptedTasks()
+    ]);
+
+    console.log(`📊 [getTaskById] Lists size - Pending: ${pendingTasks.length}, Accepted: ${acceptedTasks.length}`);
+
+    let task = pendingTasks.find((t: any) => t.id == taskId || t.taskId == taskId);
+    if (!task) {
+      task = acceptedTasks.find((t: any) => t.id == taskId || t.taskId == taskId);
+      if (task) console.log(`✅ [getTaskById] Found in acceptedTasks list`);
+    } else {
+      console.log(`✅ [getTaskById] Found in pendingTasks list`);
+    }
+
+    if (task) return task as CollectorTaskItem;
+
+    // Tìm trong lịch sử
+    console.log(`🔦 [getTaskById] Not found in active lists. Searching in history...`);
+    const history = await this.getCompletedTasks();
+    console.log(`📊 [getTaskById] History size: ${history.length}`);
+    const historyTask = history.find((t: any) => t.id == taskId);
+    if (historyTask) {
+      console.log(`✅ [getTaskById] Found in history`);
+      return historyTask as unknown as CollectorTaskItem;
+    }
+
+    console.error(`❌ [getTaskById] Task NOT FOUND anywhere: ${taskId}`);
     throw new Error("Không tìm thấy Đơn hàng");
   },
 
@@ -119,6 +165,21 @@ export const collectorService = {
   async getTaskDetail(taskId: string): Promise<CollectorTask> {
     const response = await apiClient.get<CollectorTask>(`/collector/tasks/${taskId}`);
     return response.data as CollectorTask;
+  },
+
+  /**
+   * Lấy chi tiết Report theo ID dành cho Collector
+   */
+  async getReportById(reportId: number): Promise<CollectorTaskItem | null> {
+    try {
+      const response = await apiClient.get<CollectorTaskItem>(`/collectors/reports/${reportId}`);
+      if (response.success && response.data) {
+        return response.data;
+      }
+    } catch (error) {
+      console.warn(`📡 [getReportById] Failed for reportId ${reportId}`, error);
+    }
+    return null;
   },
 
   /**
@@ -154,7 +215,7 @@ export const collectorService = {
   },
 
   /**
-   * Check-in đã đến nơi (Sử dụng API mới: PATCH /api/v1/collectors/reports/{reportId}/arrived)
+   * Check-in đã đến nơi
    */
   async checkinArrived(
     reportId: number,
@@ -174,7 +235,7 @@ export const collectorService = {
   },
 
   /**
-   * Hoàn tất thu gom rác (Sử dụng API mới: PATCH /api/v1/collectors/reports/complete)
+   * Hoàn tất thu gom rác
    */
   async completeTask(
     data: {
@@ -215,7 +276,7 @@ export const collectorService = {
   },
 
   /**
-   * Báo vắng khách (PATCH /api/v1/collectors/reports/{reportId}/no-response)
+   * Báo vắng khách
    */
   async markNoResponse(reportId: number): Promise<{ success: boolean; message?: string }> {
     try {
@@ -228,7 +289,7 @@ export const collectorService = {
   },
 
   /**
-   * Báo cáo sự cố/Lừa đảo (POST /api/v1/collectors/reports/{reportId}/dispute)
+   * Báo cáo sự cố/Lừa đảo
    */
   async reportDispute(
     reportId: number,
@@ -270,28 +331,12 @@ export const collectorService = {
       totalPages: number;
     };
   }> {
-    const response = await apiClient.get<{
-      tasks: CollectorTask[];
-      pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        totalPages: number;
-      };
-    }>(`/collector/tasks/history?page=${page}&limit=${limit}`);
-    return response.data as {
-      tasks: CollectorTask[];
-      pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        totalPages: number;
-      };
-    };
+    const response = await apiClient.get<any>(`/collector/tasks/history?page=${page}&limit=${limit}`);
+    return response.data;
   },
 
   /**
-   * Cập nhật vị trí hiện tại (real-time tracking)
+   * Cập nhật vị trí hiện tại
    */
   async updateLocation(latitude: number, longitude: number): Promise<{ success: boolean }> {
     const response = await apiClient.post<{ success: boolean }>("/collector/location", {
@@ -302,7 +347,7 @@ export const collectorService = {
   },
 
   /**
-   * Lấy vị trí hiện tại của collector (dành cho User tracking)
+   * Lấy vị trí hiện tại của collector
    */
   async getCollectorLocation(collectorId: number): Promise<{ success: boolean; data?: { latitude: number; longitude: number } }> {
     const response = await apiClient.get<any>(`/collector/location/${collectorId}`);
@@ -322,19 +367,7 @@ export const collectorService = {
     todayTaskCount: number;
     queueLength: number;
   }> {
-    const response = await apiClient.get<{
-      trustScore: number;
-      totalCompleted: number;
-      skipCount: number;
-      todayTaskCount: number;
-      queueLength: number;
-    }>("/collector/stats");
-    return response.data as {
-      trustScore: number;
-      totalCompleted: number;
-      skipCount: number;
-      todayTaskCount: number;
-      queueLength: number;
-    };
+    const response = await apiClient.get<any>("/collector/stats");
+    return response.data;
   },
 };

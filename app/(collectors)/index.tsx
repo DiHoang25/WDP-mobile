@@ -211,7 +211,7 @@ export default function CollectorDashboard() {
         <View style={styles.shortcutsContainer}>
           <TouchableOpacity
             style={styles.shortcutButton}
-            onPress={() => router.push("/(collectors)/task-list")}
+            onPress={() => router.push(`/(collectors)/task-list?refreshKey=${Date.now()}` as any)}
           >
             <View style={[styles.shortcutIcon, { backgroundColor: AppColors.primary + "20" }]}>
               <Ionicons name="list" size={28} color={AppColors.primary} />

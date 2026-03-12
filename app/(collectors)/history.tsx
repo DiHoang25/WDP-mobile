@@ -9,14 +9,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 type TabType = "ACCEPTED" | "COMPLETED";
@@ -152,72 +151,90 @@ export default function HistoryScreen() {
             // Extract common display data
             const report = isHistoryItem ? task : (task.report || {});
             const dateStr = isHistoryItem ? task.completedAt : task.createdAt;
-            const displayAddress = isHistoryItem ? task.address : (report.address || "N/A");
+            const displayAddress = isHistoryItem ? task.address : (report.address || "");
 
-            // Extract first image for thumbnail
-            let firstImage = null;
-            if (isHistoryItem) {
-              const imgs = task.images || [];
-              firstImage = imgs.length > 0 ? (imgs[0].imageUrl || imgs[0]) : null;
-            } else {
-              firstImage = report.images?.[0]?.imageUrl || report.images?.[0];
-            }
             const wasteItems = report.wasteItems || [];
             const totalWeight = isHistoryItem
               ? (task.actualWeight || wasteItems.reduce((sum: number, item: any) => sum + (item.weight || 0), 0))
               : wasteItems.reduce((sum: number, item: any) => sum + (item.weightKg || 0), 0);
-            const citizenName = report.citizen?.fullName || "N/A";
+
+            const citizenNameRaw =
+              report.citizen?.fullName ||
+              report.fullName ||
+              report.citizenName ||
+              report.name ||
+              (task as any).citizenName ||
+              "";
+            const citizenName = citizenNameRaw && citizenNameRaw !== "N/A" ? citizenNameRaw : "";
 
             const statusInfo = getStatusLabel(task.status || (isHistoryItem ? "COMPLETED" : ""));
 
             return (
-              <TouchableOpacity key={task.id || task.reportId} onPress={() => handleTaskPress(task)}>
-                <Card variant="elevated" style={styles.taskCard}>
-                  <View style={styles.taskHeader}>
+              <TouchableOpacity key={task.id || task.reportId} onPress={() => handleTaskPress(task)} activeOpacity={0.7}>
+                <Card variant="elevated" style={styles.historyCard}>
+                  {/* Card Header: ID & Status */}
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.taskIdText}>ĐƠN #{task.reportId || task.id}</Text>
                     <View style={[styles.statusBadge, { backgroundColor: statusInfo.color + "15" }]}>
                       <View style={[styles.statusDot, { backgroundColor: statusInfo.color }]} />
                       <Text style={[styles.statusText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
                     </View>
-                    <Text style={styles.taskDate}>{formatDate(dateStr)}</Text>
                   </View>
 
-                  <View style={styles.cardMain}>
-                    {!!firstImage && (
-                      <Image source={{ uri: firstImage }} style={styles.thumbImage} />
-                    )}
-                    <View style={styles.cardInfo}>
-                      <Text style={styles.addressText} numberOfLines={2}>
-                        {displayAddress}
-                      </Text>
-                      <View style={styles.wasteRow}>
-                        <View style={styles.weightTag}>
-                          <Ionicons name="scale" size={14} color={AppColors.gray[500]} />
-                          <Text style={styles.weightText}>{totalWeight.toFixed(1)} kg</Text>
-                        </View>
-                        {!!citizenName && citizenName !== "N/A" && (
-                          <>
-                            <Text style={styles.separator}>•</Text>
-                            <Text style={styles.citizenLabel}>{citizenName}</Text>
-                          </>
-                        )}
+                  <View style={styles.cardBodyNew}>
+                    <View style={styles.leftIconWrap}>
+                      <View style={styles.leftIconCircle}>
+                        <Ionicons name="location" size={18} color={AppColors.primary} />
                       </View>
+                    </View>
+
+                    <View style={styles.mainInfo}>
+                      <Text style={styles.historyAddress} numberOfLines={2}>
+                        {displayAddress || "—"}
+                      </Text>
+
+                      <View style={styles.metaRow}>
+                        <View style={styles.metaPill}>
+                          <Ionicons name="calendar-outline" size={13} color={AppColors.gray[500]} />
+                          <Text style={styles.metaText}>{formatDate(dateStr).split(" ")[0]}</Text>
+                        </View>
+
+                        <View style={styles.metaPill}>
+                          <Ionicons name="scale-outline" size={13} color={AppColors.primary} />
+                          <Text style={[styles.metaText, { color: AppColors.primary, fontWeight: "800" }]}>
+                            {Number.isFinite(totalWeight) ? totalWeight.toFixed(1) : "0.0"} kg
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Không hiển thị field N/A */}
+                      {!!citizenName && (
+                        <View style={styles.customerRow}>
+                          <Ionicons name="person-circle-outline" size={16} color={AppColors.gray[500]} />
+                          <Text style={styles.customerName} numberOfLines={1}>{citizenName}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.chevronWrap}>
+                      <Ionicons name="chevron-forward" size={18} color={AppColors.gray[300]} />
                     </View>
                   </View>
 
-                  <View style={styles.cardFooter}>
-                    <View style={styles.wasteTags}>
-                      {wasteItems.slice(0, 2).map((item: any, idx: number) => (
-                        <View key={idx} style={styles.tag}>
-                          <Text style={styles.tagText}>
+                  {/* Card Footer: Waste Tags */}
+                  <View style={styles.historyFooter}>
+                    <View style={styles.wasteTagsList}>
+                      {wasteItems.slice(0, 3).map((item: any, idx: number) => (
+                        <View key={idx} style={styles.minimalTag}>
+                          <Text style={styles.minimalTagText}>
                             {getWasteTypeLabel(item.wasteType || item.type)}
                           </Text>
                         </View>
                       ))}
-                      {wasteItems.length > 2 && (
-                        <Text style={styles.moreText}>+{wasteItems.length - 2}</Text>
+                      {wasteItems.length > 3 && (
+                        <Text style={styles.moreCount}>+{wasteItems.length - 3}</Text>
                       )}
                     </View>
-                    <Ionicons name="chevron-forward-circle" size={24} color={AppColors.primary} />
                   </View>
                 </Card>
               </TouchableOpacity>
@@ -297,22 +314,33 @@ const styles = StyleSheet.create({
     marginTop: 100,
     alignItems: "center",
   },
-  taskCard: {
+  historyCard: {
     marginBottom: 16,
-    padding: 12,
+    padding: 0, // We'll use internal padding for sections
+    overflow: 'hidden',
+    borderRadius: 16,
   },
-  taskHeader: {
+  cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: AppColors.gray[50],
+  },
+  taskIdText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: AppColors.gray[400],
+    letterSpacing: 1,
   },
   statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 20,
+    borderRadius: 6,
   },
   statusDot: {
     width: 6,
@@ -322,85 +350,136 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: '700',
   },
-  taskDate: {
-    fontSize: 11,
-    color: AppColors.gray[500],
-    fontWeight: "500",
-  },
-  cardMain: {
+  cardBody: {
     flexDirection: "row",
+    padding: 16,
+  },
+  // New Card Body (no images / no N/A)
+  cardBodyNew: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    alignItems: "flex-start",
+  },
+  leftIconWrap: {
+    paddingTop: 2,
+    paddingRight: 12,
+  },
+  leftIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: AppColors.primary + "12",
+    justifyContent: "center",
     alignItems: "center",
   },
-  thumbImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
-    backgroundColor: AppColors.gray[100],
-  },
-  cardInfo: {
+  mainInfo: {
     flex: 1,
-    marginLeft: 12,
   },
-  addressText: {
-    fontSize: 14,
-    fontWeight: "600",
+  chevronWrap: {
+    paddingLeft: 10,
+    paddingTop: 6,
+  },
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 6,
+  },
+  historyAddress: {
+    flex: 1,
+    fontSize: 14.5,
+    fontWeight: "800",
     color: AppColors.gray[800],
-    lineHeight: 20,
-    marginBottom: 4,
+    lineHeight: 18,
   },
-  wasteRow: {
+  detailsRow: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 8,
   },
-  weightTag: {
+  metaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+  metaPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: AppColors.gray[50],
+    borderWidth: 1,
+    borderColor: AppColors.gray[100],
+  },
+  metaText: {
+    fontSize: 12,
+    color: AppColors.gray[600],
+    fontWeight: "600",
+  },
+  detailItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
-  weightText: {
+  detailText: {
     fontSize: 12,
-    fontWeight: "700",
     color: AppColors.gray[600],
-  },
-  separator: {
-    marginHorizontal: 8,
-    color: AppColors.gray[300],
-  },
-  citizenLabel: {
-    fontSize: 12,
-    color: AppColors.gray[500],
     fontWeight: "500",
   },
-  cardFooter: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: AppColors.gray[100],
+  detailDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: AppColors.gray[200],
+    marginHorizontal: 12,
+  },
+  customerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+  },
+  customerName: {
+    fontSize: 12,
+    color: AppColors.gray[600],
+    fontWeight: "500",
+    flex: 1,
+  },
+  historyFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: AppColors.gray[50] + "50",
+    borderTopWidth: 1,
+    borderTopColor: AppColors.gray[50],
   },
-  wasteTags: {
+  wasteTagsList: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
-  tag: {
-    backgroundColor: AppColors.gray[100],
+  minimalTag: {
+    backgroundColor: AppColors.white,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 2,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: AppColors.gray[100],
   },
-  tagText: {
-    fontSize: 11,
+  minimalTagText: {
+    fontSize: 10,
     fontWeight: "600",
-    color: AppColors.gray[600],
+    color: AppColors.gray[500],
   },
-  moreText: {
-    fontSize: 11,
+  moreCount: {
+    fontSize: 10,
     color: AppColors.gray[400],
-    marginLeft: 2,
+    fontWeight: "600",
   },
 });

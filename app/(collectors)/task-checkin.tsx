@@ -102,7 +102,7 @@ export default function TaskCheckinScreen() {
     try {
       setChecking(true);
       const res = await collectorService.checkinArrived(
-        String(id),
+        Number(id),
         currentLocation.latitude,
         currentLocation.longitude,
       );

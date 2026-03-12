@@ -1,6 +1,6 @@
-import { Card, Header, Loading } from "@/components/common";
+import { Card, Header, Loading, Toast, ToastType } from "@/components/common";
 import { AppColors } from "@/constants/theme";
-import { collectorService } from "@/services/collector.service";
+import { citizenService } from "@/services/citizen.service";
 import { wasteService } from "@/services/waste.service";
 import { WasteReport } from "@/types";
 import { getStatusColor, getStatusText, getWasteTypeLabel } from "@/utils/helpers";
@@ -8,15 +8,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Image,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
+import { extractMediaUrls } from "../utils/media";
 
 export default function ReportDetailScreen() {
     const { id, content: notificationContent, senderName } = useLocalSearchParams();
@@ -29,6 +30,13 @@ export default function ReportDetailScreen() {
         district: "",
         ward: ""
     });
+    const [toast, setToast] = useState<{ visible: boolean; message: string; type: ToastType }>({
+        visible: false, message: "", type: "success",
+    });
+
+    const showToast = (message: string, type: ToastType = "success") => {
+        setToast({ visible: true, message, type });
+    };
 
     useEffect(() => {
         if (id) {
@@ -43,6 +51,47 @@ export default function ReportDetailScreen() {
             fetchLocationNames();
         }
     }, [report]);
+
+    const [hasShownArrivedToast, setHasShownArrivedToast] = useState(false);
+
+    // Polling for shipper arrival
+    useEffect(() => {
+        let interval: ReturnType<typeof setInterval> | null = null;
+
+        const currentStatus = report?.status?.toUpperCase();
+
+        // Show toast immediately if it's already ARRIVED
+        if (currentStatus === "ARRIVED" && !hasShownArrivedToast) {
+            showToast("Shipper đã đến nơi! Vui lòng xác nhận sự có mặt.", "info");
+            setHasShownArrivedToast(true);
+        }
+
+        if ((currentStatus === "ACCEPTED" || currentStatus === "ON_THE_WAY" || currentStatus === "ARRIVED") && report?.id) {
+            const pollStatus = async () => {
+                try {
+                    const res = await wasteService.getReportById(Number(report.id));
+                    if (res.success && res.data) {
+                        const newStatus = res.data.status?.toUpperCase();
+                        if (newStatus === "ARRIVED" && !hasShownArrivedToast) {
+                            setReport(res.data);
+                            showToast("Shipper đã đến nơi! Vui lòng xác nhận sự có mặt.", "info");
+                            setHasShownArrivedToast(true);
+                        } else if (newStatus !== currentStatus) {
+                            setReport(res.data);
+                        }
+                    }
+                } catch (err) {
+                    console.error("Polling error:", err);
+                }
+            };
+
+            interval = setInterval(pollStatus, 7000); // Poll every 7s
+        }
+
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [report?.status, report?.id, hasShownArrivedToast]);
 
     const fetchReportDetail = async (reportId: string) => {
         try {
@@ -130,13 +179,92 @@ export default function ReportDetailScreen() {
         );
     };
 
+    const handleConfirmPresence = async () => {
+        console.log("👆 [handleConfirmPresence] Button clicked, report.id:", report?.id);
+        if (!report) return;
+        try {
+            setSubmitting(true);
+            const res = await citizenService.confirmPresence(Number(report.id));
+            if (res.success) {
+                if (Platform.OS !== 'web') {
+                    Alert.alert("Thành công", "Bạn đã xác nhận đang có mặt. Shipper sẽ tiến hành thu gom ngay.");
+                } else {
+                    console.log("✅ [ConfirmPresence] Success (Web)");
+                }
+                fetchReportDetail(report.id);
+            } else {
+                if (Platform.OS !== 'web') {
+                    Alert.alert("Lỗi", res.error || "Không thể xác nhận có mặt.");
+                } else {
+                    console.error("❌ [ConfirmPresence] Error (Web):", res.error);
+                }
+            }
+        } catch (error) {
+            console.error("Confirm presence error:", error);
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
+    const handleReportAbsent = async () => {
+        console.log("👆 [handleReportAbsent] Button clicked, report.id:", report?.id);
+        if (!report) {
+            console.warn("⚠️ [handleReportAbsent] No report data found!");
+            return;
+        }
+
+        const executeReportAbsent = async () => {
+            try {
+                setSubmitting(true);
+                const res = await citizenService.reportAbsent(Number(report.id));
+                if (res.success) {
+                    if (Platform.OS !== 'web') {
+                        Alert.alert("Thông báo", "Bạn đã báo vắng mặt. Đơn hàng sẽ được cập nhật.");
+                    } else {
+                        console.log("✅ [ReportAbsent] Success (Web)");
+                    }
+                    fetchReportDetail(report.id);
+                } else {
+                    if (Platform.OS !== 'web') {
+                        Alert.alert("Lỗi", res.error || "Không thể báo vắng mặt.");
+                    } else {
+                        console.error("❌ [ReportAbsent] Error (Web):", res.error);
+                    }
+                }
+            } catch (error) {
+                console.error("Report absent error:", error);
+            } finally {
+                setSubmitting(false);
+            }
+        };
+
+        if (Platform.OS === 'web') {
+            console.log("🌐 Web platform detected, proceeding without Alert confirmation");
+            await executeReportAbsent();
+        } else {
+            console.log("📱 Showing Alert.alert for absence confirmation...");
+            Alert.alert(
+                "Xác nhận vắng mặt",
+                "Bạn chắc chắn muốn báo vắng mặt? Shipper sẽ không thể thu gom rác của bạn trong đơn này.",
+                [
+                    { text: "Hủy", style: "cancel", onPress: () => console.log("✖️ Absence confirmation cancelled") },
+                    {
+                        text: "Xác nhận",
+                        style: "destructive",
+                        onPress: executeReportAbsent
+                    }
+                ]
+            );
+        }
+    };
     const createdAt = report?.createdAt;
     const updatedAt = report?.updatedAt;
     const address = report?.address;
     const wasteItems = report?.wasteItems;
     const points = report?.points;
-    const images = report?.images;
+    // Normalize image fields: backend có thể trả images/files/evidenceImages dưới nhiều dạng
+    const images = extractMediaUrls((report as any)?.images || (report as any)?.files);
+    const evidenceImages = extractMediaUrls((report as any)?.evidenceImages || (report as any)?.collectorImages);
     const enterprise = report?.enterprise;
     const collector = report?.collector;
     const cancelReason = report?.cancelReason;
@@ -189,20 +317,54 @@ export default function ReportDetailScreen() {
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 
                 {/* Status Card - Always show if we have status */}
-                {(status || report) && (
-                    <View style={styles.statusCard}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.label}>Trạng thái</Text>
-                            <Text style={[styles.statusText, { color: getStatusColor(status!).text }]}>
-                                {getStatusText(status!)}
-                            </Text>
-                            {/* Nút Theo dõi shipper đã được loại bỏ theo yêu cầu */}
+                <View style={styles.statusCard}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.label}>Trạng thái</Text>
+                        <Text style={[styles.statusText, { color: getStatusColor(status!).text }]}>
+                            {getStatusText(status!)}
+                        </Text>
+                        {/* Nút Theo dõi shipper đã được loại bỏ theo yêu cầu */}
+                    </View>
+                    <View style={styles.dateContainer}>
+                        <Text style={styles.label}>Cập nhật lúc</Text>
+                        <Text style={styles.value}>
+                            {new Date(updatedAt || createdAt!).toLocaleString("vi-VN")}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Presence confirmation - New compact banner */}
+                {status?.toUpperCase() === "ARRIVED" && (
+                    <View style={styles.arrivedBanner}>
+                        <View style={styles.arrivedInfoRow}>
+                            <View style={styles.arrivedIconCircle}>
+                                <Ionicons name="notifications" size={18} color={AppColors.primary} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.arrivedTitle}>Shipper đã đến điểm hẹn</Text>
+                                <Text style={styles.arrivedSubtitle}>
+                                    Hãy xác nhận bạn đang có mặt hoặc báo vắng mặt để Shipper xử lý đơn.
+                                </Text>
+                            </View>
                         </View>
-                        <View style={styles.dateContainer}>
-                            <Text style={styles.label}>Cập nhật lúc</Text>
-                            <Text style={styles.value}>
-                                {new Date(updatedAt || createdAt!).toLocaleString("vi-VN")}
-                            </Text>
+
+                        <View style={styles.arrivedActions}>
+                            <TouchableOpacity
+                                style={[styles.arrivedPrimaryBtn, submitting && styles.disabledButton]}
+                                onPress={handleConfirmPresence}
+                                disabled={submitting}
+                            >
+                                <Ionicons name="home" size={18} color={AppColors.white} />
+                                <Text style={styles.arrivedPrimaryText}>Tôi đang ở nhà</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.arrivedGhostBtn, submitting && styles.disabledButton]}
+                                onPress={handleReportAbsent}
+                                disabled={submitting}
+                            >
+                                <Ionicons name="walk" size={18} color={AppColors.textSecondary} />
+                                <Text style={styles.arrivedGhostText}>Tôi vắng mặt</Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
                 )}
@@ -381,6 +543,23 @@ export default function ReportDetailScreen() {
                             </View>
                         )}
 
+                        {/* Evidence Images (collector upload) if present */}
+                        {evidenceImages && evidenceImages.length > 0 && (
+                            <View style={styles.section}>
+                                <Text style={styles.sectionHeader}>Ảnh bằng chứng thu gom</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageScroll}>
+                                    {evidenceImages.map((img, index) => (
+                                        <Image
+                                            key={`evid-${index}`}
+                                            source={{ uri: img }}
+                                            style={styles.detailImage}
+                                            resizeMode="cover"
+                                        />
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        )}
+
                         {/* Cancel Button */}
                         {canCancel && (
                             <TouchableOpacity
@@ -400,6 +579,12 @@ export default function ReportDetailScreen() {
                 <View style={styles.bottomSpacer} />
             </ScrollView>
 
+            <Toast
+                visible={toast.visible}
+                message={toast.message}
+                type={toast.type}
+                onHide={() => setToast({ ...toast, visible: false })}
+            />
         </View>
     );
 }
@@ -698,5 +883,74 @@ const styles = StyleSheet.create({
         color: AppColors.white,
         fontSize: 16,
         fontWeight: "bold",
+    },
+    arrivedBanner: {
+        marginBottom: 16,
+        padding: 14,
+        borderRadius: 14,
+        backgroundColor: AppColors.primary + "07",
+        borderWidth: 1,
+        borderColor: AppColors.primary + "40",
+    },
+    arrivedInfoRow: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        marginBottom: 10,
+        columnGap: 10,
+    },
+    arrivedIconCircle: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: AppColors.primary + "15",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    arrivedTitle: {
+        fontSize: 15,
+        fontWeight: "700",
+        color: AppColors.primary,
+        marginBottom: 2,
+    },
+    arrivedSubtitle: {
+        fontSize: 13,
+        color: AppColors.textSecondary,
+        lineHeight: 18,
+    },
+    arrivedActions: {
+        flexDirection: "row",
+        columnGap: 10,
+    },
+    arrivedPrimaryBtn: {
+        flex: 1.3,
+        backgroundColor: AppColors.primary,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 999,
+        paddingVertical: 10,
+        columnGap: 6,
+    },
+    arrivedPrimaryText: {
+        color: AppColors.white,
+        fontSize: 14,
+        fontWeight: "700",
+    },
+    arrivedGhostBtn: {
+        flex: 1,
+        backgroundColor: AppColors.white,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: AppColors.gray[200],
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 10,
+        columnGap: 6,
+    },
+    arrivedGhostText: {
+        color: AppColors.textSecondary,
+        fontSize: 14,
+        fontWeight: "600",
     },
 });
