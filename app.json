@@ -12,6 +12,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.truongduyyyy.ECONect",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/icon-foreground.png",
@@ -55,7 +56,12 @@
     },
     "extra": {
       "apiUrl": "https://crowdsourced-collection-recycling-platform-dnbye7h0d0c6gkaj.southeastasia-01.azurewebsites.net/api/v1",
-      "mapboxDirectionsKey": ""
-    }
+      "mapboxDirectionsKey": "",
+      "router": {},
+      "eas": {
+        "projectId": "f54525b9-f2cb-440a-8dfa-5746cc5b662e"
+      }
+    },
+    "owner": "truongduyyyy"
   }
 }
