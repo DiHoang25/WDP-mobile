@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "ECoNect",
-    "slug": "ECoNect",
+    "name": "ECoNet",
+    "slug": "ECoNet",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo.jpg",
-    "scheme": "ECoNect",
+    "scheme": "ECoNet",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "package": "com.truongduyyyy.ECONect",
+      "package": "com.truongduyyyy.ECONet",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/icon-foreground.png",
