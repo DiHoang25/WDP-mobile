@@ -285,8 +285,7 @@ export default function CitizenHomeScreen() {
         style={[
           styles.header,
           {
-            paddingTop:
-              Platform.OS === "android" ? insets.top + 10 : insets.top,
+            paddingTop: Math.max(insets.top + (Platform.OS === 'android' ? 10 : 0), Platform.OS === 'android' ? 45 : 10),
           },
         ]}
       >
@@ -294,7 +293,6 @@ export default function CitizenHomeScreen() {
           <View>
             <Text style={styles.greeting}>{t("home.greeting")}</Text>
             <Text style={styles.userName}>{user?.name}</Text>
-            <Text style={styles.location}>{user?.district}</Text>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity

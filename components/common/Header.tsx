@@ -4,15 +4,15 @@ import { router, useNavigation } from "expo-router";
 import React from "react";
 import {
   Platform,
-  SafeAreaView,
-  StatusBar,
   StyleProp,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  ViewStyle,
+  ViewStyle
 } from "react-native";
+
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface HeaderProps {
   title: string;
@@ -36,6 +36,7 @@ export default function Header({
   colors = [AppColors.primary, AppColors.primaryDark],
 }: HeaderProps) {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   const handleBackPress = () => {
     if (onBackPress) {
@@ -58,68 +59,78 @@ export default function Header({
   };
 
   return (
-    <LinearGradient colors={colors} style={[styles.header, style]}>
-      <SafeAreaView>
-        <View style={styles.headerContent}>
-          {showBack && (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={handleBackPress}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.backIcon}>←</Text>
-            </TouchableOpacity>
-          )}
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>{title}</Text>
-            {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
-          </View>
-          {rightComponent && (
-            <View style={styles.rightComponent}>{rightComponent}</View>
-          )}
+    <LinearGradient
+      colors={colors}
+      style={[
+        styles.header,
+        { paddingTop: Math.max(insets.top + (Platform.OS === 'android' ? 8 : 0), Platform.OS === 'android' ? 45 : 10) },
+        style
+      ]}
+    >
+      <View style={styles.headerContent}>
+        {showBack && (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBackPress}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.backIcon}>←</Text>
+          </TouchableOpacity>
+        )}
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>{title}</Text>
+          {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
         </View>
-      </SafeAreaView>
+        {rightComponent && (
+          <View style={styles.rightComponent}>{rightComponent}</View>
+        )}
+      </View>
     </LinearGradient>
   );
 }
 
-const STATUSBAR_HEIGHT =
-  Platform.OS === "android" ? StatusBar.currentHeight || 24 : 0;
-
 const styles = StyleSheet.create({
   header: {
-    paddingBottom: 20,
+    paddingBottom: 25,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   headerContent: {
     flexDirection: "row",
     alignItems: "center",
+    marginTop: 5,
   },
   backButton: {
-    marginRight: 12,
-    padding: 4,
+    marginRight: 15,
+    padding: 5,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 10,
   },
   backIcon: {
-    fontSize: 24,
+    fontSize: 20,
     color: AppColors.white,
-    fontWeight: "600",
+    fontWeight: "bold",
   },
   titleContainer: {
     flex: 1,
   },
   title: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "800",
     color: AppColors.white,
-    marginBottom: 5,
-    letterSpacing: 0.5,
+    marginBottom: 2,
+    letterSpacing: 0.3,
   },
   subtitle: {
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.9)",
-    fontWeight: "400",
+    color: "rgba(255, 255, 255, 0.85)",
+    fontWeight: "500",
   },
   rightComponent: {
     marginLeft: 12,

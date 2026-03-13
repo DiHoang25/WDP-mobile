@@ -139,28 +139,15 @@ export default function ProfileScreen() {
             </View>
             <Text style={styles.userName}>{user?.name}</Text>
             <Text style={styles.userEmail}>{user?.email}</Text>
-            <View style={styles.roleBadge}>
-              <Ionicons name="person" size={14} color={AppColors.primary} />
-              <Text style={styles.roleBadgeText}>{t("profile.citizen")}</Text>
-            </View>
-          </View>
-
-          {/* Stats */}
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <View style={styles.statRow}>
-                <Ionicons name="star" size={18} color={AppColors.warning} />
-                <Text style={styles.statValue}>{user?.points || 0}</Text>
+            <View style={styles.badgeRow}>
+              <View style={styles.roleBadge}>
+                <Ionicons name="person" size={12} color={AppColors.primary} />
+                <Text style={styles.roleBadgeText}>{t("profile.citizen")}</Text>
               </View>
-              <Text style={styles.statLabel}>{t("profile.pointsAccumulated")}</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <View style={styles.statRow}>
-                <Ionicons name="location" size={18} color={AppColors.primary} />
-                <Text style={styles.statValue}>{user?.district}</Text>
+              <View style={styles.pointsBadge}>
+                <Ionicons name="star" size={12} color={AppColors.warning} />
+                <Text style={styles.pointsBadgeText}>{user?.points || 0} {t("profile.points") || "điểm"}</Text>
               </View>
-              <Text style={styles.statLabel}>{t("profile.area")}</Text>
             </View>
           </View>
         </Card>
@@ -316,45 +303,35 @@ const styles = StyleSheet.create({
   roleBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: AppColors.primary + "20",
-    paddingHorizontal: 15,
-    paddingVertical: 6,
-    borderRadius: 15,
+    gap: 4,
+    backgroundColor: AppColors.primary + "15",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   roleBadgeText: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "700",
     color: AppColors.primary,
   },
-  statsContainer: {
+  badgeRow: {
     flexDirection: "row",
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: AppColors.gray[200],
+    gap: 8,
+    marginTop: 5,
   },
-  statItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statRow: {
+  pointsBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 5,
+    gap: 4,
+    backgroundColor: AppColors.warning + "15",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: AppColors.textPrimary,
-  },
-  statLabel: {
+  pointsBadgeText: {
     fontSize: 12,
-    color: AppColors.textSecondary,
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: AppColors.gray[300],
+    fontWeight: "700",
+    color: AppColors.warning,
   },
   menuContainer: {
     padding: 20,

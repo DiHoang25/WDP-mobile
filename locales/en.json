@@ -59,6 +59,7 @@
         "title": "Profile",
         "subtitle": "Manage your profile",
         "citizen": "Citizen",
+        "points": "pts",
         "pointsAccumulated": "Accumulated points",
         "area": "Area",
         "menu": {
