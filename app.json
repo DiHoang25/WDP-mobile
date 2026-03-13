@@ -22,7 +22,9 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
@@ -59,7 +61,7 @@
       "mapboxDirectionsKey": "",
       "router": {},
       "eas": {
-        "projectId": "f54525b9-f2cb-440a-8dfa-5746cc5b662e"
+        "projectId": "466768b6-dcbc-4975-aab4-1369cc2dfa65"
       }
     },
     "owner": "truongduyyyy"
