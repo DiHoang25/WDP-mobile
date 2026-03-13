@@ -4,7 +4,6 @@ import { AppColors } from "@/constants/theme";
 import { collectorService } from "@/services/collector.service";
 import { CollectorTaskItem } from "@/types/collector";
 import { getStatusText, getWasteTypeLabel } from "@/utils/helpers";
-import { extractMediaUrls } from "../../utils/media";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -18,6 +17,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { extractMediaUrls } from "../../utils/media";
 
 export default function TaskDetailScreen() {
   const { id, reportId: paramReportId, data: initialData } = useLocalSearchParams<{
@@ -258,6 +258,14 @@ export default function TaskDetailScreen() {
       />
 
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Expiration Notice */}
+        {task.expiredAt && new Date(task.expiredAt).getTime() < new Date().getTime() && (task.status === "PENDING_COLLECTOR" || task.status === "COLLECTOR_PENDING") && (
+          <View style={styles.expirationBanner}>
+            <Ionicons name="alert-circle" size={20} color={AppColors.error} />
+            <Text style={styles.expirationText}>Đơn hàng này đã hết hạn xác nhận và được chuyển cho người khác.</Text>
+          </View>
+        )}
+
         {/* Status Header */}
         <View style={[styles.statusHeader, { backgroundColor: statusInfo.color + "10" }]}>
           <TouchableOpacity
@@ -388,6 +396,7 @@ export default function TaskDetailScreen() {
                   title="✅ Chấp nhận đơn"
                   onPress={() => handleRespond(true)}
                   loading={responding}
+                  disabled={task.expiredAt ? new Date(task.expiredAt).getTime() < new Date().getTime() : false}
                 />
               </View>
               <View style={{ width: '100%', marginTop: 12 }}>
@@ -397,6 +406,7 @@ export default function TaskDetailScreen() {
                   variant="outline"
                   onPress={() => handleRespond(false)}
                   loading={responding}
+                  disabled={task.expiredAt ? new Date(task.expiredAt).getTime() < new Date().getTime() : false}
                 />
               </View>
             </View>
@@ -425,6 +435,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: AppColors.background,
+  },
+  expirationBanner: {
+    backgroundColor: AppColors.error + "15",
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: AppColors.error + "30",
+    gap: 8,
+  },
+  expirationText: {
+    flex: 1,
+    fontSize: 13,
+    color: AppColors.error,
+    fontWeight: "600",
   },
   loadingContainer: {
     flex: 1,

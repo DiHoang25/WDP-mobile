@@ -157,6 +157,8 @@ export const MapLocationPicker = ({
     const [isEditingAddress, setIsEditingAddress] = useState(false);
     const [editedAddress, setEditedAddress] = useState("");
     const [validating, setValidating] = useState(false);
+    const [isStale, setIsStale] = useState(false);
+    const [currentRawAddress, setCurrentRawAddress] = useState<any>(null);
 
     const webViewRef = useRef<WebView>(null);
     const previewWebViewRef = useRef<WebView>(null);
@@ -179,13 +181,13 @@ export const MapLocationPicker = ({
         const init = async () => {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status === "granted") {
-                reverseGeocode(htmlCoords.latitude, htmlCoords.longitude);
+                reverseGeocode(htmlCoords.latitude, htmlCoords.longitude, true);
             }
         };
         init();
     }, []);
 
-    const reverseGeocode = async (latitude: number, longitude: number) => {
+    const reverseGeocode = async (latitude: number, longitude: number, notifyParent = false) => {
         try {
             const response = await fetch(
                 `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
@@ -204,16 +206,6 @@ export const MapLocationPicker = ({
             const data = await response.json();
             const addr = data.address || {};
 
-            // Nominatim VN Mapping Refinement
-            const provinceCandidate = addr.state || addr.province || addr.city || addr.town || "";
-            const districtCandidate = addr.city || addr.town || addr.district || addr.county || addr.city_district || "";
-            let wardCandidate = addr.city_district || addr.subdistrict || addr.quarter || addr.suburb || addr.village || addr.hamlet || addr.neighbourhood || "";
-
-            // Special logic for "Thành phố Thủ Đức" where ward might equal district/city in OSM
-            if (wardCandidate === districtCandidate && (addr.suburb || addr.neighbourhood)) {
-                wardCandidate = addr.suburb || addr.neighbourhood || "";
-            }
-
             const rawAddress = {
                 house_number: addr.house_number || "",
                 road: addr.road || "",
@@ -225,7 +217,6 @@ export const MapLocationPicker = ({
                 region: addr.state || addr.province || addr.city || "",
                 name: addr.road || addr.city_district || addr.suburb || addr.name || "",
                 country: "Vietnam",
-                // Extra fields for robust matching in CreateReport
                 osm_city: addr.city || "",
                 osm_town: addr.town || "",
                 osm_suburb: addr.suburb || "",
@@ -234,18 +225,27 @@ export const MapLocationPicker = ({
 
             const formattedAddress = data.display_name || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
             setAddress(formattedAddress);
+            setCurrentRawAddress(rawAddress);
+            setIsStale(false);
 
-            onLocationSelect({
-                latitude,
-                longitude,
-                address: formattedAddress,
-                rawAddress,
-            });
+            if (notifyParent) {
+                onLocationSelect({
+                    latitude,
+                    longitude,
+                    address: formattedAddress,
+                    rawAddress,
+                });
+            }
+            return { address: formattedAddress, rawAddress };
         } catch (error) {
             console.error("Error reverse geocoding:", error);
             const fallback = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
             setAddress(fallback);
-            onLocationSelect({ latitude, longitude, address: fallback });
+            setIsStale(false);
+            if (notifyParent) {
+                onLocationSelect({ latitude, longitude, address: fallback });
+            }
+            return { address: fallback, rawAddress: null };
         }
     };
 
@@ -333,6 +333,8 @@ export const MapLocationPicker = ({
 
         const formattedAddress = item.display_name;
         setAddress(formattedAddress);
+        setCurrentRawAddress(rawAddress);
+        setIsStale(false);
 
         // Update WebView map
         const script = `window.updatePosition(${lat}, ${lon});`;
@@ -401,21 +403,10 @@ export const MapLocationPicker = ({
                 // Update internal state
                 setLocation(data);
 
-                // Debounce reverse geocoding to respect Nominatim limits (1 req/sec)
-                if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
-
-                fetchTimeoutRef.current = setTimeout(() => {
-                    const last = lastFetchRef.current;
-                    // Only fetch if moved more than ~10 meters (roughly 0.0001 deg)
-                    const diff = last
-                        ? Math.abs(last.lat - data.latitude) + Math.abs(last.lng - data.longitude)
-                        : 999;
-
-                    if (diff > 0.0001) {
-                        reverseGeocode(data.latitude, data.longitude);
-                        lastFetchRef.current = { lat: data.latitude, lng: data.longitude };
-                    }
-                }, 800);
+                // Just update internal coordinate state and mark as stale
+                // DO NOT trigger reverse geocode automatically anymore
+                setIsStale(true);
+                lastFetchRef.current = { lat: data.latitude, lng: data.longitude };
             }
         } catch (e) {
             console.error("Error parsing message from WebView:", e);
@@ -546,8 +537,11 @@ export const MapLocationPicker = ({
                         >
                             <Ionicons name="locate" size={24} color={AppColors.primary} />
                         </TouchableOpacity>
+                    </View>
 
-                        <View style={styles.addressFloating}>
+                    {/* Confirm Button */}
+                    <View style={styles.modalFooter}>
+                        <View style={{ marginBottom: 16 }}>
                             {isEditingAddress ? (
                                 <View style={styles.editAddressContainer}>
                                     <TextInput
@@ -574,9 +568,12 @@ export const MapLocationPicker = ({
                                 </View>
                             ) : (
                                 <View style={styles.displayAddressRow}>
-                                    <Text style={styles.floatingAddressText} numberOfLines={2}>
-                                        {editedAddress || address || "Đang lấy địa chỉ..."}
-                                    </Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.modalAddressLabel}>Địa chỉ đang chọn:</Text>
+                                        <Text style={[styles.floatingAddressText, { textAlign: 'left' }, isStale && { color: AppColors.gray[500], fontStyle: 'italic' }]} numberOfLines={2}>
+                                            {isStale ? "Nhấn Xác nhận bên dưới để lấy địa chỉ mới..." : (editedAddress || address || "Đang lấy địa chỉ...")}
+                                        </Text>
+                                    </View>
                                     <TouchableOpacity
                                         style={styles.editIconBtn}
                                         onPress={() => {
@@ -584,15 +581,12 @@ export const MapLocationPicker = ({
                                             setIsEditingAddress(true);
                                         }}
                                     >
-                                        <Ionicons name="create-outline" size={20} color={AppColors.primary} />
+                                        <Ionicons name="create-outline" size={24} color={AppColors.primary} />
                                     </TouchableOpacity>
                                 </View>
                             )}
                         </View>
-                    </View>
 
-                    {/* Confirm Button */}
-                    <View style={styles.modalFooter}>
                         <TouchableOpacity
                             style={[styles.confirmButton, (validating || isEditingAddress) && { opacity: 0.7 }]}
                             onPress={async () => {
@@ -601,7 +595,18 @@ export const MapLocationPicker = ({
                                     return;
                                 }
 
-                                const finalAddress = editedAddress || address;
+                                setValidating(true);
+                                let finalAddress = editedAddress || address;
+                                let finalRawAddress = currentRawAddress;
+
+                                // If coordinates moved, fetch the address now
+                                if (isStale) {
+                                    const geoResult = await reverseGeocode(location.latitude, location.longitude);
+                                    finalAddress = geoResult.address;
+                                    finalRawAddress = geoResult.rawAddress;
+                                    setCurrentRawAddress(geoResult.rawAddress); // Update state here
+                                }
+
                                 const pinLat = location.latitude;
                                 const pinLon = location.longitude;
 
@@ -639,15 +644,19 @@ export const MapLocationPicker = ({
                                         const script = `window.updatePosition(${newLat}, ${newLon});`;
                                         webViewRef.current?.injectJavaScript(script);
 
+                                        // NEW: Fetch structural data for the new location to update parent Pickers
+                                        const finalGeoResult = await reverseGeocode(newLat, newLon);
+
                                         setValidating(false);
                                         setAddress(finalAddress);
                                         setModalVisible(false);
 
-                                        // Notify parent
+                                        // Notify parent with the new coordinates and structured data
                                         onLocationSelect({
                                             latitude: newLat,
                                             longitude: newLon,
                                             address: finalAddress,
+                                            rawAddress: finalGeoResult.rawAddress
                                         });
 
                                     } else {
@@ -661,12 +670,14 @@ export const MapLocationPicker = ({
                                 } else {
                                     // Address wasn't edited manually, just confirm the current map position.
                                     setAddress(finalAddress);
+                                    setValidating(false);
                                     setModalVisible(false);
 
                                     onLocationSelect({
                                         latitude: location.latitude,
                                         longitude: location.longitude,
                                         address: finalAddress,
+                                        rawAddress: finalRawAddress
                                     });
                                 }
                             }}
@@ -681,7 +692,7 @@ export const MapLocationPicker = ({
                     </View>
                 </SafeAreaView>
             </Modal>
-        </View>
+        </View >
     );
 };
 
@@ -871,15 +882,11 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
     },
-    addressFloating: {
-        position: "absolute",
-        top: 16,
-        left: 16,
-        right: 16,
-        backgroundColor: "rgba(255,255,255,0.9)",
-        padding: 12,
-        borderRadius: 12,
-        elevation: 3,
+    modalAddressLabel: {
+        fontSize: 12,
+        color: AppColors.textSecondary,
+        fontWeight: "600",
+        marginBottom: 2,
     },
     floatingAddressText: {
         fontSize: 13,

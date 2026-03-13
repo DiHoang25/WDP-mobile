@@ -343,6 +343,16 @@ export default function ActiveTaskScreen() {
     return now.getTime() > expDate.getTime();
   }, [now, task?.expiredAt]);
 
+  useEffect(() => {
+    if (isExpired && (task?.status === "PENDING_COLLECTOR" || task?.status === "COLLECTOR_PENDING")) {
+      Alert.alert(
+        "Đơn hàng hết hạn",
+        "Đơn hàng này đã hết hạn xác nhận và được chuyển cho người khác.",
+        [{ text: "OK", onPress: () => router.replace("/(collectors)" as any) }]
+      );
+    }
+  }, [isExpired, task?.status]);
+
   const remainingSeconds = useMemo(() => {
     if (!task?.expiredAt || isExpired) return 0;
     const diff = new Date(task.expiredAt).getTime() - now.getTime();
@@ -1089,25 +1099,7 @@ export default function ActiveTaskScreen() {
                 </View>
               ))}
             </View>
-            <Button
-              title={citizenPresence === "CONFIRMED" ? "Hoàn tất đơn hàng" : "Đang chờ khách xác nhận..."}
-              onPress={() => {
-                if (citizenPresence !== "CONFIRMED") {
-                  Alert.alert(
-                    "Chưa thể hoàn thành",
-                    "Vui lòng đợi khách hàng xác nhận đang có mặt tại điểm thu gom."
-                  );
-                  return;
-                }
-                handleCompleteTask();
-              }}
-              loading={updating}
-              disabled={updating || citizenPresence !== "CONFIRMED"}
-              style={[
-                { marginTop: 24, marginBottom: 12 },
-                citizenPresence !== "CONFIRMED" && { opacity: 0.6 }
-              ]}
-            />
+            <View style={{ height: 12 }} />
           </Card>
         ) : (
           <>

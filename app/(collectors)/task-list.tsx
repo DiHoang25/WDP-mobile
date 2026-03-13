@@ -137,7 +137,7 @@ export default function TaskListScreen() {
   }
 
   const displayTasks = tasks.filter(t =>
-    ["PENDING_COLLECTOR", "COLLECTOR_PENDING", "ACCEPTED", "ON_THE_WAY", "ARRIVED", "COLLECTED"].includes(t.status)
+    ["PENDING_COLLECTOR", "COLLECTOR_PENDING", "ACCEPTED", "ON_THE_WAY", "ARRIVED", "COLLECTED", "EXPIRED"].includes(t.status)
   );
 
   return (
@@ -189,16 +189,25 @@ export default function TaskListScreen() {
             const totalWeight = Array.isArray(report.wasteItems)
               ? report.wasteItems.reduce((sum: number, item: any) => sum + Number(item?.weightKg || item?.weight || 0), 0)
               : 0;
+            const isExpired = task.expiredAt ? new Date(task.expiredAt).getTime() < new Date().getTime() : false;
             const isResponding = respondingId === task.id;
+            const statusLabel = isExpired && (task.status === "PENDING_COLLECTOR" || task.status === "COLLECTOR_PENDING")
+              ? { label: "Hết hạn", color: AppColors.gray[400] }
+              : getStatusLabel(task.status);
 
             return (
-              <TouchableOpacity key={task.id} onPress={() => handleTaskPress(task)}>
+              <TouchableOpacity
+                key={task.id}
+                onPress={() => handleTaskPress(task)}
+                disabled={isExpired && (task.status === "PENDING_COLLECTOR" || task.status === "COLLECTOR_PENDING")}
+                style={isExpired ? { opacity: 0.7 } : null}
+              >
                 <Card variant="elevated" style={styles.taskCard}>
                   {/* Status badge */}
                   <View style={styles.taskHeader}>
-                    <View style={[styles.statusBadge, { backgroundColor: statusInfo.color + "20" }]}>
-                      <View style={[styles.statusDot, { backgroundColor: statusInfo.color }]} />
-                      <Text style={[styles.statusText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
+                    <View style={[styles.statusBadge, { backgroundColor: statusLabel.color + "20" }]}>
+                      <View style={[styles.statusDot, { backgroundColor: statusLabel.color }]} />
+                      <Text style={[styles.statusText, { color: statusLabel.color }]}>{statusLabel.label}</Text>
                     </View>
                     <Text style={styles.taskDate}>{formatDate(task.createdAt)}</Text>
                   </View>

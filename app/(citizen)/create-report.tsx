@@ -1,4 +1,4 @@
-import { Button, Card, Header, Input, MapLocationPicker, Picker } from "@/components/common";
+import { AlertType, Button, Card, CustomAlert, Header, Input, MapLocationPicker, Picker } from "@/components/common";
 import { WasteTypeSelector } from "@/components/waste";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
@@ -62,6 +62,31 @@ export default function CreateReportScreen() {
 
   const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
   const [tempAddress, setTempAddress] = useState("");
+  const [isFieldAutoFilled, setIsFieldAutoFilled] = useState({
+    province: false,
+    district: false,
+    ward: false
+  });
+
+  const [isAddressLoading, setIsAddressLoading] = useState(false);
+  const lastRequestId = React.useRef(0);
+
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: AlertType;
+    buttons?: any[];
+  }>({
+    visible: false,
+    title: "",
+    message: "",
+    type: "info"
+  });
+
+  const showAlert = (title: string, message: string, type: AlertType = "info", buttons?: any[]) => {
+    setAlertConfig({ visible: true, title, message, type, buttons });
+  };
 
   useEffect(() => {
     loadProvinces();
@@ -73,9 +98,10 @@ export default function CreateReportScreen() {
   };
 
   const askToUseCurrentLocation = () => {
-    Alert.alert(
+    showAlert(
       t("createReport.locationTitle"),
       t("createReport.locationAsk"),
+      "info",
       [
         {
           text: t("createReport.locationYes"),
@@ -93,7 +119,7 @@ export default function CreateReportScreen() {
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(t("common.error"), t("createReport.locationDenied"));
+        showAlert(t("common.error"), t("createReport.locationDenied"), "error");
         return;
       }
 
@@ -190,6 +216,7 @@ export default function CreateReportScreen() {
     setWardCode("");
     setDistricts([]);
     setWards([]);
+    setIsFieldAutoFilled(prev => ({ ...prev, province: false, district: false, ward: false })); // Reset autofill status if user manually changes
     const res = await locationService.getDistricts(code);
     if (res.success && res.data) setDistricts(res.data);
   };
@@ -198,11 +225,23 @@ export default function CreateReportScreen() {
     setDistrictCode(code);
     setWardCode("");
     setWards([]);
+    setIsFieldAutoFilled(prev => ({ ...prev, district: false, ward: false })); // Reset autofill status if user manually changes
     const res = await locationService.getWards(code);
     if (res.success && res.data) setWards(res.data);
   };
 
   const handleMapLocationSelect = async (loc: any) => {
+    const requestId = ++lastRequestId.current;
+    setIsAddressLoading(true);
+
+    // Initial reset of selection codes to avoid showing wrong area mid-load
+    setProvinceCode("");
+    setDistrictCode("");
+    setWardCode("");
+    setDistricts([]);
+    setWards([]);
+    setIsFieldAutoFilled({ province: false, district: false, ward: false });
+
     setMapLocation(loc);
     setLatitude(loc.latitude);
     setLongitude(loc.longitude);
@@ -210,193 +249,121 @@ export default function CreateReportScreen() {
     if (loc.rawAddress) {
       const raw = loc.rawAddress;
 
-      // START: Clear all previous location states to prevent stale data (like Quận 1)
-      setProvinceCode("");
-      setDistrictCode("");
-      setWardCode("");
-      setDistricts([]);
-      setWards([]);
-
       // Update Detailed Address input immediately
       console.log('🗺️ Full location object:', JSON.stringify(loc, null, 2));
       console.log('📍 Raw address from map:', JSON.stringify(raw, null, 2));
 
-      // PRIORITY 1: Fallback to constructed address from raw data (Street name)
-      if (raw.house_number || raw.road || raw.name || raw.street) {
-        let detailedAddress = "";
+      // 1. Fill street address with full formatted address (cleaned)
+      let detailedAddress = loc.address || "";
+      detailedAddress = detailedAddress
+        .replace(/,?\s*Vi[eệ]t\s*Nam\s*/gi, '')
+        .replace(/,?\s*\d{5,6}\s*/g, '')
+        .trim();
 
-        // Add house number if available
-        if (raw.house_number) detailedAddress = raw.house_number;
+      if (detailedAddress && detailedAddress !== "Đang xác định..." && detailedAddress !== "Đang xác định địa chỉ...") {
+        setStreetAddress(detailedAddress);
+        setTempAddress(detailedAddress);
+      }
 
-        // Add road/street
-        const streetPart = raw.road || raw.street || raw.name;
-        if (streetPart) {
-          detailedAddress = detailedAddress ? `${detailedAddress} ${streetPart}` : streetPart;
+      // 2. Province/District/Ward Identification
+      try {
+        let provincesData = provinces;
+        if (provincesData.length === 0) {
+          const res = await locationService.getProvinces();
+          if (res.success && res.data) {
+            setProvinces(res.data);
+            provincesData = res.data;
+          }
         }
 
-        // Add any other specific markers like building name
-        if (raw.name && raw.name !== raw.road && raw.name !== raw.street && raw.name !== raw.house_number) {
-          detailedAddress = detailedAddress ? `${detailedAddress}, ${raw.name}` : raw.name;
+        // Check if this is still the latest request
+        if (requestId !== lastRequestId.current) return;
+
+        const provinceName = raw.province || raw.region || (raw.city && raw.city.includes("Thành phố") ? raw.city : "");
+        let normProvince = normalizeLocationName(provinceName);
+
+        let matchedProvince = null;
+        if (normProvince && provincesData.length > 0) {
+          matchedProvince = provincesData.find((p: any) => {
+            const pNorm = normalizeLocationName(p.name);
+            return normProvince.includes(pNorm) || pNorm.includes(normProvince);
+          });
         }
 
-        if (detailedAddress) {
-          console.log('✅ Setting street address from raw parts:', detailedAddress);
-          setStreetAddress(detailedAddress);
+        if (!matchedProvince && loc.address && provincesData.length > 0) {
+          const normFullAddress = normalizeLocationName(loc.address);
+          matchedProvince = provincesData.find((p: any) => normFullAddress.includes(normalizeLocationName(p.name)));
         }
-      }
-      // PRIORITY 2: Use full formatted address ONLY if raw data yields nothing
-      else if (loc.address && loc.address !== "Đang xác định..." && loc.address !== "Đang xác định địa chỉ...") {
-        console.log('✅ Setting street address from full address:', loc.address);
-        setStreetAddress(loc.address);
-      }
-      else {
-        console.log('⚠️ No address data available');
-      }
 
-      // Wait for provinces to load if they haven't yet
-      let provincesData = provinces;
-      if (provincesData.length === 0) {
-        console.log('Provinces not loaded yet, fetching...');
-        const res = await locationService.getProvinces();
-        if (res.success && res.data) {
-          setProvinces(res.data);
-          provincesData = res.data;
-        }
-      }
+        if (matchedProvince && requestId === lastRequestId.current) {
+          setProvinceCode(matchedProvince.code);
+          setIsFieldAutoFilled(prev => ({ ...prev, province: true }));
+          const distRes = await locationService.getDistricts(matchedProvince.code);
 
-      // Robust Province Identification
-      const provinceName = raw.province || raw.region || (raw.city && raw.city.includes("Thành phố") ? raw.city : "");
-      let normProvince = normalizeLocationName(provinceName);
+          if (requestId !== lastRequestId.current) return;
 
-      console.log('Attempting to match province:', { provinceName, normProvince, provincesCount: provincesData.length });
+          if (distRes.success && distRes.data) {
+            setDistricts(distRes.data);
+            const districtCandidates = [raw.district, raw.osm_city_district, raw.osm_town, raw.osm_city, raw.city].filter(Boolean);
+            let matchedDistrict = null;
+            for (const candidate of districtCandidates) {
+              const normCand = normalizeLocationName(candidate);
+              matchedDistrict = distRes.data.find((d: any) => {
+                const dNorm = normalizeLocationName(d.name);
+                return normCand.includes(dNorm) || dNorm.includes(normCand);
+              });
+              if (matchedDistrict) break;
+            }
 
-      let matchedProvince = null;
-      if (normProvince && provincesData.length > 0) {
-        matchedProvince = provincesData.find((p: any) => {
-          const pNorm = normalizeLocationName(p.name);
-          return normProvince.includes(pNorm) || pNorm.includes(normProvince);
-        });
-      }
+            if (!matchedDistrict && loc.address) {
+              const normFullAddress = normalizeLocationName(loc.address);
+              matchedDistrict = distRes.data.find((d: any) => normFullAddress.includes(normalizeLocationName(d.name)));
+            }
 
-      // FALLBACK 1: If no province match from structured data, search full address string
-      if (!matchedProvince && loc.address && provincesData.length > 0) {
-        const normFullAddress = normalizeLocationName(loc.address);
-        console.log('🔍 Fallback matching Province - Searching in full address:', normFullAddress);
-        matchedProvince = provincesData.find((p: any) => {
-          const pNorm = normalizeLocationName(p.name);
-          // Only match if the province name is actually present in the address string
-          return normFullAddress.includes(pNorm);
-        });
-      }
+            if (matchedDistrict && requestId === lastRequestId.current) {
+              setDistrictCode(matchedDistrict.code);
+              setIsFieldAutoFilled(prev => ({ ...prev, district: true }));
+              const wardRes = await locationService.getWards(matchedDistrict.code);
 
-      if (matchedProvince) {
-        console.log('Matched province:', matchedProvince.name);
-        setProvinceCode(matchedProvince.code);
-        const distRes = await locationService.getDistricts(matchedProvince.code);
-        if (distRes.success && distRes.data) {
-          setDistricts(distRes.data);
+              if (requestId !== lastRequestId.current) return;
 
-          // District Identification - Use multiple candidates for flexibility (specifically for Thu Duc)
-          const districtCandidates = [
-            raw.district,
-            raw.osm_city_district,
-            raw.osm_town,
-            raw.osm_city,
-            raw.city
-          ].filter(Boolean);
+              if (wardRes.success && wardRes.data) {
+                setWards(wardRes.data);
+                const wardCandidates = [raw.ward, raw.subdistrict, raw.osm_suburb, raw.osm_city_district].filter(Boolean);
+                let matchedWard = null;
+                for (const candidate of wardCandidates) {
+                  const normCand = normalizeLocationName(candidate);
+                  matchedWard = wardRes.data.find((w: any) => {
+                    const wNorm = normalizeLocationName(w.name);
+                    return normCand.includes(wNorm) || wNorm.includes(normCand);
+                  });
+                  if (matchedWard) break;
+                }
 
-          console.log('🔍 District candidates:', districtCandidates);
+                if (!matchedWard && loc.address) {
+                  const normFullAddress = normalizeLocationName(loc.address);
+                  matchedWard = wardRes.data.find((w: any) => normFullAddress.includes(normalizeLocationName(w.name)));
+                }
 
-          let matchedDistrict = null;
-          for (const candidate of districtCandidates) {
-            const normCand = normalizeLocationName(candidate);
-            matchedDistrict = distRes.data.find((d: any) => {
-              const dNorm = normalizeLocationName(d.name);
-              return normCand.includes(dNorm) || dNorm.includes(normCand);
-            });
-            if (matchedDistrict) {
-              console.log('✅ Matched district from candidate:', candidate, '->', matchedDistrict.name);
-              break;
+                if (matchedWard && requestId === lastRequestId.current) {
+                  setWardCode(matchedWard.code);
+                  setIsFieldAutoFilled(prev => ({ ...prev, ward: true }));
+                }
+              }
             }
           }
+        }
+      } catch (err) {
+        console.error("Error in address matching:", err);
+      }
+    } else if (loc.address && loc.address !== "Đang xác định...") {
+      setStreetAddress(loc.address);
+      setTempAddress(loc.address);
+    }
 
-          // FALLBACK 2: Search for district in full address if candidates matching failed
-          if (!matchedDistrict && loc.address) {
-            const normFullAddress = normalizeLocationName(loc.address);
-            console.log('🔍 Fallback matching District - Searching in full address:', normFullAddress);
-            matchedDistrict = distRes.data.find((d: any) => {
-              const dNorm = normalizeLocationName(d.name);
-              return normFullAddress.includes(dNorm);
-            });
-          }
-
-          if (matchedDistrict) {
-            console.log('Matched district FINAL:', matchedDistrict.name);
-            setDistrictCode(matchedDistrict.code);
-            const wardRes = await locationService.getWards(matchedDistrict.code);
-            if (wardRes.success && wardRes.data) {
-              setWards(wardRes.data);
-
-              // Ward Identification - Use multiple candidates
-              const wardCandidates = [
-                raw.ward,
-                raw.subdistrict,
-                raw.osm_suburb,
-                raw.osm_city_district,
-              ].filter(Boolean);
-
-              console.log('🔍 Ward candidates:', wardCandidates);
-
-              let matchedWard = null;
-              for (const candidate of wardCandidates) {
-                const normCand = normalizeLocationName(candidate);
-                matchedWard = wardRes.data.find((w: any) => {
-                  const wNorm = normalizeLocationName(w.name);
-                  return normCand.includes(wNorm) || wNorm.includes(normCand);
-                });
-                if (matchedWard) {
-                  console.log('✅ Matched ward from candidate:', candidate, '->', matchedWard.name);
-                  break;
-                }
-              }
-
-              if (matchedWard) {
-                console.log('✅ Matched ward FINAL:', matchedWard.name);
-                setWardCode(matchedWard.code);
-              } else {
-                console.log('❌ No matching ward found in structured candidates. Trying fallback...');
-                // FALLBACK: Try searching for ward names inside the full address string
-                if (loc.address) {
-                  const normFullAddress = normalizeLocationName(loc.address);
-                  console.log('🔍 Fallback matching Ward - Searching in full address:', normFullAddress);
-                  const fallbackWard = wardRes.data.find((w: any) => {
-                    const wNorm = normalizeLocationName(w.name);
-                    return normFullAddress.includes(wNorm);
-                  });
-                  if (fallbackWard) {
-                    console.log('✅ Fallback Match Ward from address string:', fallbackWard.name);
-                    setWardCode(fallbackWard.code);
-                  } else {
-                    setWardCode(""); // Really no match
-                  }
-                } else {
-                  setWardCode(""); // Really no match
-                }
-              }
-            } // end if (wardRes.success)
-          } else {
-            console.log('No matching district found for candidates:', districtCandidates);
-            setDistrictCode("");
-            setWardCode("");
-          } // end if (matchedDistrict)
-        } // end if (distRes.success)
-      } else {
-        console.log('No matching province found for:', provinceName);
-        setProvinceCode("");
-        setDistrictCode("");
-        setWardCode("");
-      } // end if (matchedProvince)
-    } // end if (loc.rawAddress)
+    if (requestId === lastRequestId.current) {
+      setIsAddressLoading(false);
+    }
   };
 
   const handleConfirmAddress = async () => {
@@ -430,38 +397,25 @@ export default function CreateReportScreen() {
           console.log(`📏 Computed distance while confirming: ${dist.toFixed(3)} km. Fallback: ${isFallback}`);
 
           if (isFallback) {
-            Alert.alert(
-              "Địa chỉ không cụ thể",
-              "Hệ thống chỉ tìm thấy khu vực (Phường) của địa chỉ này mà không thấy số nhà/tên đường cụ thể. Vui lòng ghim trực tiếp trên bản đồ để đảm bảo chính xác nhất.",
-              [
-                { text: "Để tôi ghim lại", style: "cancel" },
-                {
-                  text: "Dùng tạm vị trí này",
-                  onPress: () => {
-                    if (dist > 2.0) {
-                      Alert.alert("Lỗi", "Vị trí khu vực này quá xa điểm đã ghim (>2km). Vui lòng ghim lại.");
-                      return;
-                    }
-                    setStreetAddress(tempAddress);
-                    setLatitude(newLat);
-                    setLongitude(newLon);
-                    setMapLocation({
-                      latitude: newLat,
-                      longitude: newLon,
-                      address: fullAddressToGeocode
-                    });
-                  }
-                }
-              ]
+            // If OSM only found a broad match (e.g. ward/street center), DON'T move the pin
+            // but update the text. This preserves the user's manual pin precision.
+            setStreetAddress(tempAddress);
+            setErrors({ ...errors, street: undefined });
+            showAlert(
+              "Đã cập nhật địa chỉ",
+              "Hệ thống đã ghi nhận địa chỉ chữ của bạn. Vì dữ liệu bản đồ chưa có số nhà cụ thể này, chúng tôi sẽ giữ nguyên vị trí ghim hiện tại của bạn. Vui lòng kiểm tra lại ghim đã đúng vị trí nhà chưa.",
+              "warning",
+              [{ text: "Đã hiểu" }]
             );
             return;
           }
 
           if (dist > 2.0) {
             setLoading(false);
-            Alert.alert(
+            showAlert(
               "Vị trí không hợp lệ",
-              `Địa chỉ bạn nhập cách vị trí đã ghim ${dist.toFixed(1)}km (vượt quá giới hạn 2km). Vui lòng nhập địa chỉ gần vị trí đã ghim hơn.`
+              `Địa chỉ bạn nhập cách vị trí đã ghim ${dist.toFixed(1)}km (vượt quá giới hạn 2km). Vui lòng nhập địa chỉ gần vị trí đã ghim hơn.`,
+              "error"
             );
             return;
           }
@@ -477,11 +431,12 @@ export default function CreateReportScreen() {
             address: fullAddressToGeocode
           });
 
-          Alert.alert("Xác nhận địa chỉ", "Đã cập nhật chi tiết địa chỉ và ghim lại bản đồ.");
+          showAlert("Xác nhận địa chỉ", "Đã cập nhật chi tiết địa chỉ và ghim lại bản đồ.", "success");
         } else {
-          Alert.alert(
+          showAlert(
             "Không thể xác minh",
-            "Hệ thống không thể xác định vị trí của địa chỉ này để kiểm tra khoảng cách. Vui lòng nhập rõ ràng hơn."
+            "Hệ thống không thể xác định vị trí của địa chỉ này để kiểm tra khoảng cách. Vui lòng nhập rõ ràng hơn.",
+            "error"
           );
         }
       } catch (error) {
@@ -541,7 +496,7 @@ export default function CreateReportScreen() {
 
     if (!mapLocation) {
       newErrors.map = t("createReport.locationMissing");
-      Alert.alert(t("createReport.locationTitle"), t("createReport.selectMapFirst"));
+      showAlert(t("createReport.locationTitle"), t("createReport.selectMapFirst"), "warning");
     }
 
     if (!streetAddress.trim()) {
@@ -550,7 +505,7 @@ export default function CreateReportScreen() {
 
     if (!provinceCode || !districtCode || !wardCode) {
       newErrors.location = t("createReport.locationUnclear");
-      Alert.alert(t("createReport.locationUnclear"), t("createReport.locationUnclearMsg"));
+      showAlert(t("createReport.locationUnclear"), t("createReport.locationUnclearMsg"), "warning");
     }
 
     setErrors({ ...errors, ...newErrors });
@@ -564,9 +519,10 @@ export default function CreateReportScreen() {
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!permission.granted) {
-        Alert.alert(
+        showAlert(
           "Quyền truy cập",
           t("createReport.cameraPermission", { source: useCamera ? "camera" : "library" }),
+          "error"
         );
         return;
       }
@@ -632,32 +588,29 @@ export default function CreateReportScreen() {
         selectedProvince
       ].filter(Boolean).join(', ');
 
-      // Validate via reverse geocoding on submit: Ensure the pinned map coordinates
-      // roughly match the selected province/district dropdowns to prevent spoofing.
-      if (mapLocation && streetAddress.trim()) {
-        const reverseResults = await Location.reverseGeocodeAsync({ latitude, longitude });
-        if (reverseResults && reverseResults.length > 0) {
-          const mapAddress = reverseResults[0];
-          const mapCity = (mapAddress.city || mapAddress.region || mapAddress.subregion || "").toLowerCase();
-          const cleanSelectedProvince = (selectedProvince || "").replace(/(Thành phố|Tỉnh)\s+/i, '').toLowerCase();
+      // 3. Validation via geocoding on submit: Ensure the pinned map coordinates
+      // match the selected address within a reasonable distance (2km).
+      if (mapLocation && fullAddress) {
+        // Geocode the full address to get its actual coordinates
+        const geoResult = await locationService.geocodeAddress(fullAddress, latitude, longitude);
 
-          // Check if Map Pin City matches Selected Province
-          // Mismatch means they pinned a location in Hanoi but selected HCM in the dropdown.
-          let isMismatch = false;
-          if (cleanSelectedProvince && mapCity && !mapCity.includes(cleanSelectedProvince) && !cleanSelectedProvince.includes(mapCity)) {
-            // Let's do a loose check. If they don't share any words, it's a mismatch.
-            const cityWords = mapCity.split(' ').filter((word: string) => word.length > 2);
-            const provWords = cleanSelectedProvince.split(' ').filter((pWord: string) => pWord.length > 2);
-            if (!cityWords.some((cw: string) => provWords.some((pw: string) => pw === cw || pw.includes(cw) || cw.includes(pw)))) {
-              isMismatch = true;
-            }
-          }
+        if (geoResult.success && geoResult.data) {
+          const dist = locationService.haversineDistance(
+            latitude,
+            longitude,
+            geoResult.data.latitude,
+            geoResult.data.longitude
+          );
 
-          if (isMismatch) {
+          console.log(`📏 CreateReport validation distance: ${dist.toFixed(3)} km`);
+
+          // If mismatch is more than 2km, warn user
+          if (dist > 2.0) {
             setLoading(false);
-            Alert.alert(
+            showAlert(
               t("createReport.locationMismatch"),
-              `Thành phố/Tỉnh bạn chọn trên form không khớp với vị trí thực tế ghim trên bản đồ. Vui lòng kiểm tra lại để tránh gian lận.`
+              `Vị trí ghim và địa chỉ bạn chọn cách nhau ${dist.toFixed(1)}km (vượt quá giới hạn 2km). Vui lòng ghim bản đồ hoặc chọn khu vực khớp nhau hơn để tránh gian lận.`,
+              "warning"
             );
             return;
           }
@@ -781,9 +734,18 @@ export default function CreateReportScreen() {
                   <Ionicons name="location" size={20} color={AppColors.primary} />
                   <View style={styles.addressInfo}>
                     <Text style={styles.addressLabel}>{t("createReport.region")}</Text>
-                    <Text style={styles.fullAddressText}>
-                      {locationText}
-                    </Text>
+                    {isAddressLoading ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 4 }}>
+                        <ActivityIndicator size="small" color={AppColors.primary} />
+                        <Text style={[styles.fullAddressText, { marginLeft: 8, color: AppColors.gray[500] }]}>
+                          Đang tải khu vực...
+                        </Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.fullAddressText}>
+                        {locationText}
+                      </Text>
+                    )}
 
                     <View style={styles.manualSelection}>
                       <Picker
@@ -792,7 +754,7 @@ export default function CreateReportScreen() {
                         options={provinceOptions}
                         selectedValue={provinceCode}
                         onValueChange={handleProvinceChange}
-                        disabled={true}
+                        disabled={isFieldAutoFilled.province}
                         error={errors.province}
                       />
                       <Picker
@@ -801,7 +763,7 @@ export default function CreateReportScreen() {
                         options={districtOptions}
                         selectedValue={districtCode}
                         onValueChange={handleDistrictChange}
-                        disabled={true}
+                        disabled={isFieldAutoFilled.district}
                         error={errors.district}
                       />
                       <Picker
@@ -810,7 +772,7 @@ export default function CreateReportScreen() {
                         options={wardOptions}
                         selectedValue={wardCode}
                         onValueChange={setWardCode}
-                        disabled={true}
+                        disabled={isFieldAutoFilled.ward}
                         error={errors.ward}
                       />
                     </View>
@@ -1048,6 +1010,16 @@ export default function CreateReportScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Custom Global Alert */}
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        buttons={alertConfig.buttons}
+        onClose={() => setAlertConfig({ ...alertConfig, visible: false })}
+      />
     </ScrollView>
   );
 }

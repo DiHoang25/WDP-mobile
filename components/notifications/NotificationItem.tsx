@@ -70,7 +70,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             "REJECTED": "Đã từ chối",
             "ON_THE_WAY": "Đang di chuyển",
             "ARRIVED": "Đã đến nơi",
-            "COLLECTING": "Đang thu gom",
+            "COLLECTED": "Đã thu gom",
             "COMPLETED": "Hoàn thành",
             "CANCELLED": "Đã huỷ",
             "EXPIRED": "Hết hạn",

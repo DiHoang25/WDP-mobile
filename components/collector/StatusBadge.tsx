@@ -50,11 +50,19 @@ function getStatusConfig(status: CollectorStatus) {
         textColor: "#065F46",
       };
     case "BUSY":
+    case "ONLINE_BUSY":
       return {
         label: "Đang bận",
         bgColor: "#FEF3C7",
         dotColor: "#F59E0B",
         textColor: "#92400E",
+      };
+    default:
+      return {
+        label: "Không xác định",
+        bgColor: "#F3F4F6",
+        dotColor: "#9CA3AF",
+        textColor: "#4B5563",
       };
   }
 }

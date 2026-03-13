@@ -1,6 +1,8 @@
 export { default as Badge } from "./Badge";
 export { default as Button } from "./Button";
 export { default as Card } from "./Card";
+export { default as CustomAlert } from "./CustomAlert";
+export type { AlertType } from "./CustomAlert";
 export { default as EmptyState } from "./EmptyState";
 export { GroupedServiceAreaPicker } from "./GroupedServiceAreaPicker";
 export { default as Header } from "./Header";

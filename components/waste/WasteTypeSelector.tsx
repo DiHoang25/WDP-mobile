@@ -34,7 +34,7 @@ export default function WasteTypeSelector({
           >
             <Ionicons
               name={type.icon as any}
-              size={28}
+              size={32}
               color={selectedType === type.value ? AppColors.white : type.color}
               style={styles.typeIcon}
             />
@@ -46,14 +46,6 @@ export default function WasteTypeSelector({
               numberOfLines={2}
             >
               {type.label}
-            </Text>
-            <Text
-              style={[
-                styles.typePoints,
-                selectedType === type.value && styles.typePointsActive,
-              ]}
-            >
-              {type.points}đ/kg
             </Text>
           </TouchableOpacity>
         ))}
@@ -98,21 +90,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   typeLabel: {
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
     color: AppColors.textPrimary,
     textAlign: "center",
-    marginBottom: 4,
   },
   typeLabelActive: {
     color: AppColors.white,
-  },
-  typePoints: {
-    fontSize: 10,
-    color: AppColors.textSecondary,
-    fontWeight: "500",
-  },
-  typePointsActive: {
-    color: "rgba(255, 255, 255, 0.9)",
   },
 });
