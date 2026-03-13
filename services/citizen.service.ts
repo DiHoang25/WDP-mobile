@@ -1,40 +1,163 @@
-import { ApiResponse, apiClient } from '@/utils/api';
-import { config } from '@/utils/config';
+import { ApiResponse, apiClient } from "@/utils/api";
 
-/**
- * Citizen Service
- * Handles citizen-specific interactions with reports
- */
+// ========================
+// Leaderboard Types
+// ========================
+export enum LeaderboardCategory {
+  POINTS = "POINTS",
+  ECO_WARRIORS = "ECO_WARRIORS",
+  WASTE_IMPACT = "WASTE_IMPACT",
+}
+
+export enum LeaderboardTimeframe {
+  ALL_TIME = "ALL_TIME",
+  MONTHLY = "MONTHLY",
+  WEEKLY = "WEEKLY",
+}
+
+export interface LeaderboardRank {
+  rank: number;
+  userId: number;
+  fullName: string;
+  avatar: string | null;
+  value: number;
+}
+
+export interface LeaderboardResponse {
+  category: LeaderboardCategory;
+  timeframe: LeaderboardTimeframe;
+  topRankings: LeaderboardRank[];
+  myRank: LeaderboardRank | null;
+}
+
+// ========================
+// Loyalty/Gift Types
+// ========================
+export interface Gift {
+  id: number;
+  name: string;
+  description?: string;
+  requiredPoints: number;
+  stock: number;
+  imageUrl?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RedeemGiftRequest {
+  giftId: number;
+}
+
+export type PointTransactionType = "EARN" | "SPEND" | "REFUND";
+
+export interface PointTransaction {
+  id: number;
+  userId: number;
+  giftId?: number;
+  reportId?: number;
+  type: PointTransactionType;
+  amount: number;
+  balanceAfter: number;
+  description?: string;
+  createdAt: string;
+  gift?: Gift;
+}
+
+export interface MyPointsResponse {
+  points: number;
+}
+
+// ========================
+// Citizen Service
+// ========================
 export const citizenService = {
-    /**
-     * Citizen confirms presence at collection point
-     * PATCH /citizen/reports/{reportId}/confirm-presence
-     * NOTE: Endpoint is defined WITHOUT /api/v1 prefix → must call absolute URL.
-     */
-    async confirmPresence(reportId: number): Promise<ApiResponse<any>> {
-        const baseWithoutApi = config.apiUrl.replace(/\/api\/v1\/?$/, '');
-        const fullUrl = `${baseWithoutApi}/citizen/reports/${reportId}/confirm-presence`;
+  /**
+   * ===========================
+   * LEADERBOARD API
+   * ===========================
+   */
 
-        console.log(`📡 [citizenService] PATCH (ABSOLUTE) -> ${fullUrl}`);
-        const response = await apiClient.patch<any>(fullUrl, {});
-        console.log(`📡 [citizenService] Response:`, JSON.stringify(response));
-        return response;
-    },
+  /**
+   * Get leaderboard rankings
+   * GET /api/v1/citizen/leaderboard
+   */
+  async getLeaderboard(
+    category: LeaderboardCategory = LeaderboardCategory.POINTS,
+    timeframe: LeaderboardTimeframe = LeaderboardTimeframe.ALL_TIME,
+  ): Promise<ApiResponse<LeaderboardResponse>> {
+    return apiClient.get<LeaderboardResponse>(
+      `/citizen/leaderboard?category=${category}&timeframe=${timeframe}`,
+    );
+  },
 
-    /**
-     * Citizen reports own absence
-     * PATCH /api/v1/citizen/reports/{reportId}/report-absent
-     */
-    async reportAbsent(reportId: number): Promise<ApiResponse<any>> {
-        // NOTE: This endpoint is defined at the root level without `/api/v1` prefix.
-        // Our config.apiUrl already includes `/api/v1`, so we build an absolute URL
-        // by stripping that suffix and calling the full URL directly.
-        const baseWithoutApi = config.apiUrl.replace(/\/api\/v1\/?$/, '');
-        const fullUrl = `${baseWithoutApi}/citizen/reports/${reportId}/report-absent`;
+  /**
+   * ===========================
+   * LOYALTY / GIFTS API
+   * ===========================
+   */
 
-        console.log(`📡 [citizenService] PATCH (ABSOLUTE) -> ${fullUrl}`);
-        const response = await apiClient.patch<any>(fullUrl, {});
-        console.log(`📡 [citizenService] Response:`, JSON.stringify(response));
-        return response;
-    },
+  /**
+   * Get available gifts list
+   * GET /api/v1/citizen/gifts
+   */
+  async getGifts(): Promise<ApiResponse<Gift[]>> {
+    return apiClient.get<Gift[]>("/citizen/gifts");
+  },
+
+  /**
+   * Redeem a gift with points
+   * POST /api/v1/citizen/gifts/redeem
+   */
+  async redeemGift(
+    data: RedeemGiftRequest,
+  ): Promise<ApiResponse<PointTransaction>> {
+    return apiClient.post<PointTransaction>("/citizen/gifts/redeem", data);
+  },
+
+  /**
+   * Get my redemption history / point transactions
+   * GET /api/v1/citizen/gifts/redemptions?type=EARN|SPEND|REFUND
+   * @param type - Optional filter by transaction type (EARN, SPEND, REFUND)
+   */
+  async getMyRedemptions(
+    type?: PointTransactionType,
+  ): Promise<ApiResponse<PointTransaction[]>> {
+    const queryParam = type ? `?type=${type}` : "";
+    return apiClient.get<PointTransaction[]>(
+      `/citizen/gifts/redemptions${queryParam}`,
+    );
+  },
+
+  /**
+   * Get my current points balance
+   * GET /api/v1/citizen/loyalty/points
+   */
+  async getMyPoints(): Promise<ApiResponse<MyPointsResponse>> {
+    return apiClient.get<MyPointsResponse>("/citizen/loyalty/points");
+  },
+
+  /**
+   * ===========================
+   * REPORT INTERACTIONS API
+   * ===========================
+   */
+
+  /**
+   * Citizen confirms presence at collection point
+   * PATCH /citizen/reports/:reportId/confirm-presence
+   */
+  async confirmPresence(reportId: number): Promise<ApiResponse<any>> {
+    return apiClient.patch<any>(
+      `/citizen/reports/${reportId}/confirm-presence`,
+    );
+  },
+
+  /**
+   * Citizen reports being absent
+   * PATCH /citizen/reports/:reportId/report-absent
+   */
+  async reportAbsent(reportId: number): Promise<ApiResponse<any>> {
+    return apiClient.patch<any>(`/citizen/reports/${reportId}/report-absent`);
+  },
 };

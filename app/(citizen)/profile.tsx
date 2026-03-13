@@ -56,7 +56,10 @@ export default function ProfileScreen() {
           title: t("profile.menu.registerEnterprise"),
           subtitle: t("profile.menu.registerEnterpriseSubtitle"),
           onPress: () =>
-            router.push("/(citizen)/register-enterprise-form" as any),
+            router.push({
+              pathname: "/(citizen)/register-enterprise-form",
+              params: { source: "profile" },
+            } as any),
           highlight: true,
         },
       ]
@@ -65,14 +68,22 @@ export default function ProfileScreen() {
       icon: "document-text",
       title: t("profile.menu.history"),
       subtitle: t("profile.menu.historySubtitle"),
-      onPress: () => router.push("/(citizen)/history"),
+      onPress: () =>
+        router.push({
+          pathname: "/(citizen)/history",
+          params: { source: "profile" },
+        } as any),
       highlight: true,
     },
     {
       icon: "gift",
       title: t("profile.menu.rewards"),
       subtitle: t("profile.menu.rewardsSubtitle"),
-      onPress: () => router.push("/(citizen)/rewards"),
+      onPress: () =>
+        router.push({
+          pathname: "/(citizen)/rewards",
+          params: { source: "profile" },
+        } as any),
       highlight: true,
     },
     {

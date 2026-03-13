@@ -2,10 +2,17 @@ import { Button, Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { MOCK_VOUCHERS } from "@/data/mockData";
-import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
 import {
+  citizenService,
+  Gift,
+  PointTransaction,
+  PointTransactionType,
+} from "@/services/citizen.service";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -14,56 +21,173 @@ import {
   View,
 } from "react-native";
 
+type TabType = "gifts" | "history";
+type HistoryFilter = "all" | "earn" | "spend";
+
 export default function RewardsScreen() {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const { t } = useLanguage();
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const params = useLocalSearchParams<{ source?: string }>();
+  const source = Array.isArray(params.source) ? params.source[0] : params.source;
+  const backFallbackRoute =
+    source === "profile" ? "/(citizen)/profile" : "/(citizen)";
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>("gifts");
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
+  const [gifts, setGifts] = useState<Gift[]>([]);
+  const [redemptions, setRedemptions] = useState<PointTransaction[]>([]);
+  const [currentPoints, setCurrentPoints] = useState<number>(0);
 
-  const categories = [
-    { value: "all", label: t("common.all") },
-    { value: "E-commerce", label: "E-commerce" },
-    { value: "Cà phê", label: "Coffee" },
-    { value: "Di chuyển", label: "Transport" },
-  ];
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
 
-  const filteredVouchers =
-    selectedCategory === "all"
-      ? MOCK_VOUCHERS
-      : MOCK_VOUCHERS.filter((v) => v.category === selectedCategory);
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile();
+      fetchInitialData();
+    }, []),
+  );
 
-  const handleRedeem = (voucher: any) => {
-    if ((user?.points || 0) < voucher.pointsCost) {
+  useEffect(() => {
+    if (activeTab === "history") {
+      fetchRedemptions();
+    }
+  }, [activeTab, historyFilter]);
+
+  const fetchInitialData = async () => {
+    try {
+      setLoading(true);
+      await Promise.all([fetchGifts(), fetchPoints()]);
+    } catch (error) {
+      console.error("Fetch initial data error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchGifts = async () => {
+    try {
+      const response = await citizenService.getGifts();
+      if (response.success && response.data) {
+        setGifts(response.data);
+      } else {
+        Alert.alert(
+          "Lỗi",
+          response.error || "Không thể tải danh sách quà tặng",
+        );
+      }
+    } catch (error) {
+      console.error("Fetch gifts error:", error);
+    }
+  };
+
+  const fetchPoints = async () => {
+    try {
+      const response = await citizenService.getMyPoints();
+      if (response.success && response.data) {
+        setCurrentPoints(response.data.points);
+      }
+    } catch (error) {
+      console.error("Fetch points error:", error);
+    }
+  };
+
+  const fetchRedemptions = async () => {
+    try {
+      let type: PointTransactionType | undefined;
+      if (historyFilter === "earn") type = "EARN";
+      else if (historyFilter === "spend") type = "SPEND";
+
+      const response = await citizenService.getMyRedemptions(type);
+      if (response.success && response.data) {
+        setRedemptions(response.data);
+      } else {
+        Alert.alert("Lỗi", response.error || "Không thể tải lịch sử giao dịch");
+      }
+    } catch (error) {
+      console.error("Fetch redemptions error:", error);
+    }
+  };
+
+  const handleRedeem = async (gift: Gift) => {
+    if (currentPoints < gift.requiredPoints) {
       Alert.alert(
-        t("rewards.notEnoughPoints"),
-        t("rewards.notEnoughPointsMsg", { points: voucher.pointsCost - (user?.points || 0) }),
+        "Không đủ điểm",
+        `Bạn cần ${gift.requiredPoints - currentPoints} điểm nữa để đổi quà này.`,
       );
       return;
     }
 
     Alert.alert(
-      t("rewards.redeemConfirm"),
-      t("rewards.redeemConfirmMsg", { points: voucher.pointsCost, name: voucher.title }),
+      "Xác nhận đổi quà",
+      `Đổi ${gift.requiredPoints} điểm lấy ${gift.name}?`,
       [
         { text: t("common.cancel"), style: "cancel" },
         {
-          text: t("rewards.redeem"),
-          onPress: () => {
-            Alert.alert(
-              t("common.success"),
-              t("rewards.redeemSuccess"),
-            );
+          text: "Đổi ngay",
+          onPress: async () => {
+            try {
+              setSubmitting(true);
+              const response = await citizenService.redeemGift({
+                giftId: gift.id,
+              });
+
+              if (response.success) {
+                Alert.alert(
+                  "Thành công!",
+                  response.message ||
+                    "Đã đổi quà thành công. Vui lòng kiểm tra lịch sử.",
+                  [
+                    {
+                      text: "OK",
+                      onPress: () => {
+                        // Refresh data
+                        fetchGifts();
+                        fetchPoints();
+                      },
+                    },
+                  ],
+                );
+              } else {
+                Alert.alert("Lỗi", response.error || "Không thể đổi quà");
+              }
+            } catch (error) {
+              console.error("Redeem gift error:", error);
+              Alert.alert("Lỗi", "Không thể đổi quà");
+            } finally {
+              setSubmitting(false);
+            }
           },
         },
       ],
     );
   };
 
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Header
+          title="Đổi thưởng"
+          subtitle="Đổi điểm lấy quà hấp dẫn"
+          showBack={true}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={AppColors.primary} />
+          <Text style={styles.loadingText}>Đang tải...</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Header
-        title={t("rewards.title")}
-        subtitle={t("rewards.subtitle")}
-        showBack={false}
+        title="Đổi thưởng"
+        subtitle="Đổi điểm lấy quà hấp dẫn"
+        showBack={true}
+        backFallbackRoute={backFallbackRoute}
       />
 
       {/* Points Card */}
@@ -73,104 +197,301 @@ export default function RewardsScreen() {
             <Text style={styles.pointsLabel}>{t("rewards.yourPoints")}</Text>
             <View style={styles.pointsValueContainer}>
               <Ionicons name="star" size={24} color={AppColors.warning} />
-              <Text style={styles.pointsValue}> {user?.points || 0}</Text>
+              <Text style={styles.pointsValue}> {currentPoints}</Text>
             </View>
           </View>
         </Card>
       </View>
 
-      {/* Categories */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoriesContainer}
-        contentContainerStyle={styles.categoriesContent}
-      >
-        {categories.map((category) => (
-          <TouchableOpacity
-            key={category.value}
+      {/* Tabs */}
+      <View style={styles.tabsContainer}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "gifts" && styles.tabActive]}
+          onPress={() => setActiveTab("gifts")}
+        >
+          <Text
             style={[
-              styles.categoryButton,
-              selectedCategory === category.value &&
-              styles.categoryButtonActive,
+              styles.tabText,
+              activeTab === "gifts" && styles.tabTextActive,
             ]}
-            onPress={() => setSelectedCategory(category.value)}
           >
+            Quà tặng
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "history" && styles.tabActive]}
+          onPress={() => setActiveTab("history")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "history" && styles.tabTextActive,
+            ]}
+          >
+            Lịch sử
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* History Filter Buttons - Show only when history tab is active */}
+      {activeTab === "history" && (
+        <View style={styles.filterContainer}>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              historyFilter === "all" && styles.filterButtonActive,
+            ]}
+            onPress={() => setHistoryFilter("all")}
+          >
+            <Ionicons
+              name="list"
+              size={16}
+              color={
+                historyFilter === "all"
+                  ? AppColors.white
+                  : AppColors.textSecondary
+              }
+            />
             <Text
               style={[
-                styles.categoryButtonText,
-                selectedCategory === category.value &&
-                styles.categoryButtonTextActive,
+                styles.filterButtonText,
+                historyFilter === "all" && styles.filterButtonTextActive,
               ]}
             >
-              {category.label}
+              Tất cả
             </Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
 
-      {/* Vouchers List */}
-      <ScrollView
-        style={styles.vouchersList}
-        showsVerticalScrollIndicator={false}
-      >
-        {filteredVouchers.map((voucher) => {
-          const canAfford = (user?.points || 0) >= voucher.pointsCost;
-
-          return (
-            <Card
-              key={voucher.id}
-              variant="elevated"
-              style={styles.voucherCard}
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              historyFilter === "earn" && styles.filterButtonActive,
+            ]}
+            onPress={() => setHistoryFilter("earn")}
+          >
+            <Ionicons
+              name="add-circle"
+              size={16}
+              color={
+                historyFilter === "earn"
+                  ? AppColors.white
+                  : AppColors.textSecondary
+              }
+            />
+            <Text
+              style={[
+                styles.filterButtonText,
+                historyFilter === "earn" && styles.filterButtonTextActive,
+              ]}
             >
-              <View style={styles.voucherImageContainer}>
-                <View
-                  style={[
-                    styles.voucherImage,
-                    { backgroundColor: AppColors.gray[200] },
-                  ]}
-                >
-                  <Text style={styles.voucherBrand}>{voucher.brandName}</Text>
-                </View>
-                <View style={styles.voucherPointsBadge}>
-                  <Ionicons name="star" size={12} color={AppColors.white} />
-                  <Text style={styles.voucherPointsText}>
-                    {" "}
-                    {voucher.pointsCost}
-                  </Text>
-                </View>
-              </View>
+              Kiếm điểm
+            </Text>
+          </TouchableOpacity>
 
-              <View style={styles.voucherContent}>
-                <Text style={styles.voucherTitle} numberOfLines={2}>
-                  {voucher.title}
-                </Text>
-                <Text style={styles.voucherDescription} numberOfLines={1}>
-                  {voucher.description}
-                </Text>
-                <View style={styles.voucherFooter}>
-                  <View>
-                    <Text style={styles.voucherValue}>
-                      {voucher.value.toLocaleString("vi-VN")}đ
-                    </Text>
-                    <Text style={styles.voucherExpiry}>
-                      Hạn:{" "}
-                      {new Date(voucher.expiryDate).toLocaleDateString("vi-VN")}
-                    </Text>
+          <TouchableOpacity
+            style={[
+              styles.filterButton,
+              historyFilter === "spend" && styles.filterButtonActive,
+            ]}
+            onPress={() => setHistoryFilter("spend")}
+          >
+            <Ionicons
+              name="gift"
+              size={16}
+              color={
+                historyFilter === "spend"
+                  ? AppColors.white
+                  : AppColors.textSecondary
+              }
+            />
+            <Text
+              style={[
+                styles.filterButtonText,
+                historyFilter === "spend" && styles.filterButtonTextActive,
+              ]}
+            >
+              Đổi quà
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Content */}
+      {activeTab === "gifts" ? (
+        <ScrollView
+          style={styles.contentList}
+          showsVerticalScrollIndicator={false}
+        >
+          {gifts.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons
+                name="gift-outline"
+                size={64}
+                color={AppColors.gray[400]}
+              />
+              <Text style={styles.emptyText}>Chưa có quà tặng nào</Text>
+            </View>
+          ) : (
+            gifts.map((gift) => {
+              const canAfford = currentPoints >= gift.requiredPoints;
+              const isOutOfStock = gift.stock <= 0;
+
+              return (
+                <Card key={gift.id} variant="elevated" style={styles.giftCard}>
+                  <View style={styles.giftImageContainer}>
+                    {gift.imageUrl ? (
+                      <View style={styles.giftImage}>
+                        {/* Could add Image component here */}
+                        <Ionicons
+                          name="gift"
+                          size={32}
+                          color={AppColors.primary}
+                        />
+                      </View>
+                    ) : (
+                      <View
+                        style={[
+                          styles.giftImage,
+                          { backgroundColor: AppColors.gray[200] },
+                        ]}
+                      >
+                        <Ionicons
+                          name="gift"
+                          size={32}
+                          color={AppColors.gray[500]}
+                        />
+                      </View>
+                    )}
+                    <View style={styles.giftPointsBadge}>
+                      <Ionicons name="star" size={12} color={AppColors.white} />
+                      <Text style={styles.giftPointsText}>
+                        {" "}
+                        {gift.requiredPoints}
+                      </Text>
+                    </View>
                   </View>
-                  <Button
-                    title={canAfford ? t("rewards.redeem") : t("rewards.notEnoughPoints")}
-                    onPress={() => handleRedeem(voucher)}
-                    disabled={!canAfford}
-                    variant={canAfford ? "primary" : "outline"}
-                    size="small"
-                  />
-                </View>
-              </View>
-            </Card>
-          );
-        })}
-      </ScrollView>
+
+                  <View style={styles.giftContent}>
+                    <Text style={styles.giftTitle} numberOfLines={2}>
+                      {gift.name}
+                    </Text>
+                    {gift.description && (
+                      <Text style={styles.giftDescription} numberOfLines={2}>
+                        {gift.description}
+                      </Text>
+                    )}
+                    <View style={styles.giftFooter}>
+                      <View>
+                        <Text style={styles.giftStock}>
+                          {isOutOfStock ? "Hết hàng" : `Còn ${gift.stock} suất`}
+                        </Text>
+                      </View>
+                      <Button
+                        title={
+                          isOutOfStock
+                            ? "Hết hàng"
+                            : canAfford
+                              ? "Đổi ngay"
+                              : "Chưa đủ điểm"
+                        }
+                        onPress={() => handleRedeem(gift)}
+                        disabled={!canAfford || isOutOfStock || submitting}
+                        variant={
+                          canAfford && !isOutOfStock ? "primary" : "outline"
+                        }
+                        size="small"
+                      />
+                    </View>
+                  </View>
+                </Card>
+              );
+            })
+          )}
+        </ScrollView>
+      ) : (
+        <ScrollView
+          style={styles.contentList}
+          showsVerticalScrollIndicator={false}
+        >
+          {redemptions.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons
+                name="receipt-outline"
+                size={64}
+                color={AppColors.gray[400]}
+              />
+              <Text style={styles.emptyText}>
+                {historyFilter === "earn"
+                  ? "Chưa có lịch sử kiếm điểm"
+                  : historyFilter === "spend"
+                    ? "Chưa có lịch sử đổi quà"
+                    : "Chưa có giao dịch nào"}
+              </Text>
+            </View>
+          ) : (
+            redemptions.map((transaction) => {
+              const isEarn = transaction.type === "EARN";
+              const iconName = isEarn ? "add-circle" : "gift";
+              const iconColor = isEarn ? AppColors.success : AppColors.primary;
+
+              return (
+                <Card
+                  key={transaction.id}
+                  variant="elevated"
+                  style={styles.historyCard}
+                >
+                  <View style={styles.historyHeader}>
+                    <View
+                      style={[
+                        styles.historyIconContainer,
+                        { backgroundColor: iconColor + "20" },
+                      ]}
+                    >
+                      <Ionicons name={iconName} size={24} color={iconColor} />
+                    </View>
+                    <View style={styles.historyInfo}>
+                      <Text style={styles.historyTitle}>
+                        {isEarn
+                          ? transaction.description || "Kiếm điểm"
+                          : transaction.gift?.name || "Đổi quà"}
+                      </Text>
+                      <Text style={styles.historyDate}>
+                        {new Date(transaction.createdAt).toLocaleDateString(
+                          "vi-VN",
+                          {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          },
+                        )}
+                      </Text>
+                    </View>
+                    <View style={styles.historyPoints}>
+                      <Text
+                        style={[
+                          styles.historyPointsValue,
+                          isEarn
+                            ? { color: AppColors.success }
+                            : { color: AppColors.error },
+                        ]}
+                      >
+                        {isEarn ? "+" : "-"}
+                        {transaction.amount}
+                      </Text>
+                      <Text style={styles.historyPointsLabel}>điểm</Text>
+                    </View>
+                  </View>
+                  {transaction.description && !isEarn && (
+                    <Text style={styles.historyDescription}>
+                      {transaction.description}
+                    </Text>
+                  )}
+                </Card>
+              );
+            })
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -179,6 +500,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: AppColors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: AppColors.textSecondary,
   },
   pointsSection: {
     paddingHorizontal: 20,
@@ -201,98 +532,176 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: AppColors.warning,
   },
-  categoriesContainer: {
-    maxHeight: 60,
-    marginTop: 20,
-  },
-  categoriesContent: {
+  tabsContainer: {
+    flexDirection: "row",
     paddingHorizontal: 20,
+    paddingVertical: 15,
     gap: 10,
   },
-  categoryButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    backgroundColor: AppColors.white,
-    borderWidth: 1,
-    borderColor: AppColors.gray[300],
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 8,
+    backgroundColor: AppColors.gray[100],
   },
-  categoryButtonActive: {
-    backgroundColor: AppColors.error,
-    borderColor: AppColors.error,
+  tabActive: {
+    backgroundColor: AppColors.primary,
   },
-  categoryButtonText: {
+  tabText: {
     fontSize: 14,
     fontWeight: "600",
     color: AppColors.textSecondary,
   },
-  categoryButtonTextActive: {
+  tabTextActive: {
     color: AppColors.white,
   },
-  vouchersList: {
-    flex: 1,
+  filterContainer: {
+    flexDirection: "row",
     paddingHorizontal: 20,
-    marginTop: 20,
+    paddingBottom: 15,
+    gap: 10,
   },
-  voucherCard: {
+  filterButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: AppColors.gray[100],
+    borderWidth: 1,
+    borderColor: AppColors.gray[200],
+  },
+  filterButtonActive: {
+    backgroundColor: AppColors.primary,
+    borderColor: AppColors.primary,
+  },
+  filterButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: AppColors.textSecondary,
+  },
+  filterButtonTextActive: {
+    color: AppColors.white,
+  },
+  contentList: {
+    flex: 1,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+  },
+  emptyText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: AppColors.textSecondary,
+  },
+  giftCard: {
+    marginHorizontal: 20,
     marginBottom: 15,
-    overflow: "hidden",
-    padding: 0,
+    flexDirection: "row",
   },
-  voucherImageContainer: {
+  giftImageContainer: {
     position: "relative",
+    marginRight: 15,
   },
-  voucherImage: {
-    height: 120,
+  giftImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
   },
-  voucherBrand: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: AppColors.textPrimary,
-  },
-  voucherPointsBadge: {
+  giftPointsBadge: {
     position: "absolute",
-    top: 10,
-    right: 10,
+    top: -5,
+    right: -5,
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: AppColors.warning,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  voucherPointsText: {
-    fontSize: 14,
+  giftPointsText: {
+    fontSize: 11,
     fontWeight: "bold",
     color: AppColors.white,
   },
-  voucherContent: {
-    padding: 15,
+  giftContent: {
+    flex: 1,
+    justifyContent: "space-between",
   },
-  voucherTitle: {
+  giftTitle: {
     fontSize: 16,
     fontWeight: "bold",
     color: AppColors.textPrimary,
-    marginBottom: 5,
+    marginBottom: 4,
   },
-  voucherDescription: {
-    fontSize: 14,
+  giftDescription: {
+    fontSize: 13,
     color: AppColors.textSecondary,
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  voucherFooter: {
+  giftFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
+  },
+  giftStock: {
+    fontSize: 12,
+    color: AppColors.textSecondary,
+  },
+  historyCard: {
+    marginHorizontal: 20,
+    marginBottom: 12,
+  },
+  historyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  historyIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: AppColors.primary + "20",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  historyInfo: {
+    flex: 1,
+  },
+  historyTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: AppColors.textPrimary,
+    marginBottom: 2,
+  },
+  historyDate: {
+    fontSize: 12,
+    color: AppColors.textSecondary,
+  },
+  historyPoints: {
     alignItems: "flex-end",
   },
-  voucherValue: {
+  historyPointsValue: {
     fontSize: 18,
     fontWeight: "bold",
     color: AppColors.error,
   },
-  voucherExpiry: {
-    fontSize: 12,
+  historyPointsLabel: {
+    fontSize: 11,
     color: AppColors.textSecondary,
-    marginTop: 2,
+  },
+  historyDescription: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: AppColors.gray[200],
+    fontSize: 13,
+    color: AppColors.textSecondary,
   },
 });

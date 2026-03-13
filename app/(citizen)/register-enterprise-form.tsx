@@ -4,7 +4,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { District, locationService, Province, Ward } from "@/services/location.service";
 import { WasteType } from '@/types';
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -22,6 +22,10 @@ import {
 
 export default function RegisterEnterpriseFormScreen() {
   const { t } = useLanguage();
+  const params = useLocalSearchParams<{ source?: string }>();
+  const source = Array.isArray(params.source) ? params.source[0] : params.source;
+  const backFallbackRoute =
+    source === "profile" ? "/(citizen)/profile" : "/(citizen)";
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [capacity, setCapacity] = useState("");
@@ -480,7 +484,12 @@ export default function RegisterEnterpriseFormScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Header title={t("registerEnterprise.title")} subtitle={t("registerEnterprise.subtitle")} showBack />
+        <Header
+          title={t("registerEnterprise.title")}
+          subtitle={t("registerEnterprise.subtitle")}
+          showBack
+          backFallbackRoute={backFallbackRoute}
+        />
 
         <View style={styles.form}>
           <Input

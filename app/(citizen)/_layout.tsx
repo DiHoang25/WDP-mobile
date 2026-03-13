@@ -19,8 +19,11 @@ export default function CitizenLayout() {
           backgroundColor: AppColors.white,
           borderTopWidth: 1,
           borderTopColor: AppColors.gray[200],
-          height: 60 + (Platform.OS === 'android' ? insets.bottom + 10 : insets.bottom),
-          paddingBottom: Platform.OS === 'android' ? insets.bottom + 10 : insets.bottom,
+          height:
+            60 +
+            (Platform.OS === "android" ? insets.bottom + 10 : insets.bottom),
+          paddingBottom:
+            Platform.OS === "android" ? insets.bottom + 10 : insets.bottom,
           paddingTop: 10,
         },
         tabBarLabelStyle: {

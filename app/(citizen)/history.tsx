@@ -5,22 +5,26 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { wasteService } from "@/services/waste.service";
 import { WasteReport } from "@/types";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    FlatList,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 export default function HistoryScreen() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const params = useLocalSearchParams<{ source?: string }>();
+  const source = Array.isArray(params.source) ? params.source[0] : params.source;
+  const backFallbackRoute =
+    source === "profile" ? "/(citizen)/profile" : "/(citizen)";
   const [reports, setReports] = useState<WasteReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -30,7 +34,7 @@ export default function HistoryScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchHistory(true);
-    }, [])
+    }, []),
   );
 
   const onRefresh = React.useCallback(() => {
@@ -55,9 +59,11 @@ export default function HistoryScreen() {
           reportsList = rawData.items;
         } else if (rawData.reports && Array.isArray(rawData.reports)) {
           reportsList = rawData.reports;
-        } else if (typeof rawData === 'object' && rawData !== null) {
+        } else if (typeof rawData === "object" && rawData !== null) {
           // Check for any first child that is an array
-          const firstArrayKey = Object.keys(rawData).find(key => Array.isArray(rawData[key]));
+          const firstArrayKey = Object.keys(rawData).find((key) =>
+            Array.isArray(rawData[key]),
+          );
           if (firstArrayKey) reportsList = rawData[firstArrayKey];
         }
 
@@ -82,12 +88,14 @@ export default function HistoryScreen() {
     {
       value: "pending" as const,
       label: t("history.pending"),
-      count: reports.filter((r) => r.status?.toLowerCase() !== "completed").length,
+      count: reports.filter((r) => r.status?.toLowerCase() !== "completed")
+        .length,
     },
     {
       value: "completed" as const,
       label: t("history.completed"),
-      count: reports.filter((r) => r.status?.toLowerCase() === "completed").length,
+      count: reports.filter((r) => r.status?.toLowerCase() === "completed")
+        .length,
     },
   ];
 
@@ -97,7 +105,7 @@ export default function HistoryScreen() {
         title={t("history.title")}
         subtitle={t("history.totalReports", { count: reports.length })}
         showBack={true}
-        onBackPress={() => router.push("/(citizen)")}
+        backFallbackRoute={backFallbackRoute}
       />
 
       {/* Filters */}
@@ -145,10 +153,12 @@ export default function HistoryScreen() {
             renderItem={({ item }) => (
               <WasteReportCard
                 report={item}
-                onPress={() => router.push({
-                  pathname: "/report-detail",
-                  params: { id: item.id }
-                })}
+                onPress={() =>
+                  router.push({
+                    pathname: "/report-detail",
+                    params: { id: item.id },
+                  })
+                }
               />
             )}
             contentContainerStyle={styles.listContent}

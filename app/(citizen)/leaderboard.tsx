@@ -2,41 +2,198 @@ import { Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { MOCK_LEADERBOARD } from "@/data/mockData";
+import {
+  citizenService,
+  LeaderboardCategory,
+  LeaderboardResponse,
+  LeaderboardTimeframe,
+} from "@/services/citizen.service";
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 export default function LeaderboardScreen() {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const { t } = useLanguage();
-  const userEntry = MOCK_LEADERBOARD.find((e) => e.userId === user?.id);
+  const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<LeaderboardCategory>(
+    LeaderboardCategory.POINTS,
+  );
+  const [selectedTimeframe, setSelectedTimeframe] =
+    useState<LeaderboardTimeframe>(LeaderboardTimeframe.MONTHLY);
+  const [leaderboardData, setLeaderboardData] =
+    useState<LeaderboardResponse | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile();
+      fetchLeaderboard();
+    }, [selectedCategory, selectedTimeframe]),
+  );
+
+  const fetchLeaderboard = async () => {
+    try {
+      setLoading(true);
+      const response = await citizenService.getLeaderboard(
+        selectedCategory,
+        selectedTimeframe,
+      );
+
+      if (response.success && response.data) {
+        setLeaderboardData(response.data);
+      } else {
+        Alert.alert("Lỗi", response.error || "Không thể tải bảng xếp hạng");
+      }
+    } catch (error) {
+      console.error("Fetch leaderboard error:", error);
+      Alert.alert("Lỗi", "Không thể tải bảng xếp hạng");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCategoryLabel = (category: LeaderboardCategory) => {
+    switch (category) {
+      case LeaderboardCategory.POINTS:
+        return "Điểm";
+      case LeaderboardCategory.ECO_WARRIORS:
+        return "Số đơn";
+      case LeaderboardCategory.WASTE_IMPACT:
+        return "Khối lượng";
+    }
+  };
+
+  const getTimeframeLabel = (timeframe: LeaderboardTimeframe) => {
+    switch (timeframe) {
+      case LeaderboardTimeframe.WEEKLY:
+        return "Tuần";
+      case LeaderboardTimeframe.MONTHLY:
+        return "Tháng";
+      case LeaderboardTimeframe.ALL_TIME:
+        return "Tất cả";
+    }
+  };
+
+  const getValueUnit = () => {
+    switch (selectedCategory) {
+      case LeaderboardCategory.POINTS:
+        return "điểm";
+      case LeaderboardCategory.ECO_WARRIORS:
+        return "đơn";
+      case LeaderboardCategory.WASTE_IMPACT:
+        return "kg";
+    }
+  };
+
+  const userEntry = leaderboardData?.myRank;
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Header
+          title="Bảng xếp hạng"
+          subtitle="Thành tích của bạn"
+          showBack={true}
+        />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={AppColors.primary} />
+          <Text style={styles.loadingText}>Đang tải...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <Header
-        title={t("leaderboard.title")}
-        subtitle={user?.district || ""}
-        showBack={false}
+        title="Bảng xếp hạng"
+        subtitle="Thành tích của bạn"
+        showBack={true}
       />
+
+      {/* Filters */}
+      <View style={styles.filtersContainer}>
+        {/* Category Filters */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterRow}
+        >
+          {Object.values(LeaderboardCategory).map((category) => (
+            <TouchableOpacity
+              key={category}
+              style={[
+                styles.filterButton,
+                selectedCategory === category && styles.filterButtonActive,
+              ]}
+              onPress={() => setSelectedCategory(category)}
+            >
+              <Text
+                style={[
+                  styles.filterButtonText,
+                  selectedCategory === category &&
+                    styles.filterButtonTextActive,
+                ]}
+              >
+                {getCategoryLabel(category)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Timeframe Filters */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterRow}
+        >
+          {Object.values(LeaderboardTimeframe).map((timeframe) => (
+            <TouchableOpacity
+              key={timeframe}
+              style={[
+                styles.filterButtonSmall,
+                selectedTimeframe === timeframe && styles.filterButtonActive,
+              ]}
+              onPress={() => setSelectedTimeframe(timeframe)}
+            >
+              <Text
+                style={[
+                  styles.filterButtonSmallText,
+                  selectedTimeframe === timeframe &&
+                    styles.filterButtonTextActive,
+                ]}
+              >
+                {getTimeframeLabel(timeframe)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
       {/* User Rank Card */}
       {userEntry && (
         <View style={styles.userRankSection}>
           <Card variant="elevated">
             <View style={styles.userRankContent}>
-              <Text style={styles.userRankLabel}>{t("leaderboard.yourRank")}</Text>
+              <Text style={styles.userRankLabel}>
+                {t("leaderboard.yourRank")}
+              </Text>
               <Text style={styles.userRankNumber}>#{userEntry.rank}</Text>
             </View>
             <View style={styles.userRankStats}>
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{userEntry.points}</Text>
-                <Text style={styles.statLabel}>{t("leaderboard.points")}</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{userEntry.reportsCount}</Text>
-                <Text style={styles.statLabel}>{t("leaderboard.reports")}</Text>
+                <Text style={styles.statValue}>{userEntry.value}</Text>
+                <Text style={styles.statLabel}>{getValueUnit()}</Text>
               </View>
             </View>
           </Card>
@@ -49,11 +206,13 @@ export default function LeaderboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.listHeader}>
-          <Text style={styles.listHeaderText}>{t("leaderboard.topUsers")}</Text>
+          <Text style={styles.listHeaderText}>
+            Top người dùng {getTimeframeLabel(selectedTimeframe).toLowerCase()}
+          </Text>
         </View>
 
-        {MOCK_LEADERBOARD.map((entry, index) => {
-          const isCurrentUser = entry.userId === user?.id;
+        {leaderboardData?.topRankings.map((entry, index) => {
+          const isCurrentUser = entry.userId === Number(user?.id);
           const isTopThree = index < 3;
 
           const cardStyle = [
@@ -90,20 +249,22 @@ export default function LeaderboardScreen() {
                   ) : (
                     <View style={styles.avatarPlaceholder}>
                       <Text style={styles.avatarText}>
-                        {entry.userName.charAt(0)}
+                        {entry.fullName.charAt(0).toUpperCase()}
                       </Text>
                     </View>
                   )}
                 </View>
 
                 <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{entry.userName}</Text>
-                  <Text style={styles.userDistrict}>{entry.district}</Text>
+                  <Text style={styles.userName}>{entry.fullName}</Text>
+                  <Text style={styles.userDistrict}>
+                    Người dùng #{entry.userId}
+                  </Text>
                 </View>
 
                 <View style={styles.userStats}>
-                  <Text style={styles.userPoints}>{entry.points}</Text>
-                  <Text style={styles.userPointsLabel}>{t("leaderboard.pointsLabel")}</Text>
+                  <Text style={styles.userPoints}>{entry.value}</Text>
+                  <Text style={styles.userPointsLabel}>{getValueUnit()}</Text>
                 </View>
               </View>
             </Card>
@@ -253,6 +414,56 @@ const styles = StyleSheet.create({
   },
   userPointsLabel: {
     fontSize: 12,
+    color: AppColors.textSecondary,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: AppColors.textSecondary,
+  },
+  filtersContainer: {
+    paddingVertical: 10,
+    backgroundColor: AppColors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: AppColors.gray[200],
+  },
+  filterRow: {
+    paddingHorizontal: 20,
+    marginVertical: 5,
+  },
+  filterButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: AppColors.gray[100],
+    marginRight: 10,
+  },
+  filterButtonActive: {
+    backgroundColor: AppColors.primary,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: AppColors.textSecondary,
+  },
+  filterButtonTextActive: {
+    color: AppColors.white,
+  },
+  filterButtonSmall: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: AppColors.gray[100],
+    marginRight: 8,
+  },
+  filterButtonSmallText: {
+    fontSize: 13,
+    fontWeight: "500",
     color: AppColors.textSecondary,
   },
 });
