@@ -1,4 +1,4 @@
-// Types for the EcoCollect App
+// Types for the ECONNET App
 
 export type UserRole = "citizen" | "enterprise" | "shipper" | "admin";
 
@@ -41,6 +41,8 @@ export interface WasteReport {
   citizenName: string;
   enterpriseName?: string;
   address: string;
+  latitude: number;
+  longitude: number;
   district: string;
   wasteType: string;
   weightKg: number; // kg
@@ -175,7 +177,13 @@ export type ReportStatus =
   | "ACCEPTED"
   | "ASSIGNED"
   | "ON_THE_WAY"
-  | "WAITING_CUSTOMER"
+  | "ARRIVED"
+  | "COLLECTING"
   | "COLLECTED"
   | "COMPLETED"
+  | "FAILED"
+  | "FAILED_NO_RESPONSE"
+  | "FAILED_CITIZEN_NOT_HOME"
+  | "RESCHEDULED"
+  | "REJECTED"
   | "CANCELLED";

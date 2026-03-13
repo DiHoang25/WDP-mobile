@@ -1,20 +1,31 @@
-import { Button, Header, Input, MapLocationPicker, MultiSelectPicker, WasteTypeMultiSelector } from "@/components/common";
+import { Button, GroupedServiceAreaPicker, Header, Input, MapLocationPicker, MultiSelectPicker, WasteTypeMultiSelector } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { District, locationService, Province, Ward } from "@/services/location.service";
 import { WasteType } from '@/types';
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
-  View,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 
 export default function RegisterEnterpriseFormScreen() {
+  const { t } = useLanguage();
+  const params = useLocalSearchParams<{ source?: string }>();
+  const source = Array.isArray(params.source) ? params.source[0] : params.source;
+  const backFallbackRoute =
+    source === "profile" ? "/(citizen)/profile" : "/(citizen)";
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [capacity, setCapacity] = useState("");
@@ -50,6 +61,10 @@ export default function RegisterEnterpriseFormScreen() {
     rawAddress?: any;
   } | null>(null);
 
+  const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
+  const [tempAddress, setTempAddress] = useState("");
+  const [loading, setLoading] = useState(false);
+
   // Helper to normalize and compare Vietnamese location names
   const normalizeLocationName = (name: string): string => {
     if (!name) return "";
@@ -67,9 +82,26 @@ export default function RegisterEnterpriseFormScreen() {
     if (loc.rawAddress) {
       const raw = loc.rawAddress;
 
-      // 1. Fill detailed address
-      const streetPart = [raw.name, raw.street].filter(Boolean).join(" ");
-      if (streetPart) setAddress(streetPart);
+      // 1. Fill detailed address (street level only)
+      if (raw.house_number || raw.road || raw.name || raw.street) {
+        let detailedAddress = "";
+
+        // Add house number if available
+        if (raw.house_number) detailedAddress = raw.house_number;
+
+        // Add road/street
+        const streetPart = raw.road || raw.street || raw.name;
+        if (streetPart) {
+          detailedAddress = detailedAddress ? `${detailedAddress} ${streetPart}` : streetPart;
+        }
+
+        // Add any other specific markers like building name
+        if (raw.name && raw.name !== raw.road && raw.name !== raw.street && raw.name !== raw.house_number) {
+          detailedAddress = detailedAddress ? `${detailedAddress}, ${raw.name}` : raw.name;
+        }
+
+        if (detailedAddress) setAddress(detailedAddress);
+      }
 
       // 2. Try to match Province
       const provinceName = raw.region || raw.city || "";
@@ -129,6 +161,100 @@ export default function RegisterEnterpriseFormScreen() {
             }
           }
         }
+      }
+    }
+  };
+
+  const handleConfirmAddress = async () => {
+    setIsAddressModalVisible(false);
+
+    const isUnchanged = tempAddress.trim() === address.trim();
+    if (isUnchanged) return;
+
+    if (mapLocation && tempAddress.trim()) {
+      setLoading(true);
+      try {
+        const selectedProvince = provinces.find(p => p.code === addressProvinceId);
+        const selectedDistrict = addressDistricts.find(d => d.code === addressDistrictId);
+        const selectedWard = addressWards.find(w => w.code === addressWardId);
+
+        const fullAddressToGeocode = [
+          tempAddress,
+          selectedWard?.name,
+          selectedDistrict?.name,
+          selectedProvince?.name
+        ].filter(Boolean).join(', ');
+
+        const geoResult = await locationService.geocodeAddress(fullAddressToGeocode, mapLocation.latitude, mapLocation.longitude);
+
+        if (geoResult.success && geoResult.data) {
+          const newLat = geoResult.data.latitude;
+          const newLon = geoResult.data.longitude;
+          const isFallback = geoResult.data.isFallback;
+
+          const dist = locationService.haversineDistance(
+            mapLocation.latitude,
+            mapLocation.longitude,
+            newLat,
+            newLon
+          );
+          console.log(`📏 Computed distance while confirming: ${dist.toFixed(3)} km. Fallback: ${isFallback}`);
+
+          if (isFallback) {
+            Alert.alert(
+              "Địa chỉ không cụ thể",
+              "Hệ thống chỉ tìm thấy khu vực (Phường) của địa chỉ này mà không thấy số nhà/tên đường cụ thể. Vui lòng ghim trực tiếp trên bản đồ để đảm bảo chính xác nhất.",
+              [
+                { text: "Để tôi ghim lại", style: "cancel" },
+                {
+                  text: "Dùng tạm vị trí này",
+                  onPress: () => {
+                    if (dist > 2.0) {
+                      Alert.alert("Lỗi", "Vị trí khu vực này quá xa điểm đã ghim (>2km). Vui lòng ghim lại.");
+                      return;
+                    }
+                    setAddress(tempAddress);
+                    setMapLocation({
+                      latitude: newLat,
+                      longitude: newLon,
+                      address: fullAddressToGeocode
+                    });
+                  }
+                }
+              ]
+            );
+            return;
+          }
+
+          if (dist > 2.0) {
+            setLoading(false);
+            Alert.alert(
+              "Vị trí không hợp lệ",
+              `Địa chỉ bạn nhập cách vị trí đã ghim ${dist.toFixed(1)}km (vượt quá giới hạn 2km). Vui lòng nhập địa chỉ gần vị trí đã ghim hơn.`
+            );
+            return;
+          }
+
+          // Allowed: Update text & re-pin
+          setAddress(tempAddress);
+          setErrors({ ...errors, address: undefined });
+          setMapLocation({
+            latitude: newLat,
+            longitude: newLon,
+            address: fullAddressToGeocode
+          });
+
+          Alert.alert("Xác nhận địa chỉ", "Đã cập nhật chi tiết địa chỉ và ghim lại bản đồ.");
+        } else {
+          Alert.alert(
+            "Không thể xác minh",
+            "Hệ thống không thể xác định vị trí của địa chỉ này để kiểm tra khoảng cách. Vui lòng nhập rõ ràng hơn."
+          );
+        }
+      } catch (error) {
+        console.error("Geocoding error:", error);
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -249,23 +375,23 @@ export default function RegisterEnterpriseFormScreen() {
   const nextStep = () => {
     // Basic validation
     const newErrors: any = {};
-    if (!name) newErrors.name = "Vui lòng nhập tên doanh nghiệp";
-    if (!address) newErrors.address = "Vui lòng nhập địa chỉ chi tiết";
-    if (!capacity || isNaN(parseFloat(capacity))) newErrors.capacity = "Khối lượng không hợp lệ";
+    if (!name) newErrors.name = t("registerEnterprise.nameRequired");
+    if (!address) newErrors.address = t("registerEnterprise.addressRequired");
+    if (!capacity || isNaN(parseFloat(capacity))) newErrors.capacity = t("registerEnterprise.capacityInvalid");
 
     if (!mapLocation) {
-      newErrors.mapLocation = "Vui lòng chọn vị trí trên bản đồ";
+      newErrors.mapLocation = t("registerEnterprise.mapRequired");
     }
 
 
     // Validate service areas - require at least one selection
     if (serviceProvinceIds.length === 0) {
-      newErrors.serviceArea = "Vui lòng chọn ít nhất một khu vực phục vụ";
+      newErrors.serviceArea = t("registerEnterprise.serviceAreaRequired");
     }
 
     // Validate waste types
     if (selectedWasteTypes.length === 0) {
-      newErrors.wasteTypes = "Vui lòng chọn ít nhất một loại rác";
+      newErrors.wasteTypes = t("registerEnterprise.wasteTypesRequired");
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -358,22 +484,28 @@ export default function RegisterEnterpriseFormScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Header title="Đăng ký doanh nghiệp" subtitle="Thông tin cơ bản" showBack />
+        <Header
+          title={t("registerEnterprise.title")}
+          subtitle={t("registerEnterprise.subtitle")}
+          showBack
+          backFallbackRoute={backFallbackRoute}
+        />
 
         <View style={styles.form}>
           <Input
-            label="Tên doanh nghiệp"
-            placeholder="Công ty TNHH Môi trường Xanh"
+            label={t("registerEnterprise.name")}
+            placeholder={t("registerEnterprise.namePlaceholder")}
             value={name}
             onChangeText={setName}
             error={errors.name}
           />
 
-          <Text style={styles.sectionTitle}>Địa chỉ doanh nghiệp</Text>
+          <Text style={styles.sectionTitle}>{t("registerEnterprise.addressSection")}</Text>
 
           <MapLocationPicker
-            label="Chọn vị trí đoanh nghiệp trên bản đồ"
+            label={t("registerEnterprise.mapLabel")}
             onLocationSelect={handleMapLocationSelect}
+            initialLocation={mapLocation ? { latitude: mapLocation.latitude, longitude: mapLocation.longitude } : undefined}
             error={errors.mapLocation}
           />
 
@@ -382,31 +514,44 @@ export default function RegisterEnterpriseFormScreen() {
               <View style={styles.addressRow}>
                 <Ionicons name="location" size={20} color={AppColors.primary} />
                 <View style={styles.addressInfo}>
-                  <Text style={styles.addressLabel}>Khu vực đã xác định:</Text>
+                  <Text style={styles.addressLabel}>{t("registerEnterprise.areaDetected")}</Text>
                   <Text style={styles.fullAddressText}>
                     {[
                       addressWards.find(w => w.code === addressWardId)?.name,
                       addressDistricts.find(d => d.code === addressDistrictId)?.name,
                       provinces.find(p => p.code === addressProvinceId)?.name
-                    ].filter(Boolean).join(", ") || "Đang xác định khu vực..."}
+                    ].filter(Boolean).join(", ") || t("registerEnterprise.detectingArea")}
                   </Text>
                 </View>
               </View>
             </View>
           )}
 
-          <Input
-            label="Địa chỉ chi tiết (nhập thủ công nếu cần)"
-            placeholder="Số nhà, tên đường..."
-            value={address}
-            onChangeText={setAddress}
-            error={errors.address}
-          />
+          {loading && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 10 }}>
+              <ActivityIndicator size="small" color={AppColors.primary} />
+              <Text style={{ marginLeft: 8, color: AppColors.primary }}>Đang kiểm tra vị trí...</Text>
+            </View>
+          )}
+
+          <TouchableOpacity onPress={() => { setTempAddress(address); setIsAddressModalVisible(true); }} activeOpacity={0.7}>
+            <View pointerEvents="none">
+              <Input
+                label={t("registerEnterprise.detailedAddress")}
+                placeholder={t("registerEnterprise.autoFill")}
+                value={address}
+                editable={false}
+                error={errors.address}
+                multiline={true}
+                numberOfLines={3}
+              />
+            </View>
+          </TouchableOpacity>
 
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
               <Input
-                label="Khả năng xử lý (kg)"
+                label={t("registerEnterprise.capacity")}
                 placeholder="1000.5"
                 value={capacity}
                 onChangeText={setCapacity}
@@ -416,38 +561,30 @@ export default function RegisterEnterpriseFormScreen() {
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>Khu vực phục vụ mặc định</Text>
+          <Text style={styles.sectionTitle}>{t("registerEnterprise.serviceArea")}</Text>
           <MultiSelectPicker
-            label="Tỉnh / Thành phố"
+            label={t("registerEnterprise.serviceProvince")}
             options={provinces.map(p => ({ value: p.code, label: p.name }))}
             selectedValues={serviceProvinceIds}
             onValuesChange={setServiceProvinceIds}
             error={errors.serviceArea}
           />
 
-          <MultiSelectPicker
-            label="Quận / Huyện phục vụ"
-            options={districts.map(d => ({
-              value: d.code,
-              label: d.name,
-              subLabel: d.provinceName
-            }))}
-            selectedValues={serviceDistrictIds}
-            onValuesChange={setServiceDistrictIds}
-            disabled={serviceProvinceIds.length === 0}
-          />
-
-          <MultiSelectPicker
-            label="Phường / Xã phục vụ"
-            options={wards.map(w => ({
-              value: w.code,
-              label: w.name,
-              subLabel: w.districtName
-            }))}
-            selectedValues={serviceWardIds}
-            onValuesChange={setServiceWardIds}
-            disabled={serviceDistrictIds.length === 0}
-          />
+          {serviceProvinceIds.length > 0 && (
+            <GroupedServiceAreaPicker
+              provinces={provinces
+                .filter(p => serviceProvinceIds.includes(p.code))
+                .map(p => ({ code: p.code, name: p.name }))}
+              districts={districts}
+              wards={wards}
+              selectedDistrictIds={serviceDistrictIds}
+              selectedWardIds={serviceWardIds}
+              onDistrictsChange={setServiceDistrictIds}
+              onWardsChange={setServiceWardIds}
+              districtLabel={t("registerEnterprise.serviceDistrict")}
+              wardLabel={t("registerEnterprise.serviceWard")}
+            />
+          )}
 
           {errors.serviceArea && (
             <Text style={styles.errorText}>{errors.serviceArea}</Text>
@@ -456,17 +593,54 @@ export default function RegisterEnterpriseFormScreen() {
           <WasteTypeMultiSelector
             selectedTypes={selectedWasteTypes}
             onTypesChange={setSelectedWasteTypes}
-            label="Loại rác thu gom"
+            label={t("registerEnterprise.wasteTypes")}
             error={errors.wasteTypes}
           />
 
 
           <Button
-            title="Tiếp tục chọn gói"
+            title={t("registerEnterprise.continue")}
             onPress={nextStep}
             style={styles.submitButton}
+            disabled={loading}
           />
         </View>
+
+        {/* Address Edit Modal */}
+        <Modal
+          visible={isAddressModalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setIsAddressModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>{t("registerEnterprise.detailedAddress")}</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={tempAddress}
+                onChangeText={setTempAddress}
+                placeholder={t("createReport.streetPlaceholder")}
+                multiline
+                autoFocus
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonCancel]}
+                  onPress={() => setIsAddressModalVisible(false)}
+                >
+                  <Text style={styles.modalButtonTextCancel}>{t("common.cancel")}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonConfirm]}
+                  onPress={handleConfirmAddress}
+                >
+                  <Text style={styles.modalButtonTextConfirm}>{t("common.confirm")}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -537,5 +711,59 @@ const styles = StyleSheet.create({
   submitButton: {
     marginTop: 30,
     marginBottom: 50,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContainer: {
+    width: "100%",
+    backgroundColor: AppColors.white,
+    borderRadius: 16,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: AppColors.textPrimary,
+    marginBottom: 15,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: AppColors.gray[300],
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: AppColors.textPrimary,
+    minHeight: 100,
+    textAlignVertical: "top",
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+  },
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  modalButtonCancel: {
+    backgroundColor: AppColors.gray[200],
+  },
+  modalButtonConfirm: {
+    backgroundColor: AppColors.primary,
+  },
+  modalButtonTextCancel: {
+    color: AppColors.textPrimary,
+    fontWeight: "600",
+  },
+  modalButtonTextConfirm: {
+    color: AppColors.white,
+    fontWeight: "600",
   },
 });

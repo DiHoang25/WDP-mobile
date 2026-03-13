@@ -1,7 +1,9 @@
-import { EmptyState } from "@/components/common";
+import { EmptyState, Toast, ToastType } from "@/components/common";
 import { WasteReportCard } from "@/components/reports";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { businessService } from "@/services/business.service";
 import { notificationService } from "@/services/notification.service";
 import { wasteService } from "@/services/waste.service";
 import { WasteReport } from "@/types";
@@ -10,24 +12,51 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    Dimensions,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Dimensions,
+  Image,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 
 export default function CitizenHomeScreen() {
   const { user, refreshProfile } = useAuth();
+  const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   const [unreadCount, setUnreadCount] = useState(0);
   const [allReports, setAllReports] = useState<WasteReport[]>([]);
   const [loadingReports, setLoadingReports] = useState(true);
+  const [checkingSubscription, setCheckingSubscription] = useState(false);
+  const [hasPendingPaymentAlertShown, setHasPendingPaymentAlertShown] =
+    useState(false);
+  const [presenceSubmitting, setPresenceSubmitting] = useState(false);
+  const [toast, setToast] = useState<{
+    visible: boolean;
+    message: string;
+    type: ToastType;
+    reportId?: string | number;
+  }>({
+    visible: false,
+    message: "",
+    type: "info",
+    reportId: undefined,
+  });
 
   const recentReports = allReports.slice(0, 3);
+  const latestArrivedReport = allReports
+    .filter((r) => r.status?.toString().toUpperCase() === "ARRIVED")
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt || (b.createdAt as any)).getTime() -
+        new Date(a.updatedAt || (a.createdAt as any)).getTime(),
+    )[0];
 
   useFocusEffect(
     useCallback(() => {
@@ -47,7 +76,6 @@ export default function CitizenHomeScreen() {
       setLoadingReports(true);
       const response = await wasteService.getHistory();
       if (response.success && response.data) {
-        // Robust extraction logic
         let reportsList: WasteReport[] = [];
         const rawData = response.data;
 
@@ -75,11 +103,131 @@ export default function CitizenHomeScreen() {
     }
   };
 
+  const handleOpenLatestArrivedDetail = () => {
+    if (!latestArrivedReport) return;
+    router.push({
+      pathname: "/report-detail",
+      params: { id: latestArrivedReport.id },
+    } as any);
+  };
+
+  const checkPendingEnterpriseSubscription = async () => {
+    if (checkingSubscription) return;
+
+    try {
+      setCheckingSubscription(true);
+      const response = await businessService.getSubscription();
+      console.log("[CitizenHome] Subscription info:", JSON.stringify(response));
+      if (!response.success || !response.data) return;
+
+      const data: any = response.data;
+      const rawStatus = (
+        data.status ||
+        data.subscriptionStatus ||
+        data.enterpriseStatus ||
+        ""
+      )
+        .toString()
+        .toUpperCase();
+
+      // Chỉ quan tâm khi đang chờ thanh toán
+      if (rawStatus !== "PENDING") return;
+      if (hasPendingPaymentAlertShown) return;
+
+      // Cố gắng trích thông tin payment để mở lại màn thanh toán
+      const payment =
+        data.pendingPayment || // cấu trúc mới từ BE
+        data.payment ||
+        data.latestPayment ||
+        data.currentPayment ||
+        data.transaction ||
+        (Array.isArray(data.transactions) ? data.transactions[0] : undefined);
+
+      const referenceCode =
+        payment?.referenceCode || payment?.code || data.referenceCode || "";
+
+      const amount = Number(payment?.amount || data.amount || 0);
+
+      const planName =
+        payment?.planName ||
+        data.plan?.name ||
+        data.subscriptionPlan?.name ||
+        data.planName ||
+        "Gói đăng ký";
+
+      const qrCode = payment?.qrCode || data.qrCode || {};
+      const qrUrl = qrCode.qrUrl || "";
+      const bankInfo = qrCode.bankInfo || payment?.bankInfo || {};
+      const bankName = bankInfo.bankCode || bankInfo.bankName || "";
+      const accountNumber = bankInfo.accountNumber || "";
+      const accountHolder = bankInfo.accountHolder || "";
+      const transferContent =
+        bankInfo.transferContent ||
+        payment?.referenceCode ||
+        referenceCode ||
+        "";
+
+      if (!referenceCode) {
+        console.warn(
+          "[CitizenHome] Pending subscription detected but no referenceCode found",
+        );
+        return;
+      }
+
+      setHasPendingPaymentAlertShown(true);
+
+      Alert.alert(
+        "Dịch vụ chưa thanh toán",
+        "Bạn có 1 dịch vụ chưa thanh toán, vui lòng thanh toán.",
+        [
+          {
+            text: "Thanh toán ngay",
+            onPress: () => {
+              router.push({
+                pathname: "/payment",
+                params: {
+                  referenceCode,
+                  amount: amount.toString(),
+                  planName,
+                  qrUrl,
+                  bankName,
+                  accountNumber,
+                  accountHolder,
+                  transferContent,
+                },
+              } as any);
+            },
+          },
+        ],
+      );
+    } catch (error) {
+      console.error(
+        "[CitizenHome] checkPendingEnterpriseSubscription error:",
+        error,
+      );
+    } finally {
+      setCheckingSubscription(false);
+    }
+  };
+
+  // Show top toast when there is an ARRIVED report
+  useFocusEffect(
+    useCallback(() => {
+      if (latestArrivedReport) {
+        setToast({
+          visible: true,
+          message: "Shipper đã đến nơi! Chạm để xem chi tiết báo cáo.",
+          type: "info",
+          reportId: latestArrivedReport.id,
+        });
+      }
+    }, [latestArrivedReport?.id]),
+  );
+
   const stats = [
     {
-      label: "Điểm tích lũy",
+      label: t("home.stats.points"),
       value: user?.points || 0,
-
       color: AppColors.warning,
     },
     {
@@ -101,35 +249,28 @@ export default function CitizenHomeScreen() {
   const quickActions = [
     {
       title: "Lịch sử",
-      
+
       icon: "document-text",
       color: AppColors.secondary,
       route: "/(citizen)/history",
     },
     {
       title: "Xếp hạng",
-      
+
       icon: "trophy",
       color: AppColors.warning,
       route: "/(citizen)/leaderboard",
     },
     {
-      title: "Khiếu nại",
-      
-      icon: "chatbubble-ellipses",
-      color: AppColors.info,
-      route: "/(citizen)/complaints",
-    },
-    {
       title: "Đổi thưởng",
-      
+
       icon: "gift",
       color: AppColors.error,
       route: "/(citizen)/rewards",
     },
     {
       title: "Đăng ký DN",
-      
+
       icon: "business",
       color: AppColors.primary,
       route: "/(citizen)/register-enterprise-form",
@@ -141,11 +282,17 @@ export default function CitizenHomeScreen() {
       {/* Header */}
       <LinearGradient
         colors={[AppColors.primary, AppColors.primaryDark]}
-        style={styles.header}
+        style={[
+          styles.header,
+          {
+            paddingTop:
+              Platform.OS === "android" ? insets.top + 10 : insets.top,
+          },
+        ]}
       >
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.greeting}>Xin chào!</Text>
+            <Text style={styles.greeting}>{t("home.greeting")}</Text>
             <Text style={styles.userName}>{user?.name}</Text>
             <Text style={styles.location}>{user?.district}</Text>
           </View>
@@ -168,7 +315,10 @@ export default function CitizenHomeScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.avatar}>
+            <TouchableOpacity
+              style={styles.avatar}
+              onPress={() => router.push("/(citizen)/profile")}
+            >
               {user?.avatar ? (
                 <Image
                   source={{ uri: user.avatar }}
@@ -218,9 +368,11 @@ export default function CitizenHomeScreen() {
                 <Ionicons name="create" size={28} color={AppColors.white} />
               </View>
               <View style={styles.mainActionTextContainer}>
-                <Text style={styles.mainActionTitle}>Tạo báo cáo rác</Text>
+                <Text style={styles.mainActionTitle}>
+                  {t("home.createReport")}
+                </Text>
                 <Text style={styles.mainActionSubtitle}>
-                  Báo cáo vị trí rác thải ngay
+                  {t("home.createReportSubtitle")}
                 </Text>
               </View>
               <View style={styles.mainActionArrow}>
@@ -237,13 +389,27 @@ export default function CitizenHomeScreen() {
 
       {/* Quick Actions */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Chức năng</Text>
+        <Text style={styles.sectionTitle}>{t("home.features")}</Text>
         <View style={styles.actionsGrid}>
           {quickActions.map((action, index) => (
             <TouchableOpacity
               key={index}
               style={styles.actionCard}
-              onPress={() => router.push(action.route as any)}
+              onPress={() => {
+                if (
+                  action.route === "/(citizen)/history" ||
+                  action.route === "/(citizen)/rewards" ||
+                  action.route === "/(citizen)/register-enterprise-form"
+                ) {
+                  router.push({
+                    pathname: action.route as any,
+                    params: { source: "home" },
+                  } as any);
+                  return;
+                }
+
+                router.push(action.route as any);
+              }}
             >
               <View
                 style={[
@@ -258,7 +424,6 @@ export default function CitizenHomeScreen() {
                 />
               </View>
               <Text style={styles.actionTitle}>{action.title}</Text>
-              
             </TouchableOpacity>
           ))}
         </View>
@@ -267,12 +432,17 @@ export default function CitizenHomeScreen() {
       {/* Recent Reports */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Báo cáo gần đây</Text>
+          <Text style={styles.sectionTitle}>{t("home.recentReports")}</Text>
           <TouchableOpacity
-            onPress={() => router.push("/(citizen)/history")}
+            onPress={() =>
+              router.push({
+                pathname: "/(citizen)/history",
+                params: { source: "home" },
+              } as any)
+            }
             style={styles.seeAllButton}
           >
-            <Text style={styles.seeAllText}>Xem tất cả</Text>
+            <Text style={styles.seeAllText}>{t("common.seeAll")}</Text>
             <Ionicons
               name="chevron-forward"
               size={16}
@@ -297,15 +467,25 @@ export default function CitizenHomeScreen() {
         ) : (
           <EmptyState
             icon="document-text"
-            title="Chưa có báo cáo nào"
-            message="Tạo báo cáo đầu tiên để bắt đầu thu gom rác"
+            title={t("home.noReports")}
+            message={t("home.noReportsMsg")}
             action={{
-              label: "Tạo báo cáo",
+              label: t("home.createReport"),
               onPress: () => router.push("/(citizen)/create-report"),
             }}
           />
         )}
       </View>
+
+      {/* Top toast notification (e.g., Shipper đã đến nơi) */}
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        duration={10000}
+        onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
+        onPress={handleOpenLatestArrivedDetail}
+      />
     </ScrollView>
   );
 }
@@ -316,15 +496,14 @@ const styles = StyleSheet.create({
     backgroundColor: AppColors.background,
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 30,
+    paddingBottom: 15,
     paddingHorizontal: 20,
   },
   headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 20,
+    marginBottom: 10,
   },
   greeting: {
     fontSize: 16,
@@ -493,15 +672,18 @@ const styles = StyleSheet.create({
   actionsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    justifyContent: "space-between",
+    rowGap: 12,
   },
   actionCard: {
-    width: (width - 60) / 3,
+    width: (width - 52) / 2,
     backgroundColor: AppColors.white,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 18,
+    minHeight: 122,
     alignItems: "center",
+    justifyContent: "center",
   },
   actionIconContainer: {
     width: 50,
@@ -517,6 +699,7 @@ const styles = StyleSheet.create({
     color: AppColors.textPrimary,
     marginBottom: 4,
     textAlign: "center",
+    lineHeight: 18,
   },
   actionSubtitle: {
     fontSize: 11,
@@ -543,5 +726,76 @@ const styles = StyleSheet.create({
   tipText: {
     fontSize: 14,
     color: AppColors.textSecondary,
+  },
+  // Shipper arrived banner styles
+  presenceWrapper: {
+    paddingHorizontal: 20,
+    marginTop: -10,
+  },
+  presenceCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: AppColors.primary,
+    backgroundColor: AppColors.primary + "08",
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  presenceHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    gap: 8,
+  },
+  presenceTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: AppColors.primary,
+  },
+  presenceDesc: {
+    fontSize: 13,
+    color: AppColors.textSecondary,
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+  presenceActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  confirmBtn: {
+    flex: 1.4,
+    backgroundColor: AppColors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  confirmBtnText: {
+    color: AppColors.white,
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  absentBtn: {
+    flex: 1,
+    backgroundColor: AppColors.gray[100],
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  absentBtnText: {
+    color: AppColors.textSecondary,
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });

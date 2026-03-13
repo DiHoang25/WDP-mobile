@@ -1,12 +1,15 @@
 import { Button, Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   Image,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,88 +19,104 @@ import {
 
 export default function ProfileScreen() {
   const { user, logout, refreshProfile } = useAuth();
+  const { t, language, setLanguage } = useLanguage();
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
 
-  // Refresh profile data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       refreshProfile();
     }, [])
   );
 
-  const handleLogout = () => {
-    console.log("Hello");
-    Alert.alert("Đăng xuất", "Bạn có chắc muốn đăng xuất?", [
-      { text: "Hủy", style: "cancel" },
-      {
-        text: "Đăng xuất",
-        style: "destructive",
-        onPress: () => {
-          logout();
-          router.replace("/login");
-        },
-      },
-    ]);
+  const handleLogout = async () => {
+    const doLogout = async () => {
+      try {
+        await logout();
+      } catch (e) {
+        console.error("Logout error:", e);
+      }
+      router.replace("/login");
+    };
+
+    if (Platform.OS === "web") {
+      await doLogout();
+    } else {
+      Alert.alert(t("profile.logout"), t("profile.logoutConfirm"), [
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("profile.logout"), style: "destructive", onPress: doLogout },
+      ]);
+    }
   };
 
   const menuItems = [
-    // Show "Đăng ký doanh nghiệp" only for citizens (roleId = 1)
     ...(user?.roleId === 1
       ? [
         {
           icon: "business",
-          title: "Đăng ký doanh nghiệp",
-          subtitle: "Trở thành đối tác xử lý rác",
+          title: t("profile.menu.registerEnterprise"),
+          subtitle: t("profile.menu.registerEnterpriseSubtitle"),
           onPress: () =>
-            router.push("/(citizen)/register-enterprise-form" as any),
+            router.push({
+              pathname: "/(citizen)/register-enterprise-form",
+              params: { source: "profile" },
+            } as any),
           highlight: true,
         },
       ]
       : []),
     {
       icon: "document-text",
-      title: "Lịch sử báo cáo",
-      subtitle: "Xem các báo cáo đã tạo",
-      onPress: () => router.push("/(citizen)/history"),
+      title: t("profile.menu.history"),
+      subtitle: t("profile.menu.historySubtitle"),
+      onPress: () =>
+        router.push({
+          pathname: "/(citizen)/history",
+          params: { source: "profile" },
+        } as any),
       highlight: true,
     },
     {
       icon: "gift",
-      title: "Đổi thưởng",
-      subtitle: "Đổi điểm lấy phần thưởng",
-      onPress: () => router.push("/(citizen)/rewards"),
+      title: t("profile.menu.rewards"),
+      subtitle: t("profile.menu.rewardsSubtitle"),
+      onPress: () =>
+        router.push({
+          pathname: "/(citizen)/rewards",
+          params: { source: "profile" },
+        } as any),
       highlight: true,
     },
     {
       icon: "person",
-      title: "Thông tin cá nhân",
-      subtitle: "Cập nhật hồ sơ & Mật khẩu",
+      title: t("profile.menu.profileInfo"),
+      subtitle: t("profile.menu.profileInfoSubtitle"),
       onPress: () => router.push("/(citizen)/profile-detail"),
     },
     {
       icon: "language",
-      title: "Ngôn ngữ",
-      subtitle: "Tiếng Việt",
-      onPress: () => Alert.alert("Thông báo", "Tính năng đang phát triển"),
+      title: t("profile.menu.language"),
+      subtitle: language === "vi" ? "Tiếng Việt 🇻🇳" : "English 🇺🇸",
+      onPress: () => setShowLanguageModal(true),
     },
     {
       icon: "help-circle",
-      title: "Trợ giúp & Hỗ trợ",
-      subtitle: "Câu hỏi thường gặp",
-      onPress: () => Alert.alert("Thông báo", "Tính năng đang phát triển"),
+      title: t("profile.menu.help"),
+      subtitle: t("profile.menu.helpSubtitle"),
+      onPress: () => Alert.alert(t("common.notice"), t("common.featureInDev")),
     },
     {
       icon: "document",
-      title: "Điều khoản sử dụng",
-      subtitle: "Chính sách & Điều khoản",
-      onPress: () => Alert.alert("Thông báo", "Tính năng đang phát triển"),
+      title: t("profile.menu.terms"),
+      subtitle: t("profile.menu.termsSubtitle"),
+      onPress: () => Alert.alert(t("common.notice"), t("common.featureInDev")),
     },
   ];
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <Header
-        title="Hồ sơ"
-        subtitle="Quản lý thông tin cá nhân"
+        title={t("profile.title")}
+        subtitle={t("profile.subtitle")}
         showBack={false}
       />
 
@@ -122,7 +141,7 @@ export default function ProfileScreen() {
             <Text style={styles.userEmail}>{user?.email}</Text>
             <View style={styles.roleBadge}>
               <Ionicons name="person" size={14} color={AppColors.primary} />
-              <Text style={styles.roleBadgeText}>Công dân</Text>
+              <Text style={styles.roleBadgeText}>{t("profile.citizen")}</Text>
             </View>
           </View>
 
@@ -133,7 +152,7 @@ export default function ProfileScreen() {
                 <Ionicons name="star" size={18} color={AppColors.warning} />
                 <Text style={styles.statValue}>{user?.points || 0}</Text>
               </View>
-              <Text style={styles.statLabel}>Điểm tích lũy</Text>
+              <Text style={styles.statLabel}>{t("profile.pointsAccumulated")}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
@@ -141,7 +160,7 @@ export default function ProfileScreen() {
                 <Ionicons name="location" size={18} color={AppColors.primary} />
                 <Text style={styles.statValue}>{user?.district}</Text>
               </View>
-              <Text style={styles.statLabel}>Khu vực</Text>
+              <Text style={styles.statLabel}>{t("profile.area")}</Text>
             </View>
           </View>
         </Card>
@@ -151,7 +170,6 @@ export default function ProfileScreen() {
       <View style={styles.menuContainer}>
         {menuItems.map((item, index) => (
           <TouchableOpacity key={index} onPress={item.onPress} activeOpacity={0.8}>
-            {/* "Đuỷnh" Style for ALL items */}
             <View style={styles.highlightedMenuContainer}>
               <View style={styles.highlightedMenuInner}>
                 <View style={styles.highlightedIconBox}>
@@ -171,7 +189,7 @@ export default function ProfileScreen() {
       {/* Logout Button */}
       <View style={styles.logoutSection}>
         <Button
-          title="Đăng xuất"
+          title={t("profile.logout")}
           onPress={handleLogout}
           variant="outline"
           style={styles.logoutButton}
@@ -180,11 +198,68 @@ export default function ProfileScreen() {
 
       {/* App Info */}
       <View style={styles.appInfo}>
-        <Text style={styles.appInfoText}>EcoCollect v1.0.0</Text>
+        <Text style={styles.appInfoText}>ECONNET v1.0.0</Text>
         <Text style={styles.appInfoText}>
-          © 2026 EcoCollect. All rights reserved.
+          © 2026 ECONNET. All rights reserved.
         </Text>
       </View>
+
+      {/* Language Selection Modal */}
+      <Modal
+        visible={showLanguageModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowLanguageModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowLanguageModal(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>{t("profile.selectLanguage")}</Text>
+
+            <TouchableOpacity
+              style={[styles.languageOption, language === "vi" && styles.languageOptionActive]}
+              onPress={() => {
+                setLanguage("vi");
+                setShowLanguageModal(false);
+              }}
+            >
+              <Text style={styles.languageFlag}>🇻🇳</Text>
+              <Text style={[styles.languageText, language === "vi" && styles.languageTextActive]}>
+                Tiếng Việt
+              </Text>
+              {language === "vi" && (
+                <Ionicons name="checkmark-circle" size={22} color={AppColors.primary} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.languageOption, language === "en" && styles.languageOptionActive]}
+              onPress={() => {
+                setLanguage("en");
+                setShowLanguageModal(false);
+              }}
+            >
+              <Text style={styles.languageFlag}>🇺🇸</Text>
+              <Text style={[styles.languageText, language === "en" && styles.languageTextActive]}>
+                English
+              </Text>
+              {language === "en" && (
+                <Ionicons name="checkmark-circle" size={22} color={AppColors.primary} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalCloseBtn}
+              onPress={() => setShowLanguageModal(false)}
+            >
+              <Text style={styles.modalCloseBtnText}>{t("common.cancel")}</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </ScrollView>
   );
 }
@@ -285,12 +360,8 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 10,
   },
-  menuItem: {
-    marginBottom: 0,
-  },
-  // --- Highlighted "Double Layer" Styles ---
   highlightedMenuContainer: {
-    backgroundColor: "#EAEDED", // Lớp vỏ xám
+    backgroundColor: "#EAEDED",
     padding: 6,
     borderRadius: 16,
     marginBottom: 12,
@@ -298,11 +369,10 @@ const styles = StyleSheet.create({
   highlightedMenuInner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: AppColors.white, // Lớp lõi trắng
+    backgroundColor: AppColors.white,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
-    // Shadow nhẹ cho lớp lõi
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -313,59 +383,23 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: AppColors.primary + "15", // Nền icon xanh nhạt
+    backgroundColor: AppColors.primary + "15",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
   highlightedMenuTitle: {
     fontSize: 16,
-    fontWeight: "700", // Chữ đậm hơn
-    color: AppColors.primary, // Màu xanh chủ đạo
+    fontWeight: "700",
+    color: AppColors.primary,
     marginBottom: 2,
-  },
-  // -----------------------------------------
-  menuItemHighlight: {
-    borderWidth: 1,
-    borderColor: AppColors.primary + "30",
-    backgroundColor: AppColors.primary + "05",
-  },
-  menuContent: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  menuIconContainer: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
-    backgroundColor: AppColors.gray[100],
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 15,
-  },
-  menuIconHighlight: {
-    backgroundColor: AppColors.primary + "20",
   },
   menuTextContainer: {
     flex: 1,
   },
-  menuTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: AppColors.textPrimary,
-    marginBottom: 3,
-  },
-  menuTitleHighlight: {
-    color: AppColors.primary,
-    fontWeight: "700",
-  },
   menuSubtitle: {
     fontSize: 13,
     color: AppColors.textSecondary,
-  },
-  menuArrow: {
-    fontSize: 24,
-    color: AppColors.gray[400],
   },
   logoutSection: {
     paddingHorizontal: 20,
@@ -382,5 +416,65 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: AppColors.textSecondary,
     marginBottom: 5,
+  },
+  // Language Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: AppColors.white,
+    borderRadius: 20,
+    padding: 24,
+    width: "85%",
+    maxWidth: 340,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: AppColors.textPrimary,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  languageOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 10,
+    backgroundColor: AppColors.gray[100],
+  },
+  languageOptionActive: {
+    backgroundColor: AppColors.primary + "15",
+    borderWidth: 1.5,
+    borderColor: AppColors.primary,
+  },
+  languageFlag: {
+    fontSize: 28,
+    marginRight: 14,
+  },
+  languageText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: AppColors.textPrimary,
+    flex: 1,
+  },
+  languageTextActive: {
+    color: AppColors.primary,
+  },
+  modalCloseBtn: {
+    marginTop: 10,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: AppColors.gray[200],
+    alignItems: "center",
+  },
+  modalCloseBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: AppColors.textSecondary,
   },
 });

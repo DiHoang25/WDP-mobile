@@ -2,6 +2,7 @@ import { Button, Card, Header, Input, MapLocationPicker, Picker } from "@/compon
 import { WasteTypeSelector } from "@/components/waste";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { LOCATION_DATA, WASTE_TYPES } from "@/data/mockData";
 import { District, locationService, Province, Ward } from "@/services/location.service";
 import { wasteService } from "@/services/waste.service";
@@ -10,13 +11,14 @@ import { getWasteTypeLabel } from "@/utils/helpers";
 import { validateRequired } from "@/utils/validators";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import * as ExpoLocation from "expo-location";
+import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,6 +29,7 @@ import {
 
 export default function CreateReportScreen() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [wasteItems, setWasteItems] = useState<BackendWasteItem[]>([]);
   const [currentType, setCurrentType] = useState<WasteType>("ORGANIC");
   const [currentWeight, setCurrentWeight] = useState("");
@@ -57,9 +60,11 @@ export default function CreateReportScreen() {
   const [longitude, setLongitude] = useState(106.7009);
   const [mapLocation, setMapLocation] = useState<any>(null);
 
+  const [isAddressModalVisible, setIsAddressModalVisible] = useState(false);
+  const [tempAddress, setTempAddress] = useState("");
+
   useEffect(() => {
     loadProvinces();
-    askToUseCurrentLocation();
   }, []);
 
   const loadProvinces = async () => {
@@ -69,15 +74,15 @@ export default function CreateReportScreen() {
 
   const askToUseCurrentLocation = () => {
     Alert.alert(
-      "Vị trí",
-      "Bạn có muốn sử dụng vị trí hiện tại của mình để tạo báo cáo không?",
+      t("createReport.locationTitle"),
+      t("createReport.locationAsk"),
       [
         {
-          text: "Có, lấy vị trí hiện tại",
+          text: t("createReport.locationYes"),
           onPress: getCurrentLocation
         },
         {
-          text: "Không, tôi tự chọn",
+          text: t("createReport.locationNo"),
           style: "cancel"
         }
       ]
@@ -86,16 +91,16 @@ export default function CreateReportScreen() {
 
   const getCurrentLocation = async () => {
     try {
-      let { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+      let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert("Lỗi", "Quyền truy cập vị trí bị từ chối.");
+        Alert.alert(t("common.error"), t("createReport.locationDenied"));
         return;
       }
 
       setLoading(true);
 
       // Fast path: try last known position first for instant UI response
-      const lastKnown = await ExpoLocation.getLastKnownPositionAsync();
+      const lastKnown = await Location.getLastKnownPositionAsync();
       if (lastKnown) {
         const coords = { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude };
         setLatitude(coords.latitude);
@@ -104,8 +109,8 @@ export default function CreateReportScreen() {
       }
 
       // Precise path: get fresh location with balanced accuracy (faster than High)
-      let location = await ExpoLocation.getCurrentPositionAsync({
-        accuracy: ExpoLocation.Accuracy.Balanced,
+      let location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
       });
 
       const coords = {
@@ -120,18 +125,29 @@ export default function CreateReportScreen() {
 
       // Run reverse geocoding
       console.log('📍 Getting address for coords:', coords);
-      const results = await ExpoLocation.reverseGeocodeAsync(coords);
+      const results = await Location.reverseGeocodeAsync(coords);
       if (results && results.length > 0) {
         const res = results[0];
         console.log('🌍 Reverse geocode result:', JSON.stringify(res, null, 2));
-        const formattedAddress = [res.name, res.street, res.district, res.city].filter(Boolean).join(", ");
+        const formattedAddress = [
+          res.streetNumber,
+          res.street || res.name,
+          res.district,
+          res.subregion,
+          res.region,
+          res.country
+        ].filter(Boolean).join(", ");
+
+        const provinceCand = res.region || res.city || "";
+        const districtCand = res.subregion || res.district || "";
+        let wardCand = res.district || "";
 
         const normalized = {
-          city: res.city || res.region || "",
-          district: res.district || res.subregion || "",
-          ward: res.subregion || res.street || res.name || "",
+          city: provinceCand,
+          district: districtCand,
+          ward: wardCand,
           street: res.street || res.name || "",
-          region: res.region || res.city || "",
+          region: provinceCand,
           name: res.name || ""
         };
 
@@ -141,12 +157,6 @@ export default function CreateReportScreen() {
           address: formattedAddress,
           rawAddress: normalized
         });
-
-        // Use the full formatted address for the street address input
-        if (formattedAddress) {
-          console.log('✏️ Setting streetAddress to:', formattedAddress);
-          setStreetAddress(formattedAddress);
-        }
       } else {
         // If reverse geocode fails, still keep the pin but show coordinates as address
         setMapLocation({
@@ -200,23 +210,41 @@ export default function CreateReportScreen() {
     if (loc.rawAddress) {
       const raw = loc.rawAddress;
 
+      // START: Clear all previous location states to prevent stale data (like Quận 1)
+      setProvinceCode("");
+      setDistrictCode("");
+      setWardCode("");
+      setDistricts([]);
+      setWards([]);
+
       // Update Detailed Address input immediately
       console.log('🗺️ Full location object:', JSON.stringify(loc, null, 2));
       console.log('📍 Raw address from map:', JSON.stringify(raw, null, 2));
 
-      // PRIORITY 1: Try to construct from raw data (Cleanest)
-      if (raw.name || raw.street) {
+      // PRIORITY 1: Fallback to constructed address from raw data (Street name)
+      if (raw.house_number || raw.road || raw.name || raw.street) {
         let detailedAddress = "";
-        if (raw.name) detailedAddress = raw.name;
-        if (raw.street && raw.street !== raw.name) {
-          detailedAddress = detailedAddress ? `${detailedAddress}, ${raw.street}` : raw.street;
+
+        // Add house number if available
+        if (raw.house_number) detailedAddress = raw.house_number;
+
+        // Add road/street
+        const streetPart = raw.road || raw.street || raw.name;
+        if (streetPart) {
+          detailedAddress = detailedAddress ? `${detailedAddress} ${streetPart}` : streetPart;
         }
+
+        // Add any other specific markers like building name
+        if (raw.name && raw.name !== raw.road && raw.name !== raw.street && raw.name !== raw.house_number) {
+          detailedAddress = detailedAddress ? `${detailedAddress}, ${raw.name}` : raw.name;
+        }
+
         if (detailedAddress) {
           console.log('✅ Setting street address from raw parts:', detailedAddress);
           setStreetAddress(detailedAddress);
         }
       }
-      // PRIORITY 2: Fallback to full formatted address if constructed fails
+      // PRIORITY 2: Use full formatted address ONLY if raw data yields nothing
       else if (loc.address && loc.address !== "Đang xác định..." && loc.address !== "Đang xác định địa chỉ...") {
         console.log('✅ Setting street address from full address:', loc.address);
         setStreetAddress(loc.address);
@@ -236,62 +264,230 @@ export default function CreateReportScreen() {
         }
       }
 
-      const provinceName = raw.region || raw.city || "";
-      const normProvince = normalizeLocationName(provinceName);
+      // Robust Province Identification
+      const provinceName = raw.province || raw.region || (raw.city && raw.city.includes("Thành phố") ? raw.city : "");
+      let normProvince = normalizeLocationName(provinceName);
 
       console.log('Attempting to match province:', { provinceName, normProvince, provincesCount: provincesData.length });
 
+      let matchedProvince = null;
       if (normProvince && provincesData.length > 0) {
-        const matchedProvince = provincesData.find((p: any) => {
+        matchedProvince = provincesData.find((p: any) => {
           const pNorm = normalizeLocationName(p.name);
           return normProvince.includes(pNorm) || pNorm.includes(normProvince);
         });
+      }
 
-        if (matchedProvince) {
-          console.log('Matched province:', matchedProvince.name);
-          setProvinceCode(matchedProvince.code);
-          const distRes = await locationService.getDistricts(matchedProvince.code);
-          if (distRes.success && distRes.data) {
-            setDistricts(distRes.data);
-            const districtName = raw.district || "";
-            const normDistrict = normalizeLocationName(districtName);
-            const matchedDistrict = distRes.data.find((d: any) => {
+      // FALLBACK 1: If no province match from structured data, search full address string
+      if (!matchedProvince && loc.address && provincesData.length > 0) {
+        const normFullAddress = normalizeLocationName(loc.address);
+        console.log('🔍 Fallback matching Province - Searching in full address:', normFullAddress);
+        matchedProvince = provincesData.find((p: any) => {
+          const pNorm = normalizeLocationName(p.name);
+          // Only match if the province name is actually present in the address string
+          return normFullAddress.includes(pNorm);
+        });
+      }
+
+      if (matchedProvince) {
+        console.log('Matched province:', matchedProvince.name);
+        setProvinceCode(matchedProvince.code);
+        const distRes = await locationService.getDistricts(matchedProvince.code);
+        if (distRes.success && distRes.data) {
+          setDistricts(distRes.data);
+
+          // District Identification - Use multiple candidates for flexibility (specifically for Thu Duc)
+          const districtCandidates = [
+            raw.district,
+            raw.osm_city_district,
+            raw.osm_town,
+            raw.osm_city,
+            raw.city
+          ].filter(Boolean);
+
+          console.log('🔍 District candidates:', districtCandidates);
+
+          let matchedDistrict = null;
+          for (const candidate of districtCandidates) {
+            const normCand = normalizeLocationName(candidate);
+            matchedDistrict = distRes.data.find((d: any) => {
               const dNorm = normalizeLocationName(d.name);
-              return normDistrict.includes(dNorm) || dNorm.includes(normDistrict);
+              return normCand.includes(dNorm) || dNorm.includes(normCand);
             });
-
             if (matchedDistrict) {
-              console.log('Matched district:', matchedDistrict.name);
-              setDistrictCode(matchedDistrict.code);
-              const wardRes = await locationService.getWards(matchedDistrict.code);
-              if (wardRes.success && wardRes.data) {
-                setWards(wardRes.data);
-                const wardName = raw.ward || raw.subdistrict || "";
-                const normWard = normalizeLocationName(wardName);
-                const matchedWard = wardRes.data.find((w: any) => {
-                  const wNorm = normalizeLocationName(w.name);
-                  return normWard.includes(wNorm) || wNorm.includes(normWard);
-                });
-                if (matchedWard) {
-                  console.log('Matched ward:', matchedWard.name);
-                  setWardCode(matchedWard.code);
-                } else {
-                  console.log('No matching ward found for:', wardName);
-                  setWardCode(""); // Clear ward if no match found
-                }
-              }
-            } else {
-              console.log('No matching district found for:', districtName);
-              setDistrictCode("");
-              setWardCode("");
+              console.log('✅ Matched district from candidate:', candidate, '->', matchedDistrict.name);
+              break;
             }
           }
+
+          // FALLBACK 2: Search for district in full address if candidates matching failed
+          if (!matchedDistrict && loc.address) {
+            const normFullAddress = normalizeLocationName(loc.address);
+            console.log('🔍 Fallback matching District - Searching in full address:', normFullAddress);
+            matchedDistrict = distRes.data.find((d: any) => {
+              const dNorm = normalizeLocationName(d.name);
+              return normFullAddress.includes(dNorm);
+            });
+          }
+
+          if (matchedDistrict) {
+            console.log('Matched district FINAL:', matchedDistrict.name);
+            setDistrictCode(matchedDistrict.code);
+            const wardRes = await locationService.getWards(matchedDistrict.code);
+            if (wardRes.success && wardRes.data) {
+              setWards(wardRes.data);
+
+              // Ward Identification - Use multiple candidates
+              const wardCandidates = [
+                raw.ward,
+                raw.subdistrict,
+                raw.osm_suburb,
+                raw.osm_city_district,
+              ].filter(Boolean);
+
+              console.log('🔍 Ward candidates:', wardCandidates);
+
+              let matchedWard = null;
+              for (const candidate of wardCandidates) {
+                const normCand = normalizeLocationName(candidate);
+                matchedWard = wardRes.data.find((w: any) => {
+                  const wNorm = normalizeLocationName(w.name);
+                  return normCand.includes(wNorm) || wNorm.includes(normCand);
+                });
+                if (matchedWard) {
+                  console.log('✅ Matched ward from candidate:', candidate, '->', matchedWard.name);
+                  break;
+                }
+              }
+
+              if (matchedWard) {
+                console.log('✅ Matched ward FINAL:', matchedWard.name);
+                setWardCode(matchedWard.code);
+              } else {
+                console.log('❌ No matching ward found in structured candidates. Trying fallback...');
+                // FALLBACK: Try searching for ward names inside the full address string
+                if (loc.address) {
+                  const normFullAddress = normalizeLocationName(loc.address);
+                  console.log('🔍 Fallback matching Ward - Searching in full address:', normFullAddress);
+                  const fallbackWard = wardRes.data.find((w: any) => {
+                    const wNorm = normalizeLocationName(w.name);
+                    return normFullAddress.includes(wNorm);
+                  });
+                  if (fallbackWard) {
+                    console.log('✅ Fallback Match Ward from address string:', fallbackWard.name);
+                    setWardCode(fallbackWard.code);
+                  } else {
+                    setWardCode(""); // Really no match
+                  }
+                } else {
+                  setWardCode(""); // Really no match
+                }
+              }
+            } // end if (wardRes.success)
+          } else {
+            console.log('No matching district found for candidates:', districtCandidates);
+            setDistrictCode("");
+            setWardCode("");
+          } // end if (matchedDistrict)
+        } // end if (distRes.success)
+      } else {
+        console.log('No matching province found for:', provinceName);
+        setProvinceCode("");
+        setDistrictCode("");
+        setWardCode("");
+      } // end if (matchedProvince)
+    } // end if (loc.rawAddress)
+  };
+
+  const handleConfirmAddress = async () => {
+    setIsAddressModalVisible(false);
+
+    const isUnchanged = tempAddress.trim() === streetAddress.trim();
+    if (isUnchanged) return;
+
+    if (mapLocation && tempAddress.trim()) {
+      setLoading(true);
+      try {
+        const selectedProvince = provinceOptions.find((p: any) => p.value === provinceCode)?.label;
+        const selectedDistrict = districtOptions.find((d: any) => d.value === districtCode)?.label;
+        const selectedWard = wardOptions.find((w: any) => w.value === wardCode)?.label;
+
+        const fullAddressToGeocode = [
+          tempAddress,
+          selectedWard,
+          selectedDistrict,
+          selectedProvince
+        ].filter(Boolean).join(', ');
+
+        const geoResult = await locationService.geocodeAddress(fullAddressToGeocode, latitude, longitude);
+
+        if (geoResult.success && geoResult.data) {
+          const newLat = geoResult.data.latitude;
+          const newLon = geoResult.data.longitude;
+          const isFallback = geoResult.data.isFallback;
+
+          const dist = locationService.haversineDistance(latitude, longitude, newLat, newLon);
+          console.log(`📏 Computed distance while confirming: ${dist.toFixed(3)} km. Fallback: ${isFallback}`);
+
+          if (isFallback) {
+            Alert.alert(
+              "Địa chỉ không cụ thể",
+              "Hệ thống chỉ tìm thấy khu vực (Phường) của địa chỉ này mà không thấy số nhà/tên đường cụ thể. Vui lòng ghim trực tiếp trên bản đồ để đảm bảo chính xác nhất.",
+              [
+                { text: "Để tôi ghim lại", style: "cancel" },
+                {
+                  text: "Dùng tạm vị trí này",
+                  onPress: () => {
+                    if (dist > 2.0) {
+                      Alert.alert("Lỗi", "Vị trí khu vực này quá xa điểm đã ghim (>2km). Vui lòng ghim lại.");
+                      return;
+                    }
+                    setStreetAddress(tempAddress);
+                    setLatitude(newLat);
+                    setLongitude(newLon);
+                    setMapLocation({
+                      latitude: newLat,
+                      longitude: newLon,
+                      address: fullAddressToGeocode
+                    });
+                  }
+                }
+              ]
+            );
+            return;
+          }
+
+          if (dist > 2.0) {
+            setLoading(false);
+            Alert.alert(
+              "Vị trí không hợp lệ",
+              `Địa chỉ bạn nhập cách vị trí đã ghim ${dist.toFixed(1)}km (vượt quá giới hạn 2km). Vui lòng nhập địa chỉ gần vị trí đã ghim hơn.`
+            );
+            return;
+          }
+
+          // Allowed: Exact match (isFallback = false) & within 2km
+          setStreetAddress(tempAddress);
+          setErrors({ ...errors, street: undefined });
+          setLatitude(newLat);
+          setLongitude(newLon);
+          setMapLocation({
+            latitude: newLat,
+            longitude: newLon,
+            address: fullAddressToGeocode
+          });
+
+          Alert.alert("Xác nhận địa chỉ", "Đã cập nhật chi tiết địa chỉ và ghim lại bản đồ.");
         } else {
-          console.log('No matching province found for:', provinceName);
-          setProvinceCode("");
-          setDistrictCode("");
-          setWardCode("");
+          Alert.alert(
+            "Không thể xác minh",
+            "Hệ thống không thể xác định vị trí của địa chỉ này để kiểm tra khoảng cách. Vui lòng nhập rõ ràng hơn."
+          );
         }
+      } catch (error) {
+        console.error("Geocoding error:", error);
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -317,7 +513,7 @@ export default function CreateReportScreen() {
       setErrors({
         ...errors,
         type: typeError ?? undefined,
-        weight: weightError || (isNaN(parseFloat(currentWeight)) || parseFloat(currentWeight) <= 0 ? "Khối lượng phải lớn hơn 0" : undefined)
+        weight: weightError || (isNaN(parseFloat(currentWeight)) || parseFloat(currentWeight) <= 0 ? t("createReport.weightInvalid") : undefined)
       });
       return;
     }
@@ -340,21 +536,21 @@ export default function CreateReportScreen() {
   const validate = () => {
     const newErrors: any = {};
     if (wasteItems.length === 0) {
-      newErrors.items = "Vui lòng thêm ít nhất một loại rác";
+      newErrors.items = t("createReport.wasteMissing");
     }
 
     if (!mapLocation) {
-      newErrors.map = "Vui lòng chọn vị trí trên bản đồ";
-      Alert.alert("Vị trí", "Vui lòng chọn hoặc ghim vị trí rác trên bản đồ.");
+      newErrors.map = t("createReport.locationMissing");
+      Alert.alert(t("createReport.locationTitle"), t("createReport.selectMapFirst"));
     }
 
     if (!streetAddress.trim()) {
-      newErrors.street = "Vui lòng nhập địa chỉ cụ thể hoặc chọn vị trí trên bản đồ";
+      newErrors.street = t("createReport.addressMissing");
     }
 
     if (!provinceCode || !districtCode || !wardCode) {
-      newErrors.location = "Vui lòng chọn vị trí trên bản đồ chính xác để xác định Phường/Xã";
-      Alert.alert("Vị trí chưa rõ ràng", "Hệ thống cần xác định chính xác Phường/Xã để gửi báo cáo cho doanh nghiệp phù hợp. Vui lòng chọn lại vị trí trên bản đồ nhenn.");
+      newErrors.location = t("createReport.locationUnclear");
+      Alert.alert(t("createReport.locationUnclear"), t("createReport.locationUnclearMsg"));
     }
 
     setErrors({ ...errors, ...newErrors });
@@ -370,7 +566,7 @@ export default function CreateReportScreen() {
       if (!permission.granted) {
         Alert.alert(
           "Quyền truy cập",
-          `Vui lòng cấp quyền truy cập ${useCamera ? "camera" : "thư viện ảnh"} để tải ảnh lên.`,
+          t("createReport.cameraPermission", { source: useCamera ? "camera" : "library" }),
         );
         return;
       }
@@ -393,7 +589,7 @@ export default function CreateReportScreen() {
         setImages([...images, ...newImages]);
       }
     } catch (error) {
-      Alert.alert("Lỗi", "Không thể tải ảnh lên. Vui lòng thử lại.");
+      Alert.alert(t("common.error"), t("createReport.imageUploadError"));
     }
   };
 
@@ -402,17 +598,17 @@ export default function CreateReportScreen() {
   };
 
   const showImageOptions = () => {
-    Alert.alert("Thêm ảnh", "Chọn nguồn ảnh", [
+    Alert.alert(t("createReport.addPhotoSource"), t("createReport.chooseSource"), [
       {
-        text: "Chụp ảnh",
+        text: t("createReport.takePhoto"),
         onPress: () => handlePickImage(true),
       },
       {
-        text: "Chọn từ thư viện",
+        text: t("createReport.chooseFromLibrary"),
         onPress: () => handlePickImage(false),
       },
       {
-        text: "Hủy",
+        text: t("common.cancel"),
         style: "cancel",
       },
     ]);
@@ -424,9 +620,10 @@ export default function CreateReportScreen() {
     setLoading(true);
 
     try {
-      const selectedProvince = provinceOptions.find((p: any) => p.value === provinceCode)?.label;
-      const selectedDistrict = districtOptions.find((d: any) => d.value === districtCode)?.label;
-      const selectedWard = wardOptions.find((w: any) => w.value === wardCode)?.label;
+      // Construct full address first so we can geocode it accurately
+      const selectedProvince = provinceOptions.find((p: { label: string, value: string }) => p.value === provinceCode)?.label;
+      const selectedDistrict = districtOptions.find((d: { label: string, value: string }) => d.value === districtCode)?.label;
+      const selectedWard = wardOptions.find((w: { label: string, value: string }) => w.value === wardCode)?.label;
 
       const fullAddress = [
         streetAddress,
@@ -434,6 +631,38 @@ export default function CreateReportScreen() {
         selectedDistrict,
         selectedProvince
       ].filter(Boolean).join(', ');
+
+      // Validate via reverse geocoding on submit: Ensure the pinned map coordinates
+      // roughly match the selected province/district dropdowns to prevent spoofing.
+      if (mapLocation && streetAddress.trim()) {
+        const reverseResults = await Location.reverseGeocodeAsync({ latitude, longitude });
+        if (reverseResults && reverseResults.length > 0) {
+          const mapAddress = reverseResults[0];
+          const mapCity = (mapAddress.city || mapAddress.region || mapAddress.subregion || "").toLowerCase();
+          const cleanSelectedProvince = (selectedProvince || "").replace(/(Thành phố|Tỉnh)\s+/i, '').toLowerCase();
+
+          // Check if Map Pin City matches Selected Province
+          // Mismatch means they pinned a location in Hanoi but selected HCM in the dropdown.
+          let isMismatch = false;
+          if (cleanSelectedProvince && mapCity && !mapCity.includes(cleanSelectedProvince) && !cleanSelectedProvince.includes(mapCity)) {
+            // Let's do a loose check. If they don't share any words, it's a mismatch.
+            const cityWords = mapCity.split(' ').filter((word: string) => word.length > 2);
+            const provWords = cleanSelectedProvince.split(' ').filter((pWord: string) => pWord.length > 2);
+            if (!cityWords.some((cw: string) => provWords.some((pw: string) => pw === cw || pw.includes(cw) || cw.includes(pw)))) {
+              isMismatch = true;
+            }
+          }
+
+          if (isMismatch) {
+            setLoading(false);
+            Alert.alert(
+              t("createReport.locationMismatch"),
+              `Thành phố/Tỉnh bạn chọn trên form không khớp với vị trí thực tế ghim trên bản đồ. Vui lòng kiểm tra lại để tránh gian lận.`
+            );
+            return;
+          }
+        }
+      }
 
       const reportData: any = {
         address: fullAddress || streetAddress,
@@ -459,11 +688,11 @@ export default function CreateReportScreen() {
         const newReportId = response.data?.id;
 
         Alert.alert(
-          "Thành công!",
-          "Báo cáo rác đã được tạo thành công.",
+          t("common.success"),
+          t("createReport.submitSuccess"),
           [
             {
-              text: "Xem chi tiết",
+              text: t("createReport.viewDetail"),
               onPress: () => {
                 if (newReportId) {
                   router.replace({
@@ -476,7 +705,7 @@ export default function CreateReportScreen() {
               },
             },
             {
-              text: "Về danh sách",
+              text: t("createReport.goToList"),
               onPress: () => router.replace("/(citizen)/history"),
             },
           ]
@@ -487,11 +716,11 @@ export default function CreateReportScreen() {
         setImages([]);
         setErrors({});
       } else {
-        Alert.alert("Lỗi", response.error || "Không thể gửi báo cáo.");
+        Alert.alert(t("common.error"), response.error || t("createReport.submitError"));
       }
     } catch (error) {
       console.error("Submit report error:", error);
-      Alert.alert("Lỗi", "Đã xảy ra lỗi khi gửi báo cáo.");
+      Alert.alert(t("common.error"), t("createReport.submitError"));
     } finally {
       setLoading(false);
     }
@@ -506,25 +735,25 @@ export default function CreateReportScreen() {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <Header
-        title="Tạo báo cáo rác"
-        subtitle="Có thể thêm nhiều loại rác vào một báo cáo"
+        title={t("createReport.title")}
+        subtitle={t("createReport.subtitle")}
         showBack={true}
       />
 
       <View style={styles.content}>
         {/* Location Section with Enhanced UX */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Địa chỉ lấy rác</Text>
+          <Text style={styles.sectionTitle}>{t("createReport.pickupAddress")}</Text>
 
           {loading && (
             <View style={styles.loadingCard}>
               <ActivityIndicator size="small" color={AppColors.primary} />
-              <Text style={styles.loadingText}>Đang lấy vị trí hiện tại...</Text>
+              <Text style={styles.loadingText}>{t("createReport.gettingLocation")}</Text>
             </View>
           )}
 
           <MapLocationPicker
-            label="Chọn vị trí chính xác trên bản đồ"
+            label={t("createReport.selectLocation")}
             onLocationSelect={handleMapLocationSelect}
             initialLocation={mapLocation ? { latitude: mapLocation.latitude, longitude: mapLocation.longitude } : undefined}
           />
@@ -544,77 +773,89 @@ export default function CreateReportScreen() {
 
             const locationText = [wardLabel, districtLabel, provinceLabel]
               .filter(Boolean)
-              .join(", ") || "Đang xác định khu vực...";
+              .join(", ") || t("createReport.detectingArea");
 
             return (
               <View style={styles.addressDisplayCard}>
                 <View style={styles.addressRow}>
                   <Ionicons name="location" size={20} color={AppColors.primary} />
                   <View style={styles.addressInfo}>
-                    <Text style={styles.addressLabel}>Khu vực:</Text>
+                    <Text style={styles.addressLabel}>{t("createReport.region")}</Text>
                     <Text style={styles.fullAddressText}>
                       {locationText}
                     </Text>
 
                     <View style={styles.manualSelection}>
                       <Picker
-                        label="Tỉnh/Thành phố"
-                        placeholder="Chọn Tỉnh/Thành"
+                        label={t("createReport.province")}
+                        placeholder={t("createReport.selectProvince")}
                         options={provinceOptions}
                         selectedValue={provinceCode}
                         onValueChange={handleProvinceChange}
+                        disabled={true}
                         error={errors.province}
                       />
                       <Picker
-                        label="Quận/Huyện"
-                        placeholder="Chọn Quận/Huyện"
+                        label={t("createReport.district")}
+                        placeholder={t("createReport.selectDistrict")}
                         options={districtOptions}
                         selectedValue={districtCode}
                         onValueChange={handleDistrictChange}
-                        disabled={!provinceCode}
+                        disabled={true}
                         error={errors.district}
                       />
                       <Picker
-                        label="Phường/Xã"
-                        placeholder="Chọn Phường/Xã"
+                        label={t("createReport.ward")}
+                        placeholder={t("createReport.selectWard")}
                         options={wardOptions}
                         selectedValue={wardCode}
                         onValueChange={setWardCode}
-                        disabled={!districtCode}
+                        disabled={true}
                         error={errors.ward}
                       />
                     </View>
 
-                    {(wardCode && districtCode && provinceCode) && (
+                    {(wardCode && districtCode && provinceCode) ? (
                       <View style={styles.confirmedBadge}>
                         <Ionicons name="checkmark-circle" size={14} color={AppColors.success} />
                         <Text style={styles.confirmedText}>
-                          Vị trí đã được xác nhận đầy đủ
+                          {t("createReport.locationConfirmed")}
                         </Text>
                       </View>
-                    )}
+                    ) : null}
                   </View>
                 </View>
               </View>
             );
           })()}
 
-          <Text style={styles.sectionTitle}>Địa chỉ chi tiết</Text>
+          <Text style={styles.sectionTitle}>{t("createReport.detailedAddress")}</Text>
           <Card variant="elevated" style={styles.locationCard}>
-            <Input
-              label="Số nhà, ngõ, tên đường..."
-              placeholder="Nhập địa chỉ chi tiết"
-              value={streetAddress}
-              onChangeText={(text: string) => setStreetAddress(text)}
-              error={errors.street}
-              icon="location-outline"
-            />
+            <TouchableOpacity onPress={() => { setTempAddress(streetAddress); setIsAddressModalVisible(true); }} activeOpacity={0.7}>
+              <View pointerEvents="none">
+                <Input
+                  label={t("createReport.streetPlaceholder")}
+                  placeholder={t("createReport.streetAutoFill")}
+                  value={streetAddress}
+                  onChangeText={(text: string) => {
+                    setStreetAddress(text);
+                    setErrors({ ...errors, street: undefined });
+                  }}
+                  editable={false}
+                  multiline={true}
+                  numberOfLines={3}
+                  error={errors.street}
+                  icon="location-outline"
+                  containerStyle={{ marginBottom: 0 }}
+                />
+              </View>
+            </TouchableOpacity>
           </Card>
         </View>
 
         {/* Waste Items List */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Danh sách rác đã thêm</Text>
+          <Text style={styles.sectionTitle}>{t("createReport.wasteList")}</Text>
           {wasteItems.length > 0 ? (
             <View style={styles.itemsList}>
               {(() => {
@@ -647,13 +888,13 @@ export default function CreateReportScreen() {
                 ));
               })()}
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Tổng cộng:</Text>
+                <Text style={styles.totalLabel}>{t("createReport.total")}</Text>
                 <Text style={styles.totalValue}>{totalWeight.toFixed(1)} kg</Text>
               </View>
             </View>
           ) : (
             <View style={styles.emptyItems}>
-              <Text style={styles.emptyItemsText}>Chưa có loại rác nào được thêm</Text>
+              <Text style={styles.emptyItemsText}>{t("createReport.noWaste")}</Text>
             </View>
           )}
           {errors.items && <Text style={styles.errorText}>{errors.items}</Text>}
@@ -661,7 +902,7 @@ export default function CreateReportScreen() {
 
         {/* Add New Waste Item */}
         <Card variant="outlined" style={styles.addCard}>
-          <Text style={styles.addTitle}>Thêm loại rác</Text>
+          <Text style={styles.addTitle}>{t("createReport.addWaste")}</Text>
 
           <WasteTypeSelector
             selectedType={currentType}
@@ -676,7 +917,7 @@ export default function CreateReportScreen() {
             <View style={[styles.inputContainer, { flex: 1 }]}>
               <TextInput
                 style={styles.input}
-                placeholder="Khối lượng (kg)"
+                placeholder={t("createReport.weightPlaceholder")}
                 value={currentWeight}
                 onChangeText={(text) => {
                   setCurrentWeight(text);
@@ -690,7 +931,7 @@ export default function CreateReportScreen() {
 
             <TouchableOpacity style={styles.addButton} onPress={addWasteItem}>
               <Ionicons name="add" size={24} color={AppColors.white} />
-              <Text style={styles.addButtonText}>Thêm</Text>
+              <Text style={styles.addButtonText}>{t("createReport.add")}</Text>
             </TouchableOpacity>
           </View>
           {errors.weight && <Text style={styles.errorText}>{errors.weight}</Text>}
@@ -705,9 +946,9 @@ export default function CreateReportScreen() {
 
         {/* Description */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Mô tả (tùy chọn)</Text>
+          <Text style={styles.sectionTitle}>{t("createReport.description")}</Text>
           <Input
-            placeholder="Ví dụ: Chai nhựa đã rửa sạch, xếp gọn..."
+            placeholder={t("createReport.descriptionPlaceholder")}
             value={description}
             onChangeText={setDescription}
             multiline
@@ -718,7 +959,7 @@ export default function CreateReportScreen() {
 
         {/* Image Upload */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Hình ảnh minh họa</Text>
+          <Text style={styles.sectionTitle}>{t("createReport.photos")}</Text>
           <View style={styles.imagesContainer}>
             {images.map((uri, index) => (
               <View key={index} style={styles.imageWrapper}>
@@ -741,7 +982,7 @@ export default function CreateReportScreen() {
                 onPress={showImageOptions}
               >
                 <Ionicons name="camera" size={32} color={AppColors.primary} />
-                <Text style={styles.addImageText}>Thêm ảnh</Text>
+                <Text style={styles.addImageText}>{t("createReport.addPhoto")}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -755,11 +996,9 @@ export default function CreateReportScreen() {
           <View style={styles.infoContent}>
             <Ionicons name="bulb" size={24} color={AppColors.warning} />
             <View style={styles.infoTextContainer}>
-              <Text style={styles.infoTitle}>Lưu ý:</Text>
+              <Text style={styles.infoTitle}>{t("createReport.note")}</Text>
               <Text style={styles.infoText}>
-                • Phân loại rác đúng loại {"\n"}• Rửa sạch và
-                để khô trước khi đóng gói{"\n"}• Chụp ảnh rõ ràng giúp shipper
-                dễ xác nhận
+                {t("createReport.noteText")}
               </Text>
             </View>
           </View>
@@ -767,12 +1006,48 @@ export default function CreateReportScreen() {
 
         {/* Submit Button */}
         <Button
-          title="Tạo báo cáo"
+          title={t("createReport.submit")}
           onPress={handleSubmit}
           loading={loading}
           disabled={loading}
         />
       </View>
+
+      {/* Address Edit Modal */}
+      <Modal
+        visible={isAddressModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsAddressModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>{t("createReport.detailedAddress")}</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={tempAddress}
+              onChangeText={setTempAddress}
+              placeholder={t("createReport.streetPlaceholder")}
+              multiline
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setIsAddressModalVisible(false)}
+              >
+                <Text style={styles.modalButtonTextCancel}>{t("common.cancel")}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={handleConfirmAddress}
+              >
+                <Text style={styles.modalButtonTextConfirm}>{t("common.confirm")}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -1082,5 +1357,92 @@ const styles = StyleSheet.create({
     paddingTop: 15,
     borderTopWidth: 1,
     borderTopColor: AppColors.primary + "20",
+  },
+  wardHintBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    gap: 4,
+    backgroundColor: AppColors.warning + "15",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  wardHintText: {
+    fontSize: 12,
+    color: AppColors.warning,
+    fontWeight: "600",
+    flex: 1,
+  },
+  validateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: AppColors.primary + '15',
+    alignSelf: 'flex-end',
+  },
+  validateBtnText: {
+    fontSize: 13,
+    color: AppColors.primary,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContainer: {
+    width: "100%",
+    backgroundColor: AppColors.white,
+    borderRadius: 16,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: AppColors.textPrimary,
+    marginBottom: 15,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: AppColors.gray[300],
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: AppColors.textPrimary,
+    minHeight: 100,
+    textAlignVertical: "top",
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+  },
+  modalButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  modalButtonCancel: {
+    backgroundColor: AppColors.gray[200],
+  },
+  modalButtonConfirm: {
+    backgroundColor: AppColors.primary,
+  },
+  modalButtonTextCancel: {
+    color: AppColors.textPrimary,
+    fontWeight: "600",
+  },
+  modalButtonTextConfirm: {
+    color: AppColors.white,
+    fontWeight: "600",
   },
 });

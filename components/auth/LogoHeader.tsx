@@ -30,8 +30,8 @@ export default function LogoHeader({ appName, tagline }: LogoHeaderProps) {
 
 const styles = StyleSheet.create({
   header: {
-    paddingTop: 60,
-    paddingBottom: 50,
+    paddingTop: 72,
+    paddingBottom: 56,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
@@ -40,13 +40,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logoCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 124,
+    height: 124,
+    borderRadius: 62,
     backgroundColor: "rgba(255, 255, 255, 0.25)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -54,12 +54,12 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   logoImage: {
-    width: 70,
-    height: 70,
+    width: 98,
+    height: 98,
     resizeMode: "contain",
   },
   appName: {
-    fontSize: 36,
+    fontSize: 40,
     fontWeight: "800",
     color: AppColors.white,
     marginBottom: 8,

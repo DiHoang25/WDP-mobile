@@ -2,6 +2,7 @@ import { Badge, Card } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { CollectorTask } from "@/types/collector";
 import { getWasteTypeLabel } from "@/utils/helpers";
+import { extractMediaUrl } from "../../utils/media";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -59,7 +60,7 @@ export function TaskCard({ task, onPress, showTimer, countdown }: TaskCardProps)
 
         {/* Image */}
         {task.images && task.images.length > 0 && (
-          <Image source={{ uri: task.images[0] }} style={styles.image} />
+          <Image source={{ uri: extractMediaUrl(task.images[0]) || task.images[0] }} style={styles.image} />
         )}
 
         {/* Address */}

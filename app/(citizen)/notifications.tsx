@@ -1,6 +1,7 @@
 import { EmptyState, Header } from "@/components/common";
 import { NotificationItem } from "@/components/notifications/NotificationItem";
 import { AppColors } from "@/constants/theme";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { notificationService } from "@/services/notification.service";
 import { Notification } from "@/types";
 import { router } from "expo-router";
@@ -16,6 +17,7 @@ import {
 } from "react-native";
 
 export default function NotificationsScreen() {
+    const { t } = useLanguage();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -113,7 +115,7 @@ export default function NotificationsScreen() {
 
     return (
         <View style={styles.container}>
-            <Header title="Thông báo" showBack={true} />
+            <Header title={t("notifications.title")} showBack={true} />
 
             <View style={styles.filterTabs}>
                 <TouchableOpacity
@@ -121,7 +123,7 @@ export default function NotificationsScreen() {
                     onPress={() => setFilter("all")}
                 >
                     <Text style={[styles.tabText, filter === "all" && styles.activeTabText]}>
-                        Tất cả
+                        {t("common.all")}
                     </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -129,7 +131,7 @@ export default function NotificationsScreen() {
                     onPress={() => setFilter("unread")}
                 >
                     <Text style={[styles.tabText, filter === "unread" && styles.activeTabText]}>
-                        Chưa đọc
+                        {t("notifications.unread")}
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -162,11 +164,11 @@ export default function NotificationsScreen() {
                         !loading ? (
                             <EmptyState
                                 icon="notifications-off-outline"
-                                title="Không có thông báo"
+                                title={t("notifications.noNotifications")}
                                 message={
                                     filter === "unread"
-                                        ? "Bạn đã đọc hết các thông báo"
-                                        : "Hiện tại bạn chưa có thông báo nào"
+                                        ? t("notifications.allRead")
+                                        : t("notifications.noNotificationsYet")
                                 }
                             />
                         ) : null

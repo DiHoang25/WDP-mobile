@@ -1,27 +1,30 @@
 import { Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
-    citizenService,
-    LeaderboardCategory,
-    LeaderboardResponse,
-    LeaderboardTimeframe,
+  citizenService,
+  LeaderboardCategory,
+  LeaderboardResponse,
+  LeaderboardTimeframe,
 } from "@/services/citizen.service";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function LeaderboardScreen() {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<LeaderboardCategory>(
     LeaderboardCategory.POINTS,
@@ -31,9 +34,12 @@ export default function LeaderboardScreen() {
   const [leaderboardData, setLeaderboardData] =
     useState<LeaderboardResponse | null>(null);
 
-  useEffect(() => {
-    fetchLeaderboard();
-  }, [selectedCategory, selectedTimeframe]);
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile();
+      fetchLeaderboard();
+    }, [selectedCategory, selectedTimeframe]),
+  );
 
   const fetchLeaderboard = async () => {
     try {
@@ -179,7 +185,9 @@ export default function LeaderboardScreen() {
         <View style={styles.userRankSection}>
           <Card variant="elevated">
             <View style={styles.userRankContent}>
-              <Text style={styles.userRankLabel}>Hạng của bạn</Text>
+              <Text style={styles.userRankLabel}>
+                {t("leaderboard.yourRank")}
+              </Text>
               <Text style={styles.userRankNumber}>#{userEntry.rank}</Text>
             </View>
             <View style={styles.userRankStats}>

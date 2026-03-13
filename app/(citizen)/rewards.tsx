@@ -1,29 +1,36 @@
 import { Button, Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
-    citizenService,
-    Gift,
-    PointTransaction,
-    PointTransactionType,
+  citizenService,
+  Gift,
+  PointTransaction,
+  PointTransactionType,
 } from "@/services/citizen.service";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 type TabType = "gifts" | "history";
 type HistoryFilter = "all" | "earn" | "spend";
 
 export default function RewardsScreen() {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
+  const { t } = useLanguage();
+  const params = useLocalSearchParams<{ source?: string }>();
+  const source = Array.isArray(params.source) ? params.source[0] : params.source;
+  const backFallbackRoute =
+    source === "profile" ? "/(citizen)/profile" : "/(citizen)";
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("gifts");
@@ -35,6 +42,13 @@ export default function RewardsScreen() {
   useEffect(() => {
     fetchInitialData();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile();
+      fetchInitialData();
+    }, []),
+  );
 
   useEffect(() => {
     if (activeTab === "history") {
@@ -110,7 +124,7 @@ export default function RewardsScreen() {
       "Xác nhận đổi quà",
       `Đổi ${gift.requiredPoints} điểm lấy ${gift.name}?`,
       [
-        { text: "Hủy", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
           text: "Đổi ngay",
           onPress: async () => {
@@ -173,13 +187,14 @@ export default function RewardsScreen() {
         title="Đổi thưởng"
         subtitle="Đổi điểm lấy quà hấp dẫn"
         showBack={true}
+        backFallbackRoute={backFallbackRoute}
       />
 
       {/* Points Card */}
       <View style={styles.pointsSection}>
         <Card variant="elevated">
           <View style={styles.pointsCard}>
-            <Text style={styles.pointsLabel}>Điểm của bạn</Text>
+            <Text style={styles.pointsLabel}>{t("rewards.yourPoints")}</Text>
             <View style={styles.pointsValueContainer}>
               <Ionicons name="star" size={24} color={AppColors.warning} />
               <Text style={styles.pointsValue}> {currentPoints}</Text>

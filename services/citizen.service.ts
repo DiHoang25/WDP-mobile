@@ -1,26 +1,6 @@
 import { ApiResponse, apiClient } from "@/utils/api";
 
 // ========================
-// Complaint Types
-// ========================
-export interface CreateComplaintRequest {
-  reportId: number;
-  content: string;
-}
-
-export interface Complaint {
-  id: number;
-  reportId: number;
-  citizenId: number;
-  content: string;
-  status: "OPEN" | "RESOLVED" | "REJECTED";
-  createdAt: string;
-  updatedAt: string;
-  resolvedAt?: string;
-  report?: any;
-}
-
-// ========================
 // Leaderboard Types
 // ========================
 export enum LeaderboardCategory {
@@ -92,30 +72,6 @@ export interface MyPointsResponse {
 // Citizen Service
 // ========================
 export const citizenService = {
-  /**
-   * ===========================
-   * COMPLAINTS API
-   * ===========================
-   */
-
-  /**
-   * Create a new complaint
-   * POST /api/v1/citizen/complaints
-   */
-  async createComplaint(
-    data: CreateComplaintRequest,
-  ): Promise<ApiResponse<Complaint>> {
-    return apiClient.post<Complaint>("/citizen/complaints", data);
-  },
-
-  /**
-   * Get my complaints list
-   * GET /api/v1/citizen/complaints
-   */
-  async getMyComplaints(): Promise<ApiResponse<Complaint[]>> {
-    return apiClient.get<Complaint[]>("/citizen/complaints");
-  },
-
   /**
    * ===========================
    * LEADERBOARD API

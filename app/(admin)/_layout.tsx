@@ -29,7 +29,7 @@ export default function AdminLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Cá nhân",
+          title: "Hồ sơ",
           tabBarIcon: ({ color }) => <TabIcon name="person" color={color} />,
         }}
       />

@@ -1,8 +1,24 @@
 // Types for Collector Module
 
-export type CollectorStatus = "OFFLINE" | "AVAILABLE" | "BUSY";
+export type CollectorStatus = "OFFLINE" | "ONLINE_AVAILABLE" | "AVAILABLE" | "BUSY" | "ONLINE_BUSY";
 
-export type TaskStatus = 
+export interface WorkingDay {
+  start: string;
+  end: string;
+  active: boolean;
+}
+
+export interface WorkingHours {
+  Monday: WorkingDay;
+  Tuesday: WorkingDay;
+  Wednesday: WorkingDay;
+  Thursday: WorkingDay;
+  Friday: WorkingDay;
+  Saturday: WorkingDay;
+  Sunday: WorkingDay;
+}
+
+export type TaskStatus =
   | "PENDING_ACCEPT"     // Chờ collector chấp nhận (5 phút)
   | "ASSIGNED"           // Đã nhận, chưa bắt đầu di chuyển
   | "ON_THE_WAY"         // Đang di chuyển đến địa điểm
@@ -25,87 +41,153 @@ export interface Zone {
 }
 
 export interface CollectorProfile {
-  id: string;
+  id: number;
   employeeCode: string;
-  fullName: string;
-  email: string;
-  phone: string;
-  avatar?: string;
-  enterpriseId: string;
-  enterpriseName: string;
-  
-  // Trạng thái làm việc
-  status: CollectorStatus;
-  currentShiftStartedAt?: string;
-  
-  // Khu vực làm việc
-  zones: Zone[];
-  
-  // Thống kê
-  trustScore: number; // Điểm tin cậy (0-100)
-  totalCompleted: number;
-  skipCount: number; // Số lần từ chối
-  todayTaskCount: number;
-  
-  // Queue
-  queueLength: number; // Số đơn đang có
-  maxQueueLength: number; // Tối đa (thường là 6)
-  
-  // Vị trí hiện tại
-  currentLatitude?: number;
-  currentLongitude?: number;
+  user: {
+    fullName: string;
+    email: string;
+    phone: string;
+    avatar?: string;
+  };
+  enterprise: {
+    name: string;
+  };
+  status: {
+    availability: CollectorStatus;
+  };
+  workingHours: WorkingHours;
+
+  // Legacy/Additional fields (keep optional for now)
+  trustScore?: number;
+  totalCompleted?: number;
+  skipCount?: number;
+  todayTaskCount?: number;
+  queueLength?: number;
+  maxQueueLength?: number;
+  zones?: Zone[];
 }
+
+// ===== New API-based Task Types =====
+
+export interface TaskWasteItem {
+  wasteType: string;
+  weightKg: number;
+}
+
+export interface TaskReportImage {
+  id: number;
+  reportId: number;
+  imageUrl: string;
+}
+
+export interface TaskCitizen {
+  id: number;
+  fullName: string;
+  phone: string;
+  email: string;
+  avatar: string | null;
+}
+
+export interface TaskReport {
+  id: number;
+  citizenId: number;
+  currentEnterpriseId: number | null;
+  address: string;
+  latitude: number;
+  longitude: number;
+  provinceCode: string;
+  districtCode: string;
+  wardCode: string;
+  description: string;
+  status: string;
+  sentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  arrivedAt: string | null;
+  arrivalDeadline: string | null;
+  collectedAt: string | null;
+  completedAt: string | null;
+  actualWeight: number | null;
+  accuracyBucket: string | null;
+  evidenceImages: string[] | null;
+  cancelReason: string | null;
+  citizenConfirmedAt: string | null;
+  citizenAbsentAt: string | null;
+  deletedAt: string | null;
+  images: TaskReportImage[];
+  citizen: TaskCitizen;
+  wasteItems: TaskWasteItem[];
+}
+
+export type CollectorTaskStatus =
+  | "PENDING_COLLECTOR"
+  | "COLLECTOR_PENDING"
+  | "ACCEPTED"
+  | "ON_THE_WAY"
+  | "ARRIVED"
+  | "COLLECTING"
+  | "COMPLETED"
+  | "REJECTED"
+  | "EXPIRED";
+
+export interface CollectorTaskItem {
+  id: number;
+  reportId: number;
+  collectorId: number;
+  enterpriseId: number;
+  status: CollectorTaskStatus;
+  attemptOrder: number;
+  expiredAt: string;
+  respondedAt: string | null;
+  createdAt: string;
+  report: TaskReport;
+}
+
+export interface HistoryWasteItem {
+  type: string;
+  weight: number;
+}
+
+export interface HistoryReportItem {
+  reportId: number;
+  address: string;
+  completedAt: string;
+  actualWeight: number;
+  wasteItems: HistoryWasteItem[];
+}
+
+// ===== Legacy types (keep for backward compat) =====
 
 export interface CollectorTask {
   id: string;
   reportId: string;
-  
-  // Thông tin địa điểm
   address: string;
   latitude: number;
   longitude: number;
-  distanceKm?: number; // Khoảng cách từ vị trí collector
-  
-  // Thông tin rác
-  wasteTypes: string[]; // ["ORGANIC", "RECYCLABLE"]
+  distanceKm?: number;
+  wasteTypes: string[];
   estimatedWeightKg: number;
   description?: string;
   images: string[];
-  
-  // Thông tin citizen
   citizenId: string;
   citizenName: string;
   citizenPhone: string;
-  
-  // Trạng thái task
   status: TaskStatus;
-  
-  // Thời gian
   createdAt: string;
   assignedAt?: string;
   acceptedAt?: string;
   startedMovingAt?: string;
   arrivedAt?: string;
   completedAt?: string;
-  
-  // Deadline cho các giai đoạn
-  acceptDeadline?: string; // 5 phút sau khi assignedAt
-  waitingDeadline?: string; // 20 phút sau khi arrivedAt
-  
-  // Xác nhận từ citizen
+  acceptDeadline?: string;
+  waitingDeadline?: string;
   citizenConfirmedPresence: boolean;
   citizenConfirmedAt?: string;
-  
-  // Kết quả thu gom
   actualWeightKg?: number;
   accuracyRating?: AccuracyRating;
   collectionImages?: string[];
-  
-  // Báo cáo sự cố
   issueDescription?: string;
   issueImages?: string[];
-  
-  // Metadata
   zone?: Zone;
 }
 
@@ -120,14 +202,14 @@ export interface ShiftControlData {
 
 export interface TaskAction {
   taskId: string;
-  action: 
-    | "accept" 
-    | "reject" 
-    | "start_moving" 
-    | "checkin" 
-    | "complete" 
-    | "report_absent" 
-    | "report_issue";
+  action:
+  | "accept"
+  | "reject"
+  | "start_moving"
+  | "checkin"
+  | "complete"
+  | "report_absent"
+  | "report_issue";
   data?: any;
 }
 

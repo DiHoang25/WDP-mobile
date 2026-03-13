@@ -1,10 +1,11 @@
-import { Button, Card, Input } from "@/components/common";
-import { Picker } from "@/components/common/Picker";
+import type { ToastType } from "@/components/common";
+import { Button, Card, Input, Toast } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { collectorService } from "@/services/collector.service";
 import { AccuracyRating } from "@/types/collector";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   Alert,
@@ -20,9 +21,19 @@ export default function TaskCompleteScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
 
-  const [actualWeight, setActualWeight] = useState("");
+  const [weightOrganic, setWeightOrganic] = useState("");
+  const [weightRecyclable, setWeightRecyclable] = useState("");
+  const [weightHazardous, setWeightHazardous] = useState("");
   const [accuracy, setAccuracy] = useState<AccuracyRating>("MATCH");
   const [images, setImages] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: ToastType }>({
+    visible: false, message: "", type: "success",
+  });
+
+  const showToast = (message: string, type: ToastType = "success") => {
+    setToast({ visible: true, message, type });
+  };
 
   const accuracyOptions = [
     { label: "✅ Khớp hoàn toàn", value: "MATCH" },
@@ -47,8 +58,12 @@ export default function TaskCompleteScreen() {
   };
 
   const handleSubmit = () => {
-    if (!actualWeight || parseFloat(actualWeight) <= 0) {
-      Alert.alert("Lỗi", "Vui lòng nhập khối lượng thực tế");
+    const wOrg = parseFloat(weightOrganic) || 0;
+    const wRec = parseFloat(weightRecyclable) || 0;
+    const wHaz = parseFloat(weightHazardous) || 0;
+
+    if (wOrg <= 0 && wRec <= 0 && wHaz <= 0) {
+      Alert.alert("Lỗi", "Vui lòng nhập ít nhất một loại khối lượng rác");
       return;
     }
 
@@ -57,18 +72,35 @@ export default function TaskCompleteScreen() {
       return;
     }
 
-    Alert.alert("Xác nhận", "Hoàn tất thu gom nhiệm vụ này?", [
+    Alert.alert("Xác nhận", "Hoàn tất thu gom Đơn hàng này?", [
       { text: "Hủy", style: "cancel" },
       {
         text: "Xác nhận",
-        onPress: () => {
-          // TODO: Submit to API
-          Alert.alert("Thành công", "Đã hoàn tất nhiệm vụ!", [
-            {
-              text: "OK",
-              onPress: () => router.push("/(collectors)" as any),
-            },
-          ]);
+        onPress: async () => {
+          try {
+            setSubmitting(true);
+            const res = await collectorService.completeTask({
+              reportId: Number(id),
+              weightOrganic: wOrg || undefined,
+              weightRecyclable: wRec || undefined,
+              weightHazardous: wHaz || undefined,
+              accuracyBucket: accuracy as any,
+              files: images,
+            });
+            if (res.success) {
+              showToast("Đã hoàn tất Đơn hàng!", "success");
+              setTimeout(() => {
+                router.replace("/(collectors)" as any);
+              }, 1500);
+            } else {
+              showToast(res.message || "Không thể hoàn tất Đơn hàng", "error");
+            }
+          } catch (error) {
+            console.error("completeTask error:", error);
+            showToast("Đã có lỗi xảy ra", "error");
+          } finally {
+            setSubmitting(false);
+          }
         },
       },
     ]);
@@ -76,19 +108,43 @@ export default function TaskCompleteScreen() {
 
   return (
     <View style={styles.container}>
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast(t => ({ ...t, visible: false }))}
+      />
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {/* Weight input */}
           <Card variant="elevated" style={styles.section}>
-            <Text style={styles.sectionTitle}>Khối lượng thực tế</Text>
-            <Input
-              label="Khối lượng (kg)"
-              value={actualWeight}
-              onChangeText={setActualWeight}
-              placeholder="Nhập khối lượng thực tế"
-              keyboardType="numeric"
-              icon="scale"
-            />
+            <Text style={styles.sectionTitle}>Khối lượng thu gom thực tế</Text>
+            <View style={{ gap: 12 }}>
+              <Input
+                label="Rác Hữu cơ (kg)"
+                value={weightOrganic}
+                onChangeText={setWeightOrganic}
+                placeholder="0.0"
+                keyboardType="numeric"
+                icon="leaf"
+              />
+              <Input
+                label="Rác Tái chế (kg)"
+                value={weightRecyclable}
+                onChangeText={setWeightRecyclable}
+                placeholder="0.0"
+                keyboardType="numeric"
+                icon="refresh"
+              />
+              <Input
+                label="Rác Nguy hại (kg)"
+                value={weightHazardous}
+                onChangeText={setWeightHazardous}
+                placeholder="0.0"
+                keyboardType="numeric"
+                icon="warning"
+              />
+            </View>
           </Card>
 
           {/* Accuracy rating */}
@@ -162,7 +218,7 @@ export default function TaskCompleteScreen() {
             <View style={styles.infoRow}>
               <Ionicons name="information-circle" size={20} color={AppColors.info} />
               <Text style={styles.infoText}>
-                Sau khi hoàn tất, bạn và Công dân đều cần xác nhận nhiệm vụ đã được thực hiện
+                Sau khi hoàn tất, bạn và Công dân đều cần xác nhận Đơn hàng đã được thực hiện
               </Text>
             </View>
           </Card>
@@ -172,7 +228,8 @@ export default function TaskCompleteScreen() {
             <Button
               title="Xác nhận hoàn tất"
               onPress={handleSubmit}
-              disabled={!actualWeight || images.length === 0}
+              disabled={(parseFloat(weightOrganic) || 0) + (parseFloat(weightRecyclable) || 0) + (parseFloat(weightHazardous) || 0) <= 0 || images.length === 0 || submitting}
+              loading={submitting}
             />
             <Button title="Hủy" variant="outline" onPress={() => router.back()} />
           </View>

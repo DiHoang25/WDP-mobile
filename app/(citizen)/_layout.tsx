@@ -1,9 +1,15 @@
 import { TabIcon } from "@/components/ui";
 import { AppColors } from "@/constants/theme";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Tabs } from "expo-router";
 import React from "react";
+import { Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function CitizenLayout() {
+  const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
@@ -13,8 +19,11 @@ export default function CitizenLayout() {
           backgroundColor: AppColors.white,
           borderTopWidth: 1,
           borderTopColor: AppColors.gray[200],
-          height: 70,
-          paddingBottom: 10,
+          height:
+            60 +
+            (Platform.OS === "android" ? insets.bottom + 10 : insets.bottom),
+          paddingBottom:
+            Platform.OS === "android" ? insets.bottom + 10 : insets.bottom,
           paddingTop: 10,
         },
         tabBarLabelStyle: {
@@ -26,21 +35,21 @@ export default function CitizenLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Trang chủ",
+          title: t("tabs.home"),
           tabBarIcon: ({ color }) => <TabIcon name="home" color={color} />,
         }}
       />
       <Tabs.Screen
         name="leaderboard"
         options={{
-          title: "Xếp hạng",
+          title: t("tabs.leaderboard"),
           tabBarIcon: ({ color }) => <TabIcon name="trophy" color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Cá nhân",
+          title: t("tabs.profile"),
           tabBarIcon: ({ color }) => <TabIcon name="person" color={color} />,
         }}
       />
@@ -97,12 +106,6 @@ export default function CitizenLayout() {
       />
       <Tabs.Screen
         name="change-password"
-        options={{
-          href: null, // Hide from tab bar
-        }}
-      />
-      <Tabs.Screen
-        name="complaints"
         options={{
           href: null, // Hide from tab bar
         }}

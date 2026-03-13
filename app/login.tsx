@@ -54,7 +54,7 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         <LogoHeader
-          appName="EcoCollect"
+          appName="ECONNET"
           tagline="Bảo vệ môi trường - Thu gom rác thông minh"
         />
 

@@ -1,26 +1,28 @@
-import { Card, Header, Loading } from "@/components/common";
+import { Card, Header, Loading, Toast, ToastType } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { citizenService } from "@/services/citizen.service";
 import { wasteService } from "@/services/waste.service";
 import { WasteReport } from "@/types";
 import {
-    getStatusColor,
-    getStatusText,
-    getWasteTypeLabel,
+  getStatusColor,
+  getStatusText,
+  getWasteTypeLabel,
 } from "@/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { extractMediaUrls } from "../utils/media";
 
 export default function ReportDetailScreen() {
   const { user } = useAuth();
@@ -38,6 +40,19 @@ export default function ReportDetailScreen() {
     district: "",
     ward: "",
   });
+  const [toast, setToast] = useState<{
+    visible: boolean;
+    message: string;
+    type: ToastType;
+  }>({
+    visible: false,
+    message: "",
+    type: "success",
+  });
+
+  const showToast = (message: string, type: ToastType = "success") => {
+    setToast({ visible: true, message, type });
+  };
 
   useEffect(() => {
     if (id) {
@@ -52,6 +67,55 @@ export default function ReportDetailScreen() {
       fetchLocationNames();
     }
   }, [report]);
+
+  const [hasShownArrivedToast, setHasShownArrivedToast] = useState(false);
+
+  // Polling for shipper arrival
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const currentStatus = report?.status?.toUpperCase();
+
+    // Show toast immediately if it's already ARRIVED
+    if (currentStatus === "ARRIVED" && !hasShownArrivedToast) {
+      showToast("Shipper đã đến nơi! Vui lòng xác nhận sự có mặt.", "info");
+      setHasShownArrivedToast(true);
+    }
+
+    if (
+      (currentStatus === "ACCEPTED" ||
+        currentStatus === "ON_THE_WAY" ||
+        currentStatus === "ARRIVED") &&
+      report?.id
+    ) {
+      const pollStatus = async () => {
+        try {
+          const res = await wasteService.getReportById(Number(report.id));
+          if (res.success && res.data) {
+            const newStatus = res.data.status?.toUpperCase();
+            if (newStatus === "ARRIVED" && !hasShownArrivedToast) {
+              setReport(res.data);
+              showToast(
+                "Shipper đã đến nơi! Vui lòng xác nhận sự có mặt.",
+                "info",
+              );
+              setHasShownArrivedToast(true);
+            } else if (newStatus !== currentStatus) {
+              setReport(res.data);
+            }
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      };
+
+      interval = setInterval(pollStatus, 7000); // Poll every 7s
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [report?.status, report?.id, hasShownArrivedToast]);
 
   const fetchReportDetail = async (reportId: string) => {
     try {
@@ -118,20 +182,6 @@ export default function ReportDetailScreen() {
   const status = report?.status;
   const canCancel =
     status?.toUpperCase() === "PENDING" || status?.toUpperCase() === "ACCEPTED";
-  const isArrived = status?.toUpperCase() === "ARRIVED";
-  const hasConfirmed = report?.citizenConfirmedAt;
-
-  // Có thể khiếu nại khi báo cáo đã được xử lý (không phải PENDING) và là của user hiện tại
-  const canComplain =
-    report &&
-    report.id &&
-    status?.toUpperCase() !== "PENDING" &&
-    report.citizenId === user?.id;
-
-  const handleComplaint = () => {
-    if (!report?.id) return;
-    router.push(`/(citizen)/complaints?reportId=${report.id}`);
-  };
 
   const handleCancel = async () => {
     if (!report) return;
@@ -169,90 +219,113 @@ export default function ReportDetailScreen() {
   };
 
   const handleConfirmPresence = async () => {
-    if (!report) return;
-
-    Alert.alert(
-      "Xác nhận có mặt",
-      "Bạn xác nhận đang có mặt tại điểm thu gom?",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xác nhận",
-          onPress: async () => {
-            try {
-              setSubmitting(true);
-              const response = await citizenService.confirmPresence(
-                Number(report.id),
-              );
-              if (response.success) {
-                Alert.alert(
-                  "Thành công",
-                  "Đã xác nhận có mặt. Người thu gom sẽ tiếp tục quá trình thu gom.",
-                );
-                fetchReportDetail(report.id);
-              } else {
-                Alert.alert(
-                  "Lỗi",
-                  response.error || "Không thể xác nhận có mặt.",
-                );
-              }
-            } catch (error) {
-              Alert.alert("Lỗi", "Đã xảy ra lỗi khi kết nối hệ thống.");
-            } finally {
-              setSubmitting(false);
-            }
-          },
-        },
-      ],
+    console.log(
+      "👆 [handleConfirmPresence] Button clicked, report.id:",
+      report?.id,
     );
+    if (!report) return;
+    try {
+      setSubmitting(true);
+      const res = await citizenService.confirmPresence(Number(report.id));
+      if (res.success) {
+        if (Platform.OS !== "web") {
+          Alert.alert(
+            "Thành công",
+            "Bạn đã xác nhận đang có mặt. Shipper sẽ tiến hành thu gom ngay.",
+          );
+        } else {
+          console.log("✅ [ConfirmPresence] Success (Web)");
+        }
+        fetchReportDetail(report.id);
+      } else {
+        if (Platform.OS !== "web") {
+          Alert.alert("Lỗi", res.error || "Không thể xác nhận có mặt.");
+        } else {
+          console.error("❌ [ConfirmPresence] Error (Web):", res.error);
+        }
+      }
+    } catch (error) {
+      console.error("Confirm presence error:", error);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleReportAbsent = async () => {
-    if (!report) return;
-
-    Alert.alert(
-      "Báo vắng mặt",
-      "Bạn chắc chắn không thể có mặt tại điểm thu gom? Người thu gom sẽ được thông báo.",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xác nhận vắng",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setSubmitting(true);
-              const response = await citizenService.reportAbsent(
-                Number(report.id),
-              );
-              if (response.success) {
-                Alert.alert(
-                  "Đã ghi nhận",
-                  "Thông báo vắng mặt đã được gửi đến người thu gom.",
-                );
-                fetchReportDetail(report.id);
-              } else {
-                Alert.alert(
-                  "Lỗi",
-                  response.error || "Không thể gửi thông báo vắng mặt.",
-                );
-              }
-            } catch (error) {
-              Alert.alert("Lỗi", "Đã xảy ra lỗi khi kết nối hệ thống.");
-            } finally {
-              setSubmitting(false);
-            }
-          },
-        },
-      ],
+    console.log(
+      "👆 [handleReportAbsent] Button clicked, report.id:",
+      report?.id,
     );
-  };
+    if (!report) {
+      console.warn("⚠️ [handleReportAbsent] No report data found!");
+      return;
+    }
 
+    const executeReportAbsent = async () => {
+      try {
+        setSubmitting(true);
+        const res = await citizenService.reportAbsent(Number(report.id));
+        if (res.success) {
+          if (Platform.OS !== "web") {
+            Alert.alert(
+              "Thông báo",
+              "Bạn đã báo vắng mặt. Đơn hàng sẽ được cập nhật.",
+            );
+          } else {
+            console.log("✅ [ReportAbsent] Success (Web)");
+          }
+          fetchReportDetail(report.id);
+        } else {
+          if (Platform.OS !== "web") {
+            Alert.alert("Lỗi", res.error || "Không thể báo vắng mặt.");
+          } else {
+            console.error("❌ [ReportAbsent] Error (Web):", res.error);
+          }
+        }
+      } catch (error) {
+        console.error("Report absent error:", error);
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      console.log(
+        "🌐 Web platform detected, proceeding without Alert confirmation",
+      );
+      await executeReportAbsent();
+    } else {
+      console.log("📱 Showing Alert.alert for absence confirmation...");
+      Alert.alert(
+        "Xác nhận vắng mặt",
+        "Bạn chắc chắn muốn báo vắng mặt? Shipper sẽ không thể thu gom rác của bạn trong đơn này.",
+        [
+          {
+            text: "Hủy",
+            style: "cancel",
+            onPress: () => console.log("✖️ Absence confirmation cancelled"),
+          },
+          {
+            text: "Xác nhận",
+            style: "destructive",
+            onPress: executeReportAbsent,
+          },
+        ],
+      );
+    }
+  };
   const createdAt = report?.createdAt;
   const updatedAt = report?.updatedAt;
   const address = report?.address;
   const wasteItems = report?.wasteItems;
   const points = report?.points;
-  const images = report?.images;
+  // Normalize image fields: backend có thể trả images/files/evidenceImages dưới nhiều dạng
+  const images = extractMediaUrls(
+    (report as any)?.images || (report as any)?.files,
+  );
+  const evidenceImages = extractMediaUrls(
+    (report as any)?.evidenceImages || (report as any)?.collectorImages,
+  );
   const enterprise = report?.enterprise;
   const collector = report?.collector;
   const cancelReason = report?.cancelReason;
@@ -337,49 +410,55 @@ export default function ReportDetailScreen() {
           </View>
         )}
 
-        {/* Enterprise Info */}
-        {(enterprise || enterpriseDisplayName) && (
-          <Card variant="elevated" style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Đơn vị xử lý</Text>
-            <View style={styles.userInfoRow}>
-              {enterprise?.avatar ? (
-                <Image
-                  source={{ uri: enterprise.avatar }}
-                  style={styles.avatar}
+        {/* Presence confirmation - New compact banner */}
+        {status?.toUpperCase() === "ARRIVED" && (
+          <View style={styles.arrivedBanner}>
+            <View style={styles.arrivedInfoRow}>
+              <View style={styles.arrivedIconCircle}>
+                <Ionicons
+                  name="notifications"
+                  size={18}
+                  color={AppColors.primary}
                 />
-              ) : (
-                <View
-                  style={[
-                    styles.avatarPlaceholder,
-                    { backgroundColor: AppColors.secondary },
-                  ]}
-                >
-                  <Ionicons name="business" size={24} color={AppColors.white} />
-                </View>
-              )}
-              <View style={styles.userMeta}>
-                <Text style={styles.userName}>
-                  {enterprise?.name || enterpriseDisplayName}
-                </Text>
-                <Text style={styles.userPhone}>
-                  {enterprise?.phone || "Đã tiếp nhận báo cáo"}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.arrivedTitle}>Shipper đã đến điểm hẹn</Text>
+                <Text style={styles.arrivedSubtitle}>
+                  Hãy xác nhận bạn đang có mặt hoặc báo vắng mặt để Shipper xử
+                  lý đơn.
                 </Text>
               </View>
-              {enterprise?.phone && (
-                <TouchableOpacity
-                  style={[
-                    styles.callButton,
-                    { backgroundColor: AppColors.secondary },
-                  ]}
-                  onPress={() => {
-                    /* Handle call */
-                  }}
-                >
-                  <Ionicons name="call" size={20} color={AppColors.white} />
-                </TouchableOpacity>
-              )}
             </View>
-          </Card>
+
+            <View style={styles.arrivedActions}>
+              <TouchableOpacity
+                style={[
+                  styles.arrivedPrimaryBtn,
+                  submitting && styles.disabledButton,
+                ]}
+                onPress={handleConfirmPresence}
+                disabled={submitting}
+              >
+                <Ionicons name="home" size={18} color={AppColors.white} />
+                <Text style={styles.arrivedPrimaryText}>Tôi đang ở nhà</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.arrivedGhostBtn,
+                  submitting && styles.disabledButton,
+                ]}
+                onPress={handleReportAbsent}
+                disabled={submitting}
+              >
+                <Ionicons
+                  name="walk"
+                  size={18}
+                  color={AppColors.textSecondary}
+                />
+                <Text style={styles.arrivedGhostText}>Tôi vắng mặt</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
 
         {/* Collector Info */}
@@ -413,74 +492,6 @@ export default function ReportDetailScreen() {
                   <Ionicons name="call" size={20} color={AppColors.white} />
                 </TouchableOpacity>
               )}
-            </View>
-          </Card>
-        )}
-
-        {/* Citizen Presence Actions - Show when status is ARRIVED */}
-        {isArrived && !hasConfirmed && (
-          <Card
-            variant="elevated"
-            style={[styles.sectionCard, styles.presenceCard]}
-          >
-            <View style={styles.presenceHeader}>
-              <Ionicons name="location" size={24} color={AppColors.primary} />
-              <View style={styles.presenceHeaderText}>
-                <Text style={styles.presenceTitle}>Người thu gom đã đến</Text>
-                <Text style={styles.presenceSubtitle}>
-                  Vui lòng xác nhận tình trạng của bạn
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.presenceActions}>
-              <TouchableOpacity
-                style={[styles.presenceButton, styles.confirmButton]}
-                onPress={handleConfirmPresence}
-                disabled={submitting}
-              >
-                <Ionicons
-                  name="checkmark-circle"
-                  size={20}
-                  color={AppColors.white}
-                />
-                <Text style={styles.presenceButtonText}>Tôi có mặt</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.presenceButton, styles.absentButton]}
-                onPress={handleReportAbsent}
-                disabled={submitting}
-              >
-                <Ionicons
-                  name="close-circle"
-                  size={20}
-                  color={AppColors.white}
-                />
-                <Text style={styles.presenceButtonText}>Tôi vắng mặt</Text>
-              </TouchableOpacity>
-            </View>
-          </Card>
-        )}
-
-        {/* Show confirmed status */}
-        {isArrived && hasConfirmed && (
-          <Card
-            variant="elevated"
-            style={[styles.sectionCard, styles.confirmedCard]}
-          >
-            <View style={styles.confirmedHeader}>
-              <Ionicons
-                name="checkmark-circle"
-                size={24}
-                color={AppColors.success}
-              />
-              <View style={styles.confirmedHeaderText}>
-                <Text style={styles.confirmedTitle}>Đã xác nhận có mặt</Text>
-                <Text style={styles.confirmedSubtitle}>
-                  Vào lúc {new Date(hasConfirmed).toLocaleTimeString("vi-VN")}
-                </Text>
-              </View>
             </View>
           </Card>
         )}
@@ -684,25 +695,38 @@ export default function ReportDetailScreen() {
               </TouchableOpacity>
             )}
 
-            {/* Complaint Button */}
-            {canComplain && (
-              <TouchableOpacity
-                style={styles.complaintButton}
-                onPress={handleComplaint}
-              >
-                <Ionicons
-                  name="chatbox-ellipses"
-                  size={20}
-                  color={AppColors.warning}
-                />
-                <Text style={styles.complaintButtonText}>Gửi khiếu nại</Text>
-              </TouchableOpacity>
+            {/* Evidence Images (collector upload) if present */}
+            {evidenceImages && evidenceImages.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionHeader}>Ảnh bằng chứng thu gom</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.imageScroll}
+                >
+                  {evidenceImages.map((img, index) => (
+                    <Image
+                      key={`evid-${index}`}
+                      source={{ uri: img }}
+                      style={styles.detailImage}
+                      resizeMode="cover"
+                    />
+                  ))}
+                </ScrollView>
+              </View>
             )}
           </>
         )}
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast({ ...toast, visible: false })}
+      />
     </View>
   );
 }
@@ -940,97 +964,135 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  complaintButton: {
-    backgroundColor: AppColors.white,
+  trackingButton: {
+    backgroundColor: AppColors.primary,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 10,
-    gap: 8,
-    borderWidth: 2,
-    borderColor: AppColors.warning,
-    shadowColor: AppColors.warning,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  complaintButtonText: {
-    color: AppColors.warning,
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  presenceCard: {
-    backgroundColor: AppColors.primary + "10",
-    borderWidth: 2,
-    borderColor: AppColors.primary,
-  },
-  presenceHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  presenceHeaderText: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  presenceTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: AppColors.textPrimary,
-    marginBottom: 4,
-  },
-  presenceSubtitle: {
-    fontSize: 13,
-    color: AppColors.textSecondary,
-  },
-  presenceActions: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  presenceButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 8,
-    gap: 8,
+    marginTop: 8,
+    alignSelf: "flex-start",
+    gap: 6,
   },
-  confirmButton: {
-    backgroundColor: AppColors.success,
-  },
-  absentButton: {
-    backgroundColor: AppColors.error,
-  },
-  presenceButtonText: {
+  trackingButtonText: {
     color: AppColors.white,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "600",
   },
-  confirmedCard: {
-    backgroundColor: AppColors.success + "10",
-    borderWidth: 1,
-    borderColor: AppColors.success,
+  modalContainer: {
+    flex: 1,
+    backgroundColor: AppColors.white,
   },
-  confirmedHeader: {
+  modalHeader: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: AppColors.gray[100],
   },
-  confirmedHeaderText: {
-    flex: 1,
-    marginLeft: 12,
+  closeModalBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  confirmedTitle: {
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: AppColors.textPrimary,
+  },
+  modalFooter: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: AppColors.gray[100],
+  },
+  pollingText: {
+    textAlign: "center",
+    fontSize: 12,
+    color: AppColors.textSecondary,
+    marginBottom: 12,
+  },
+  doneBtn: {
+    backgroundColor: AppColors.primary,
+    padding: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  doneBtnText: {
+    color: AppColors.white,
     fontSize: 16,
     fontWeight: "bold",
-    color: AppColors.success,
-    marginBottom: 4,
   },
-  confirmedSubtitle: {
+  arrivedBanner: {
+    marginBottom: 16,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: AppColors.primary + "07",
+    borderWidth: 1,
+    borderColor: AppColors.primary + "40",
+  },
+  arrivedInfoRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 10,
+    columnGap: 10,
+  },
+  arrivedIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: AppColors.primary + "15",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  arrivedTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: AppColors.primary,
+    marginBottom: 2,
+  },
+  arrivedSubtitle: {
     fontSize: 13,
     color: AppColors.textSecondary,
+    lineHeight: 18,
+  },
+  arrivedActions: {
+    flexDirection: "row",
+    columnGap: 10,
+  },
+  arrivedPrimaryBtn: {
+    flex: 1.3,
+    backgroundColor: AppColors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+    paddingVertical: 10,
+    columnGap: 6,
+  },
+  arrivedPrimaryText: {
+    color: AppColors.white,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  arrivedGhostBtn: {
+    flex: 1,
+    backgroundColor: AppColors.white,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: AppColors.gray[200],
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    columnGap: 6,
+  },
+  arrivedGhostText: {
+    color: AppColors.textSecondary,
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

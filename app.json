@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "myApp",
-    "slug": "myApp",
+    "name": "ECoNect",
+    "slug": "ECoNect",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "icon": "./assets/images/logo.jpg",
+    "scheme": "ECoNect",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -55,7 +55,8 @@
       "reactCompiler": true
     },
     "extra": {
-      "apiUrl": "https://crowdsourced-collection-recycling-platform-dnbye7h0d0c6gkaj.southeastasia-01.azurewebsites.net/api/v1"
+      "apiUrl": "https://crowdsourced-collection-recycling-platform-dnbye7h0d0c6gkaj.southeastasia-01.azurewebsites.net/api/v1",
+      "mapboxDirectionsKey": ""
     }
   }
 }

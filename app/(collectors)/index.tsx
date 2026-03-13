@@ -1,14 +1,16 @@
-import { Button, Card } from "@/components/common";
-import { StatusBadge } from "@/components/collector";
+import type { ToastType } from "@/components/common";
+import { Button, Card, Toast } from "@/components/common";
 import { AppColors } from "@/constants/theme";
-import { useAuth } from "@/contexts/AuthContext";
-import { CollectorProfile } from "@/types/collector";
+import { collectorService } from "@/services/collector.service";
+import { CollectorProfile, CollectorStatus } from "@/types/collector";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
+  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -18,71 +20,142 @@ import {
 } from "react-native";
 
 export default function CollectorDashboard() {
-  const { user } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
-
-  // Mock data - thay bằng API call thực tế
-  const [collectorProfile, setCollectorProfile] = useState<CollectorProfile>({
-    id: "1",
-    employeeCode: "COL001",
-    fullName: user?.name || "Nguyễn Văn A",
-    email: user?.email || "collector@example.com",
-    phone: "0901234567",
-    enterpriseId: "1",
-    enterpriseName: "Công ty Thu gom ABC",
-    status: "OFFLINE",
-    zones: [
-      { id: "1", name: "Quận 1", districtCode: "001", isPrimary: true },
-      { id: "2", name: "Phường Bến Nghé", districtCode: "001", wardCode: "001", isPrimary: false },
-    ],
-    trustScore: 95,
-    totalCompleted: 248,
-    skipCount: 3,
-    todayTaskCount: 5,
-    queueLength: 2,
-    maxQueueLength: 6,
+  const [profile, setProfile] = useState<CollectorProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: ToastType }>({
+    visible: false, message: "", type: "success",
   });
 
-  const handleToggleShift = () => {
-    if (collectorProfile.status === "OFFLINE") {
-      router.push("/(collectors)/shift-control");
-    } else {
-      Alert.alert(
-        "Kết thúc ca làm",
-        "Bạn có chắc muốn kết thúc ca làm việc?",
-        [
-          { text: "Hủy", style: "cancel" },
-          {
-            text: "Kết thúc",
-            style: "destructive",
-            onPress: () => {
-              setCollectorProfile({ ...collectorProfile, status: "OFFLINE" });
-              Alert.alert("Thành công", "Đã kết thúc ca làm việc");
-            },
-          },
-        ],
-      );
+  const showToast = (message: string, type: ToastType = "success") => {
+    setToast({ visible: true, message, type });
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(refreshing ? false : true);
+      const data = await collectorService.getProfile();
+      console.log("👤 Collector Profile:", JSON.stringify({
+        id: data.id,
+        code: data.employeeCode,
+        enterprise: data.enterprise.name,
+        availability: data.status.availability
+      }));
+      setProfile(data);
+    } catch (error) {
+      console.error("Dashboard error:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
   const onRefresh = () => {
     setRefreshing(true);
-    // TODO: Load data from API
-    setTimeout(() => setRefreshing(false), 1000);
+    fetchData();
   };
 
-  const getZoneText = () => {
-    const primary = collectorProfile.zones.find((z) => z.isPrimary);
-    const secondary = collectorProfile.zones.filter((z) => !z.isPrimary);
-    if (secondary.length > 0) {
-      return `${primary?.name} – ${secondary.map((z) => z.name).join(", ")}`;
+  const handleToggleShift = async () => {
+    if (!profile) return;
+
+    const isOffline = profile.status.availability === "OFFLINE";
+    if (isOffline) {
+      // Check working hours before toggling ON
+      const now = new Date();
+      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const todayKey = dayNames[now.getDay()] as keyof typeof profile.workingHours;
+      const todaySchedule = profile.workingHours[todayKey];
+      const dayVN = translateDay(todayKey);
+
+      if (!todaySchedule || !todaySchedule.active) {
+        Alert.alert("Ngoài lịch làm việc", `Hôm nay (${dayVN}) không phải ngày làm việc của bạn. Bạn không thể bật trạng thái hoạt động.`);
+        return;
+      }
+
+      const [sH, sM] = todaySchedule.start.split(":").map(Number);
+      const [eH, eM] = todaySchedule.end.split(":").map(Number);
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      if (nowMin < sH * 60 + sM || nowMin >= eH * 60 + eM) {
+        Alert.alert("Ngoài giờ làm việc", `Giờ làm việc hôm nay (${dayVN}) là ${todaySchedule.start} - ${todaySchedule.end}.\nBạn không thể bật trạng thái hoạt động lúc này.`);
+        return;
+      }
+
+      confirmToggleShift(true);
+    } else {
+      Alert.alert(
+        "Tắt hoạt động",
+        "Bạn có chắc muốn tắt trạng thái hoạt động?",
+        [
+          { text: "Hủy", style: "cancel" },
+          { text: "Tắt", style: "destructive", onPress: () => confirmToggleShift(false) },
+        ],
+      );
     }
-    return primary?.name || "Chưa có khu vực";
   };
+
+  const confirmToggleShift = async (start: boolean) => {
+    try {
+      setUpdatingStatus(true);
+      const nextStatus: CollectorStatus = start ? "ONLINE_AVAILABLE" : "OFFLINE";
+
+      const res = await collectorService.updateStatus(nextStatus);
+
+      if (res.success) {
+        // Optimistic update — just change the local state, no full reload
+        setProfile((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            status: { ...prev.status, availability: nextStatus },
+          };
+        });
+        showToast(
+          start ? "Đã bật trạng thái hoạt động" : "Đã tắt trạng thái hoạt động",
+          start ? "success" : "info"
+        );
+      } else {
+        showToast("Không thể cập nhật trạng thái", "error");
+      }
+    } catch (error) {
+      showToast("Đã có lỗi xảy ra", "error");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={AppColors.primary} />
+      </View>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text>Không tải được dữ liệu.</Text>
+        <Button title="Thử lại" onPress={fetchData} />
+      </View>
+    );
+  }
+
+  const isOnline = profile.status.availability === "ONLINE_AVAILABLE" || profile.status.availability === "ONLINE_BUSY";
 
   return (
     <View style={styles.container}>
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={() => setToast((t) => ({ ...t, visible: false }))}
+      />
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         showsVerticalScrollIndicator={false}
@@ -91,12 +164,16 @@ export default function CollectorDashboard() {
         <LinearGradient colors={[AppColors.primary, AppColors.primaryDark]} style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.avatarContainer}>
-              <View style={styles.avatar}>
-                <Ionicons name="person" size={32} color={AppColors.white} />
-              </View>
+              {profile.user.avatar ? (
+                <Image source={{ uri: profile.user.avatar }} style={styles.avatarImg} />
+              ) : (
+                <View style={styles.avatar}>
+                  <Ionicons name="person" size={32} color={AppColors.white} />
+                </View>
+              )}
               <View>
-                <Text style={styles.headerName}>{collectorProfile.fullName}</Text>
-                <Text style={styles.headerCode}>Mã NV: {collectorProfile.employeeCode}</Text>
+                <Text style={styles.headerName}>{profile.user.fullName}</Text>
+                <Text style={styles.headerCode}>Mã NV: {profile.employeeCode}</Text>
               </View>
             </View>
             <TouchableOpacity onPress={() => router.push("/(collectors)/notifications")}>
@@ -105,63 +182,41 @@ export default function CollectorDashboard() {
           </View>
         </LinearGradient>
 
-        {/* Status Card - Nổi bật nhất */}
+        {/* Status Card */}
         <View style={styles.statusCardContainer}>
           <Card variant="elevated" style={styles.statusCard}>
-            <StatusBadge status={collectorProfile.status} size="large" />
-
+            <View style={[styles.statusIndicator, { backgroundColor: isOnline ? AppColors.success : AppColors.gray[400] }]} />
             <Text style={styles.statusTitle}>
-              {collectorProfile.status === "OFFLINE"
-                ? "Bạn chưa bắt đầu ca làm"
-                : collectorProfile.status === "AVAILABLE"
-                  ? "Bạn đang sẵn sàng nhận đơn"
-                  : "Bạn đang bận"}
+              {isOnline ? "Bạn đang sẵn sàng nhận đơn" : "Bạn đang ngoại tuyến"}
             </Text>
 
-            <Button
-              title={collectorProfile.status === "OFFLINE" ? "Bắt đầu ca làm" : "Kết thúc ca"}
-              onPress={handleToggleShift}
-              variant={collectorProfile.status === "OFFLINE" ? "primary" : "outlined"}
-            />
+            <View style={{ width: '100%' }}>
+              <Button
+                key={isOnline ? "btn-online" : "btn-offline"}
+                title={isOnline ? "Tắt hoạt động" : "Bật hoạt động"}
+                onPress={handleToggleShift}
+                variant={isOnline ? "outline" : "primary"}
+                loading={updatingStatus}
+              />
+            </View>
 
-            {/* Khu vực làm việc */}
-            <View style={styles.zoneInfo}>
-              <Ionicons name="location" size={18} color={AppColors.gray[600]} />
-              <Text style={styles.zoneText}>{getZoneText()}</Text>
+            <View style={styles.enterpriseInfo}>
+              <Ionicons name="business" size={18} color={AppColors.gray[600]} />
+              <Text style={styles.enterpriseText}>{profile.enterprise.name}</Text>
             </View>
           </Card>
         </View>
 
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>
-              {collectorProfile.queueLength} / {collectorProfile.maxQueueLength}
-            </Text>
-            <Text style={styles.statLabel}>📦 Hàng chờ</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{collectorProfile.trustScore}</Text>
-            <Text style={styles.statLabel}>⭐ Điểm tin cậy</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{collectorProfile.todayTaskCount}</Text>
-            <Text style={styles.statLabel}>✅ Nhiệm vụ hôm nay</Text>
-          </View>
-        </View>
-
-        {/* Shortcut Buttons */}
+        {/* Shortcuts */}
         <View style={styles.shortcutsContainer}>
           <TouchableOpacity
             style={styles.shortcutButton}
-            onPress={() => router.push("/(collectors)/task-list")}
+            onPress={() => router.push(`/(collectors)/task-list?refreshKey=${Date.now()}` as any)}
           >
             <View style={[styles.shortcutIcon, { backgroundColor: AppColors.primary + "20" }]}>
               <Ionicons name="list" size={28} color={AppColors.primary} />
             </View>
-            <Text style={styles.shortcutLabel}>Xem nhiệm vụ</Text>
+            <Text style={styles.shortcutLabel}>Đơn hàng</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -176,26 +231,59 @@ export default function CollectorDashboard() {
 
           <TouchableOpacity
             style={styles.shortcutButton}
-            onPress={() => router.push("/(collectors)/profile")}
+            onPress={() => router.push("/(collectors)/active-task")}
           >
             <View style={[styles.shortcutIcon, { backgroundColor: AppColors.success + "20" }]}>
-              <Ionicons name="stats-chart" size={28} color={AppColors.success} />
+              <Ionicons name="map" size={28} color={AppColors.success} />
             </View>
-            <Text style={styles.shortcutLabel}>Thống kê</Text>
+            <Text style={styles.shortcutLabel}>Đơn đang xử lý</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Hướng dẫn cho người dùng mới */}
+        {/* Working Schedule Table */}
+        <View style={styles.scheduleSection}>
+          <Text style={styles.scheduleSectionTitle}>📅 Lịch làm việc trong tuần</Text>
+          <Card variant="elevated" style={styles.scheduleCard}>
+            {/* Table Header */}
+            <View style={styles.scheduleHeaderRow}>
+              <Text style={styles.scheduleHeaderCell}>Ngày</Text>
+              <Text style={[styles.scheduleHeaderCell, { textAlign: 'right' }]}>Giờ làm việc</Text>
+            </View>
+            {/* Table Body - Monday to Sunday */}
+            {(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const).map((day) => {
+              const hours = profile.workingHours[day];
+              const now = new Date();
+              const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+              const isToday = dayNames[now.getDay()] === day;
+              return (
+                <View key={day} style={[styles.scheduleRow, isToday && styles.scheduleRowToday]}>
+                  <View style={styles.scheduleDayCell}>
+                    {isToday && <View style={styles.todayDot} />}
+                    <Text style={[styles.scheduleDayText, isToday && styles.scheduleDayTextToday]}>
+                      {translateDay(day)}
+                    </Text>
+                  </View>
+                  <View style={[styles.scheduleTimeCell, !hours?.active && styles.scheduleTimeCellOff]}>
+                    {hours?.active ? (
+                      <Text style={styles.scheduleTimeText}>{hours.start} - {hours.end}</Text>
+                    ) : (
+                      <Text style={styles.scheduleTimeTextOff}>Nghỉ</Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </Card>
+        </View>
+
         <Card variant="outlined" style={styles.tipCard}>
           <View style={styles.tipHeader}>
             <Ionicons name="bulb-outline" size={24} color={AppColors.warning} />
-            <Text style={styles.tipTitle}>Hướng dẫn sử dụng</Text>
+            <Text style={styles.tipTitle}>Hướng dẫn nhanh</Text>
           </View>
           <Text style={styles.tipText}>
-            • Bấm "Bắt đầu ca làm" để nhận nhiệm vụ mới{"\n"}
-            • Kiểm tra GPS đã được bật trước khi bắt đầu{"\n"}
-            • Bạn có 5 phút để chấp nhận mỗi nhiệm vụ mới{"\n"}
-            • Liên hệ quản lý nếu gặp vấn đề
+            • Bật GPS để hệ thống điều phối Đơn hàng gần bạn nhất.{"\n"}
+            • Kiểm tra lịch làm việc của bạn trong phần Cá nhân/Profile.
           </Text>
         </Card>
       </ScrollView>
@@ -208,10 +296,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: AppColors.background,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: AppColors.background,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    backgroundColor: AppColors.background,
+  },
   header: {
     paddingTop: 60,
     paddingBottom: 100,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
   headerTop: {
     flexDirection: "row",
@@ -223,23 +324,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: "rgba(255, 255, 255, 0.3)",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
+  avatarImg: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
+  },
   headerName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
     color: AppColors.white,
   },
   headerCode: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.9)",
-    marginTop: 2,
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.8)",
   },
   statusCardContainer: {
     paddingHorizontal: 20,
@@ -248,102 +354,183 @@ const styles = StyleSheet.create({
   statusCard: {
     alignItems: "center",
     padding: 24,
+    borderRadius: 20,
+  },
+  statusIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginBottom: 8,
   },
   statusTitle: {
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: "600",
     color: AppColors.gray[700],
-    textAlign: "center",
-    marginVertical: 16,
+    marginBottom: 16,
   },
-  zoneInfo: {
+  toggleBtn: {
+    alignSelf: 'stretch',
+    borderRadius: 12,
+  },
+  enterpriseInfo: {
     flexDirection: "row",
     alignItems: "center",
     marginTop: 16,
-    paddingTop: 16,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: AppColors.gray[200],
+    borderTopColor: AppColors.gray[100],
+    width: '100%',
+    justifyContent: 'center',
   },
-  zoneText: {
-    fontSize: 14,
-    color: AppColors.gray[700],
-    marginLeft: 6,
-  },
-  statsRow: {
-    flexDirection: "row",
-    backgroundColor: AppColors.white,
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: AppColors.primary,
-  },
-  statLabel: {
+  enterpriseText: {
     fontSize: 13,
     color: AppColors.gray[600],
-    marginTop: 4,
-    textAlign: "center",
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: AppColors.gray[200],
-    marginHorizontal: 8,
+    marginLeft: 6,
   },
   shortcutsContainer: {
     flexDirection: "row",
     paddingHorizontal: 20,
-    marginTop: 20,
-    gap: 12,
+    marginTop: 24,
+    gap: 16,
   },
   shortcutButton: {
     flex: 1,
     alignItems: "center",
+    backgroundColor: AppColors.white,
+    paddingVertical: 16,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
   },
   shortcutIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 8,
   },
   shortcutLabel: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "700",
     color: AppColors.gray[700],
-    textAlign: "center",
   },
   tipCard: {
     margin: 20,
-    backgroundColor: AppColors.info + "10",
+    backgroundColor: AppColors.warning + "10",
+    borderColor: AppColors.warning + "30",
   },
   tipHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   tipTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
     color: AppColors.gray[800],
     marginLeft: 8,
   },
   tipText: {
+    fontSize: 13,
+    color: AppColors.gray[600],
+    lineHeight: 20,
+  },
+  scheduleSection: {
+    paddingHorizontal: 20,
+    marginTop: 24,
+  },
+  scheduleSectionTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: AppColors.gray[800],
+    marginBottom: 12,
+    marginLeft: 4,
+  },
+  scheduleCard: {
+    padding: 0,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  scheduleHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: AppColors.primary + "10",
+  },
+  scheduleHeaderCell: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: AppColors.primary,
+    flex: 1,
+  },
+  scheduleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: AppColors.gray[100],
+  },
+  scheduleRowToday: {
+    backgroundColor: AppColors.primary + "08",
+  },
+  scheduleDayCell: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  todayDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: AppColors.primary,
+    marginRight: 8,
+  },
+  scheduleDayText: {
     fontSize: 14,
+    fontWeight: "500",
     color: AppColors.gray[700],
-    lineHeight: 22,
+  },
+  scheduleDayTextToday: {
+    fontWeight: "700",
+    color: AppColors.primary,
+  },
+  scheduleTimeCell: {
+    backgroundColor: AppColors.gray[50],
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  scheduleTimeCellOff: {
+    backgroundColor: AppColors.gray[100],
+  },
+  scheduleTimeText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: AppColors.primary,
+  },
+  scheduleTimeTextOff: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: AppColors.gray[400],
   },
 });
 
+const translateDay = (day: string) => {
+  const days: Record<string, string> = {
+    Monday: "Thứ Hai",
+    Tuesday: "Thứ Ba",
+    Wednesday: "Thứ Tư",
+    Thursday: "Thứ Năm",
+    Friday: "Thứ Sáu",
+    Saturday: "Thứ Bảy",
+    Sunday: "Chủ Nhật",
+  };
+  return days[day] || day;
+};

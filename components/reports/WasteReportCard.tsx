@@ -1,5 +1,6 @@
 import Badge from "@/components/common/Badge";
 import { AppColors } from "@/constants/theme";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { WasteReport } from "@/types";
 import {
   getStatusColor,
@@ -19,6 +20,7 @@ export default function WasteReportCard({
   report,
   onPress,
 }: WasteReportCardProps) {
+  const { t } = useLanguage();
   // Debug log để kiểm tra cấu trúc dữ liệu từ API
   console.log(`[DEBUG] Card ID: ${report.id} - Data:`, JSON.stringify(report, null, 2));
 
@@ -107,7 +109,7 @@ export default function WasteReportCard({
           <View style={styles.iconCircle}>
             <Ionicons name="document-text" size={16} color={AppColors.primary} />
           </View>
-          <Text style={styles.cardTitle}>Trạng thái báo cáo rác</Text>
+          <Text style={styles.cardTitle}>{t("reportCard.title")}</Text>
         </View>
         <Badge
           label={statusText}
@@ -126,7 +128,7 @@ export default function WasteReportCard({
         {/* Row: Waste Type & Weight in a Grid */}
         <View style={styles.infoGrid}>
           <View style={styles.gridItem}>
-            <Text style={styles.infoLabel}>LOẠI RÁC</Text>
+            <Text style={styles.infoLabel}>{t("reportCard.wasteType")}</Text>
             <View style={styles.valueRow}>
               <Ionicons name="trash-outline" size={16} color={AppColors.primary} />
               <Text style={styles.infoValue} numberOfLines={1}>{displayTitle}</Text>
@@ -136,7 +138,7 @@ export default function WasteReportCard({
           <View style={styles.gridDivider} />
 
           <View style={styles.gridItem}>
-            <Text style={styles.infoLabel}>CÂN NẶNG</Text>
+            <Text style={styles.infoLabel}>{t("reportCard.weight")}</Text>
             <View style={styles.valueRow}>
               <Ionicons name="scale-outline" size={16} color={AppColors.primary} />
               <Text style={styles.infoValue}>{displayWeight} kg</Text>
@@ -146,7 +148,7 @@ export default function WasteReportCard({
 
         {/* Address Section */}
         <View style={styles.addressSection}>
-          <Text style={styles.infoLabel}>ĐỊA CHỈ THU GOM</Text>
+          <Text style={styles.infoLabel}>{t("reportCard.address")}</Text>
           <View style={styles.addressRow}>
             <Ionicons name="location-outline" size={18} color={AppColors.gray[400]} />
             <Text style={styles.addressValue} numberOfLines={2}>
@@ -168,7 +170,7 @@ export default function WasteReportCard({
         {points && (
           <View style={styles.pointsBadge}>
             <Ionicons name="star" size={12} color={AppColors.warning} />
-            <Text style={styles.pointsText}>+{points} điểm</Text>
+            <Text style={styles.pointsText}>{t("reportCard.points", { points })}</Text>
           </View>
         )}
       </View>

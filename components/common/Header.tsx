@@ -1,15 +1,17 @@
 import { AppColors } from "@/constants/theme";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import React from "react";
 import {
-    SafeAreaView,
-    StyleProp,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    ViewStyle
+  Platform,
+  SafeAreaView,
+  StatusBar,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewStyle,
 } from "react-native";
 
 interface HeaderProps {
@@ -17,6 +19,7 @@ interface HeaderProps {
   subtitle?: string;
   showBack?: boolean;
   onBackPress?: () => void;
+  backFallbackRoute?: string;
   rightComponent?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   colors?: [string, string];
@@ -27,10 +30,33 @@ export default function Header({
   subtitle,
   showBack = false,
   onBackPress,
+  backFallbackRoute,
   rightComponent,
   style,
   colors = [AppColors.primary, AppColors.primaryDark],
 }: HeaderProps) {
+  const navigation = useNavigation();
+
+  const handleBackPress = () => {
+    if (onBackPress) {
+      onBackPress();
+      return;
+    }
+
+    // For shared screens opened from multiple entry points, honor context first.
+    if (backFallbackRoute) {
+      router.replace(backFallbackRoute as any);
+      return;
+    }
+
+    if (navigation.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.push("/");
+  };
+
   return (
     <LinearGradient colors={colors} style={[styles.header, style]}>
       <SafeAreaView>
@@ -38,7 +64,7 @@ export default function Header({
           {showBack && (
             <TouchableOpacity
               style={styles.backButton}
-              onPress={onBackPress || (() => router.back())}
+              onPress={handleBackPress}
               activeOpacity={0.7}
             >
               <Text style={styles.backIcon}>←</Text>
@@ -56,6 +82,9 @@ export default function Header({
     </LinearGradient>
   );
 }
+
+const STATUSBAR_HEIGHT =
+  Platform.OS === "android" ? StatusBar.currentHeight || 24 : 0;
 
 const styles = StyleSheet.create({
   header: {

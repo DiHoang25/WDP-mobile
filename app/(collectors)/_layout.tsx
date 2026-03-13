@@ -26,7 +26,7 @@ export default function CollectorLayout() {
       <Tabs.Screen
         name="task-list"
         options={{
-          title: "Nhiệm vụ",
+          title: "Đơn hàng",
           tabBarIcon: ({ color }) => <TabIcon name="list" color={color} />,
         }}
       />
@@ -40,11 +40,11 @@ export default function CollectorLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Cá nhân",
+          title: "Hồ sơ",
           tabBarIcon: ({ color }) => <TabIcon name="person" color={color} />,
         }}
       />
-      
+
       {/* Hidden screens - không hiển thị trong tab bar */}
       <Tabs.Screen
         name="shift-control"
@@ -57,7 +57,7 @@ export default function CollectorLayout() {
         name="task-detail"
         options={{
           href: null,
-          title: "Chi tiết nhiệm vụ",
+          title: "Chi tiết Đơn hàng",
         }}
       />
       <Tabs.Screen
@@ -99,7 +99,7 @@ export default function CollectorLayout() {
         name="active-task"
         options={{
           href: null,
-          title: "Đang làm",
+          title: "Đơn hàng đang xử lý",
         }}
       />
     </Tabs>

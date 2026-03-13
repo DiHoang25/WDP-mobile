@@ -1,3 +1,5 @@
+import i18n from '@/utils/i18n';
+
 export const formatDate = (date: Date): string => {
   const day = date.getDate().toString().padStart(2, "0");
   const month = (date.getMonth() + 1).toString().padStart(2, "0");
@@ -27,11 +29,19 @@ export const getStatusColor = (
   const statusColors: Record<string, { bg: string; text: string }> = {
     pending: { bg: "#FEF3C7", text: "#92400E" },
     accepted: { bg: "#DBEAFE", text: "#1E40AF" },
+    enterprise_reserved: { bg: "#DBEAFE", text: "#1E40AF" },
+    collector_pending: { bg: "#FEF3C7", text: "#92400E" },
     assigned: { bg: "#DBEAFE", text: "#1E40AF" },
     on_the_way: { bg: "#E0E7FF", text: "#4338CA" },
+    arrived: { bg: "#E0E7FF", text: "#4338CA" },
     waiting_customer: { bg: "#FDF2F2", text: "#9B1C1C" },
-    collected: { bg: "#E0E7FF", text: "#4338CA" },
+    collected: { bg: "#D1FAE5", text: "#065F46" },
     completed: { bg: "#D1FAE5", text: "#065F46" },
+    failed: { bg: "#FEE2E2", text: "#B91C1C" },
+    failed_no_response: { bg: "#FEE2E2", text: "#B91C1C" },
+    failed_citizen_not_home: { bg: "#FEE2E2", text: "#B91C1C" },
+    rescheduled: { bg: "#FEF3C7", text: "#92400E" },
+    rejected: { bg: "#FEE2E2", text: "#B91C1C" },
     cancelled: { bg: "#F3F4F6", text: "#6B7280" },
   };
   return statusColors[s] || { bg: "#F3F4F6", text: "#6B7280" };
@@ -39,28 +49,18 @@ export const getStatusColor = (
 
 export const getStatusText = (status: string): string => {
   const s = status?.toLowerCase() || "";
-  const statusTexts: Record<string, string> = {
-    pending: "Chờ xử lý",
-    accepted: "Đã tiếp nhận",
-    assigned: "Đã phân công",
-    on_the_way: "Đang đến",
-    waiting_customer: "Đang chờ khách",
-    collected: "Đã thu gom",
-    completed: "Hoàn thành",
-    cancelled: "Đã hủy",
-  };
-  return statusTexts[s] || status;
+  const key = `status.${s}`;
+  const translated = i18n.t(key);
+  // If i18n returns the key itself, fall back to original status
+  return translated !== key ? translated : status;
 };
 
 export const getWasteTypeLabel = (type: string): string => {
-  if (!type) return "Rác khác";
+  if (!type) return i18n.t('wasteType.other');
   const s = String(type).toUpperCase();
-  const typeMap: Record<string, string> = {
-    ORGANIC: "Rác hữu cơ",
-    RECYCLABLE: "Rác tái chế",
-    HAZARDOUS: "Rác nguy hại",
-  };
-  return typeMap[s] || type;
+  const key = `wasteType.${s}`;
+  const translated = i18n.t(key);
+  return translated !== key ? translated : type;
 };
 
 /**

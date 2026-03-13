@@ -31,6 +31,8 @@ export default function PaymentScreen() {
     const [status, setStatus] = useState<"PENDING" | "PAID" | "CANCELLED">("PENDING");
     const [loading, setLoading] = useState(false);
     const [checkingStatus, setCheckingStatus] = useState(false);
+    const [timeLeft, setTimeLeft] = useState(1800); // 30 minutes in seconds
+    const [isExpired, setIsExpired] = useState(false);
 
     // Guard: If no valid reference code, don't render payment screen
     useEffect(() => {
@@ -43,18 +45,39 @@ export default function PaymentScreen() {
     useEffect(() => {
         let interval: any;
 
-        // Only poll if we have a valid reference code
-        if (status === "PENDING" && referenceCode !== "PAY-UNKNOWN") {
-            // Check immediately on mount/status change
+        if (status === "PENDING" && referenceCode !== "PAY-UNKNOWN" && !isExpired) {
             checkPaymentStatus();
-            // Then poll every 2 seconds for faster response
             interval = setInterval(checkPaymentStatus, 2000);
         }
 
         return () => {
             if (interval) clearInterval(interval);
         };
-    }, [status, referenceCode]);
+    }, [status, referenceCode, isExpired]);
+
+    // QR Expiration Timer
+    useEffect(() => {
+        if (status !== "PENDING" || isExpired) return;
+
+        const timer = setInterval(() => {
+            setTimeLeft((prev) => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    setIsExpired(true);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [status, isExpired]);
+
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+    };
 
     const checkPaymentStatus = async () => {
         try {
@@ -93,6 +116,17 @@ export default function PaymentScreen() {
         }
     };
 
+    const handleRenewPayment = () => {
+        // Redirect back to registration or subscription plans to create a new payment
+        Alert.alert(
+            "Mã đã hết hạn",
+            "Mã thanh toán này đã hết hiệu lực. Bạn cần tạo mã mới để tiếp tục.",
+            [
+                { text: "Quay lại", onPress: () => router.replace("/(citizen)/register-enterprise-form") }
+            ]
+        );
+    };
+
     const copyToClipboard = (text: string, label: string) => {
         Clipboard.setString(text);
         Alert.alert("Thông báo", `Đã sao chép ${label}`);
@@ -108,7 +142,7 @@ export default function PaymentScreen() {
                     </View>
                     <Text style={styles.successTitle}>Đăng ký thành công!</Text>
                     <Text style={styles.successSubtitle}>
-                        Cảm ơn bạn đã tin dùng EcoCollect. Thanh toán đã được ghi nhận và yêu cầu đang chờ quản trị viên phê duyệt.
+                        Cảm ơn bạn đã tin dùng ECONNET. Thanh toán đã được ghi nhận và yêu cầu đang chờ quản trị viên phê duyệt.
                     </Text>
 
                     <Card variant="outlined" style={styles.successDetailCard}>
@@ -149,15 +183,31 @@ export default function PaymentScreen() {
                 </View>
 
                 {qrUrl ? (
-                    <Card variant="elevated" style={styles.qrCard}>
+                    <Card variant="elevated" style={[styles.qrCard, isExpired && styles.expiredCard]}>
+                        <View style={styles.timerHeader}>
+                            <Ionicons name="time-outline" size={18} color={isExpired ? AppColors.error : AppColors.secondary} />
+                            <Text style={[styles.timerText, isExpired && { color: AppColors.error }]}>
+                                {isExpired ? "Đã hết hạn" : `Hiệu lực còn: ${formatTime(timeLeft)}`}
+                            </Text>
+                        </View>
                         <Text style={styles.qrTitle}>Mã QR Thanh toán</Text>
                         <Text style={styles.qrSubtitle}>Quét mã bằng ứng dụng Ngân hàng để thanh toán nhanh</Text>
                         <View style={styles.qrContainer}>
-                            <Image
-                                source={{ uri: qrUrl }}
-                                style={styles.qrImage}
-                                resizeMode="contain"
-                            />
+                            {isExpired ? (
+                                <View style={styles.expiredOverlay}>
+                                    <Ionicons name="alert-circle" size={60} color={AppColors.error} />
+                                    <Text style={styles.expiredText}>Mã đã hết hạn</Text>
+                                    <TouchableOpacity style={styles.renewBtn} onPress={handleRenewPayment}>
+                                        <Text style={styles.renewBtnText}>Tạo mã mới</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <Image
+                                    source={{ uri: qrUrl }}
+                                    style={styles.qrImage}
+                                    resizeMode="contain"
+                                />
+                            )}
                         </View>
                     </Card>
                 ) : null}
@@ -217,22 +267,25 @@ export default function PaymentScreen() {
                         Lưu ý: Bạn phải nhập chính xác <Text style={styles.bold}>Nội dung chuyển khoản</Text> để hệ thống tự động kích hoạt gói ngay lập tức.
                     </Text>
                 </View>
-
-                <TouchableOpacity
-                    style={styles.testButton}
-                    onPress={handleTestSuccess}
-                    disabled={checkingStatus}
-                >
-                    <Text style={styles.testButtonText}>
-                        {checkingStatus ? "Đang xử lý..." : "Bấm vào đây để test Thanh toán thành công"}
-                    </Text>
-                </TouchableOpacity>
             </ScrollView>
 
             <View style={styles.footer}>
+                {!isExpired && (
+                    <TouchableOpacity
+                        style={styles.testButtonSmall}
+                        onPress={handleTestSuccess}
+                        disabled={checkingStatus}
+                    >
+                        <Text style={styles.testButtonTextSmall}>
+                            {checkingStatus ? "Đang xử lý..." : "Test thanh toán thành công"}
+                        </Text>
+                    </TouchableOpacity>
+                )}
                 <View style={styles.pollingInfo}>
-                    {status === "PENDING" && <Loading size="small" />}
-                    <Text style={styles.pollingText}>Hệ thống đang tự động kiểm tra trạng thái...</Text>
+                    {status === "PENDING" && !isExpired && <Loading size="small" />}
+                    <Text style={styles.pollingText}>
+                        {isExpired ? "Vui lòng tạo mã mới để tiếp tục" : "Hệ thống đang tự động kiểm tra trạng thái..."}
+                    </Text>
                 </View>
             </View>
         </View>
@@ -442,5 +495,54 @@ const styles = StyleSheet.create({
     },
     doneButton: {
         width: "100%",
+    },
+    timerHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        marginBottom: 12,
+        backgroundColor: AppColors.gray[100],
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+    },
+    timerText: {
+        fontSize: 13,
+        fontWeight: "bold",
+        color: AppColors.secondary,
+    },
+    expiredCard: {
+        opacity: 0.8,
+    },
+    expiredOverlay: {
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 12,
+    },
+    expiredText: {
+        fontSize: 16,
+        fontWeight: "bold",
+        color: AppColors.error,
+    },
+    renewBtn: {
+        backgroundColor: AppColors.primary,
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 10,
+    },
+    renewBtnText: {
+        color: AppColors.white,
+        fontWeight: "bold",
+    },
+    testButtonSmall: {
+        marginBottom: 12,
+        padding: 10,
+        backgroundColor: AppColors.gray[100],
+        borderRadius: 8,
+        alignItems: "center",
+    },
+    testButtonTextSmall: {
+        fontSize: 12,
+        color: AppColors.textSecondary,
     },
 });

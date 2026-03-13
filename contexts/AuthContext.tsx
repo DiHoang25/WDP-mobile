@@ -15,6 +15,7 @@ interface AuthContextType {
   register: (userData: Partial<User>) => Promise<boolean>;
   updateUser: (user: User) => Promise<void>;
   refreshProfile: () => Promise<void>;
+  pendingPayment: { referenceCode: string; amount: number } | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,6 +23,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingPayment, setPendingPayment] = useState<{ referenceCode: string; amount: number } | null>(null);
 
   // Load user and token on app start
   useEffect(() => {
@@ -38,11 +40,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (storedUser && token) {
         setUser(storedUser);
         apiClient.setToken(token);
+
+        // If enterprise, check for pending subscription
+        if (storedUser.roleId === 2) {
+          checkSubscriptionStatus();
+        }
       }
     } catch (error) {
       console.error("Error loading stored auth:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const checkSubscriptionStatus = async () => {
+    try {
+      const { businessService } = await import("@/services/business.service");
+      const response = await businessService.getSubscription();
+      if (response.success && response.data) {
+        const sub = response.data;
+        // Logic: If status is PENDING and has a payment reference
+        if (sub.status === "PENDING" && sub.payment?.referenceCode) {
+          setPendingPayment({
+            referenceCode: sub.payment.referenceCode,
+            amount: sub.payment.amount
+          });
+        } else {
+          setPendingPayment(null);
+        }
+      }
+    } catch (error) {
+      console.error("Error checking subscription:", error);
     }
   };
 
@@ -98,6 +126,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await Promise.all(savePromises);
         apiClient.setToken(accessToken);
 
+        // Check subscription for enterprise
+        if (normalizedUser.roleId === 2) {
+          await checkSubscriptionStatus();
+        }
+
         return true;
       }
 
@@ -111,16 +144,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      // Call logout service
-      await authService.logout();
+      // Call logout service (may fail if token expired - that's OK)
+      await authService.logout().catch(() => { });
+    } catch (error) {
+      console.error("Logout API error:", error);
+    }
 
-      // Clear state
-      setUser(null);
-
-      // Clear storage
+    // Always clear state and storage regardless of API result
+    setUser(null);
+    apiClient.setToken(null);
+    try {
       await storage.clearAll();
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error("Error clearing storage:", error);
     }
   };
 
@@ -183,6 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         updateUser,
         refreshProfile,
+        pendingPayment,
       }}
     >
       {children}
