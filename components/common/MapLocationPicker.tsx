@@ -176,54 +176,51 @@ export const MapLocationPicker = ({
     const mapHtml = React.useMemo(() => getMapHtml(htmlCoords.latitude, htmlCoords.longitude), [htmlCoords.latitude, htmlCoords.longitude]);
     const previewMapHtml = React.useMemo(() => getMapHtml(htmlCoords.latitude, htmlCoords.longitude, false), [htmlCoords.latitude, htmlCoords.longitude]);
 
-    // Initial load reverse geocode
+    // Initial load permissions only (Do NOT initial fetch address automatically to avoid race conditions)
     useEffect(() => {
         const init = async () => {
             const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status === "granted") {
-                reverseGeocode(htmlCoords.latitude, htmlCoords.longitude, true);
-            }
         };
         init();
     }, []);
 
     const reverseGeocode = async (latitude: number, longitude: number, notifyParent = false) => {
         try {
-            const response = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
-                {
-                    headers: {
-                        'User-Agent': 'ECONNET-App/1.0',
-                        'Accept-Language': 'vi-VN,vi;q=0.9',
-                    }
-                }
-            );
+            console.log("🔍 Native Geocoding for:", latitude, longitude);
+            const results = await Location.reverseGeocodeAsync({ latitude, longitude });
 
-            if (!response.ok) {
-                throw new Error(`Nominatim error: ${response.status}`);
+            if (!results || results.length === 0) {
+                throw new Error("No native geocode results");
             }
 
-            const data = await response.json();
-            const addr = data.address || {};
-
+            const addr = results[0];
+            // Normalize native geocoder format to our internal rawAddress structure
             const rawAddress = {
-                house_number: addr.house_number || "",
-                road: addr.road || "",
-                city: addr.city || addr.town || addr.municipality || "",
-                province: addr.state || addr.province || "",
-                district: addr.city_district || addr.district || addr.county || "",
-                ward: addr.subdistrict || addr.quarter || addr.suburb || addr.village || addr.hamlet || addr.neighbourhood || "",
-                street: addr.road || addr.street || "",
-                region: addr.state || addr.province || addr.city || "",
-                name: addr.road || addr.city_district || addr.suburb || addr.name || "",
-                country: "Vietnam",
+                house_number: addr.streetNumber || "",
+                road: addr.street || "",
+                city: addr.subregion || addr.city || "",
+                province: addr.region || "",
+                district: addr.subregion || addr.city || "",
+                ward: addr.district || addr.street || "",
+                street: addr.street || "",
+                region: addr.region || "",
+                name: addr.name || addr.street || "",
+                country: addr.country || "Vietnam",
                 osm_city: addr.city || "",
-                osm_town: addr.town || "",
-                osm_suburb: addr.suburb || "",
-                osm_city_district: addr.city_district || "",
+                osm_town: addr.city || "",
+                osm_suburb: addr.district || "",
+                osm_city_district: addr.subregion || "",
             };
 
-            const formattedAddress = data.display_name || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+            const formattedAddress = [
+                addr.name,
+                addr.street,
+                addr.district,
+                addr.subregion || addr.city,
+                addr.region,
+                addr.country
+            ].filter(Boolean).join(", ") || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
             setAddress(formattedAddress);
             setCurrentRawAddress(rawAddress);
             setIsStale(false);
@@ -238,7 +235,7 @@ export const MapLocationPicker = ({
             }
             return { address: formattedAddress, rawAddress };
         } catch (error) {
-            console.error("Error reverse geocoding:", error);
+            console.error("Error reverse geocoding (Native falling back to manual):", error);
             const fallback = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
             setAddress(fallback);
             setIsStale(false);
@@ -388,7 +385,7 @@ export const MapLocationPicker = ({
             setLocation(newPos);
             const script = `window.updatePosition(${newPos.latitude}, ${newPos.longitude});`;
             webViewRef.current?.injectJavaScript(script);
-            reverseGeocode(newPos.latitude, newPos.longitude);
+            setIsStale(true); // Tag as stale so confirm button knows it needs to fetch
         } catch (error) {
             Alert.alert("Lỗi", "Không thể lấy vị trí hiện tại");
         } finally {

@@ -48,7 +48,8 @@ export const getStatusColor = (
 };
 
 export const getStatusText = (status: string): string => {
-  const s = status?.toLowerCase() || "";
+  let s = status?.toLowerCase() || "";
+  if (s === "collected") s = "completed";
   const key = `status.${s}`;
   const translated = i18n.t(key);
   // If i18n returns the key itself, fall back to original status

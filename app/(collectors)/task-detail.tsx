@@ -350,10 +350,97 @@ export default function TaskDetailScreen() {
             } />}
           </Card>
 
-          {/* Waste Items */}
-          {wasteItems.length > 0 && (
+          {/* Weight Comparison Table (Only for COMPLETED) */}
+          {task.status === "COMPLETED" && (
             <Card variant="elevated" style={styles.card}>
-              <Text style={styles.cardTitle}>Phân loại rác</Text>
+              <Text style={styles.cardTitle}>So sánh khối lượng rác </Text>
+              <View style={styles.table}>
+                <View style={[styles.tableRow, styles.tableHeader]}>
+                  <Text style={[styles.tableCell, styles.typeCol, styles.headerText]}>Loại rác</Text>
+                  <Text style={[styles.tableCell, styles.weightCol, styles.headerText]}>Đã tạo</Text>
+                  <Text style={[styles.tableCell, styles.weightCol, styles.headerText]}>Thực tế</Text>
+                  <Text style={[styles.tableCell, styles.weightCol, styles.headerText]}>Lệch</Text>
+                </View>
+
+                {(() => {
+                  const types = [
+                    { key: 'ORGANIC', label: 'Hữu cơ' },
+                    { key: 'RECYCLABLE', label: 'Tái chế' },
+                    { key: 'HAZARDOUS', label: 'Nguy hại' }
+                  ];
+
+                  return types.map((type, idx) => {
+                    const citizenItem = wasteItems.find((i: any) =>
+                      String(i.wasteType || i.type || "").toUpperCase() === type.key
+                    );
+                    const citizenWeight = Number(
+                      (citizenItem as any)?.weight ||
+                      (citizenItem as any)?.weightKg ||
+                      (citizenItem as any)?.WeightKg ||
+                      (citizenItem as any)?.weight_kg || 0
+                    );
+
+                    const collectorItem = ((report as any).actualWasteItems || []).find((i: any) =>
+                      String(i.wasteType || i.type || "").toUpperCase() === type.key
+                    );
+                    const collectorWeight = Number(
+                      (collectorItem as any)?.weight ||
+                      (collectorItem as any)?.weightKg ||
+                      (collectorItem as any)?.WeightKg ||
+                      (collectorItem as any)?.weight_kg || 0
+                    );
+
+                    const diff = collectorWeight - citizenWeight;
+                    const diffColor = diff > 0 ? AppColors.success : diff < 0 ? AppColors.error : AppColors.gray[500];
+
+                    return (
+                      <View key={idx} style={styles.tableRow}>
+                        <Text style={[styles.tableCell, styles.typeCol]}>{type.label}</Text>
+                        <Text style={[styles.tableCell, styles.weightCol]}>{citizenWeight.toFixed(1)}kg</Text>
+                        <Text style={[styles.tableCell, styles.weightCol, { fontWeight: '700' }]}>{collectorWeight.toFixed(1)}kg</Text>
+                        <Text style={[styles.tableCell, styles.weightCol, { color: diffColor, fontWeight: '600' }]}>
+                          {diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1)}
+                        </Text>
+                      </View>
+                    );
+                  });
+                })()}
+
+                <View style={[styles.tableRow, styles.totalRowTable]}>
+                  <Text style={[styles.tableCell, styles.typeCol, styles.totalLabelTable]}>Tổng cộng</Text>
+                  <Text style={[styles.tableCell, styles.weightCol, styles.totalValueTable]}>
+                    {wasteItems.reduce((sum: number, i: any) => sum + (Number(i.weight || i.weightKg || i.WeightKg || i.weight_kg) || 0), 0).toFixed(1)}kg
+                  </Text>
+                  <Text style={[styles.tableCell, styles.weightCol, styles.totalValueTable, { color: AppColors.primary }]}>
+                    {((report as any).actualWeight || 0).toFixed(1)}kg
+                  </Text>
+                  <Text style={[styles.tableCell, styles.weightCol]}></Text>
+                </View>
+              </View>
+
+              {(report as any).accuracyBucket && (
+                <View style={styles.accuracyContainer}>
+                  <Text style={styles.accuracyLabel}>Độ chính xác:</Text>
+                  <View style={[
+                    styles.accuracyBadge,
+                    { backgroundColor: (report as any).accuracyBucket === 'MATCH' ? AppColors.success + '20' : (report as any).accuracyBucket === 'MODERATE' ? AppColors.warning + '20' : AppColors.error + '20' }
+                  ]}>
+                    <Text style={[
+                      styles.accuracyValue,
+                      { color: (report as any).accuracyBucket === 'MATCH' ? AppColors.success : (report as any).accuracyBucket === 'MODERATE' ? AppColors.warning : AppColors.error }
+                    ]}>
+                      {(report as any).accuracyBucket === 'MATCH' ? 'Khớp hoàn toàn' : (report as any).accuracyBucket === 'MODERATE' ? 'Lệch nhẹ' : 'Sai lệch nhiều'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </Card>
+          )}
+
+          {/* Waste Items */}
+          {wasteItems.length > 0 && task.status !== "COMPLETED" && (
+            <Card variant="elevated" style={styles.card}>
+              <Text style={styles.cardTitle}>Phân loại rác dự kiến</Text>
               {wasteItems.map((item: any, idx: number) => (
                 <View key={idx} style={styles.wasteItemRow}>
                   <View style={styles.wasteItemTag}>
@@ -363,7 +450,7 @@ export default function TaskDetailScreen() {
                 </View>
               ))}
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Tổng cộng:</Text>
+                <Text style={styles.totalLabel}>Tổng dự kiến:</Text>
                 <Text style={styles.totalValue}>{totalWeight.toFixed(1)} kg</Text>
               </View>
             </Card>
@@ -573,4 +660,75 @@ const styles = StyleSheet.create({
     marginTop: 8,
     alignItems: "center",
   },
+  // Table styles
+  table: {
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: AppColors.gray[200],
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: AppColors.gray[100],
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  tableHeader: {
+    backgroundColor: AppColors.gray[50],
+  },
+  headerText: {
+    fontWeight: '700',
+    color: AppColors.gray[600],
+    fontSize: 12,
+  },
+  tableCell: {
+    fontSize: 13,
+    color: AppColors.gray[800],
+  },
+  typeCol: {
+    flex: 1.5,
+  },
+  weightCol: {
+    flex: 1,
+    textAlign: 'center',
+  },
+  totalRowTable: {
+    backgroundColor: AppColors.primary + "05",
+    borderBottomWidth: 0,
+  },
+  totalLabelTable: {
+    fontWeight: '700',
+    color: AppColors.gray[800],
+  },
+  totalValueTable: {
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  accuracyContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: AppColors.gray[100],
+    gap: 12,
+  },
+  accuracyLabel: {
+    fontSize: 14,
+    color: AppColors.gray[600],
+    fontWeight: '600',
+  },
+  accuracyBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  accuracyValue: {
+    fontSize: 14,
+    fontWeight: '700',
+  }
 });

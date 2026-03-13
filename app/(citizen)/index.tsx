@@ -12,15 +12,15 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-  Alert,
   Dimensions,
   Image,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -36,6 +36,7 @@ export default function CitizenHomeScreen() {
   const [checkingSubscription, setCheckingSubscription] = useState(false);
   const [hasPendingPaymentAlertShown, setHasPendingPaymentAlertShown] =
     useState(false);
+  const [pendingPaymentData, setPendingPaymentData] = useState<any>(null);
   const [presenceSubmitting, setPresenceSubmitting] = useState(false);
   const [toast, setToast] = useState<{
     visible: boolean;
@@ -63,6 +64,7 @@ export default function CitizenHomeScreen() {
       refreshProfile();
       checkUnreadNotifications();
       fetchReports();
+      checkPendingEnterpriseSubscription();
     }, []),
   );
 
@@ -155,6 +157,7 @@ export default function CitizenHomeScreen() {
         data.planName ||
         "Gói đăng ký";
 
+      const planId = payment?.subscriptionPlanConfigId || data.subscriptionPlanConfigId || 0;
       const qrCode = payment?.qrCode || data.qrCode || {};
       const qrUrl = qrCode.qrUrl || "";
       const bankInfo = qrCode.bankInfo || payment?.bankInfo || {};
@@ -176,30 +179,19 @@ export default function CitizenHomeScreen() {
 
       setHasPendingPaymentAlertShown(true);
 
-      Alert.alert(
-        "Dịch vụ chưa thanh toán",
-        "Bạn có 1 dịch vụ chưa thanh toán, vui lòng thanh toán.",
-        [
-          {
-            text: "Thanh toán ngay",
-            onPress: () => {
-              router.push({
-                pathname: "/payment",
-                params: {
-                  referenceCode,
-                  amount: amount.toString(),
-                  planName,
-                  qrUrl,
-                  bankName,
-                  accountNumber,
-                  accountHolder,
-                  transferContent,
-                },
-              } as any);
-            },
-          },
-        ],
-      );
+      setPendingPaymentData({
+        referenceCode,
+        amount,
+        planName,
+        qrUrl,
+        bankName,
+        accountNumber,
+        accountHolder,
+        transferContent,
+        expiresAt: data.pendingPayment?.expiresAt || "",
+        remainingSeconds: data.pendingPayment?.remainingSeconds || 0,
+        planId,
+      });
     } catch (error) {
       console.error(
         "[CitizenHome] checkPendingEnterpriseSubscription error:",
@@ -348,6 +340,7 @@ export default function CitizenHomeScreen() {
         </View>
       </LinearGradient>
 
+
       {/* Main Action - Create Report */}
       <View style={styles.mainActionSection}>
         <TouchableOpacity
@@ -484,6 +477,62 @@ export default function CitizenHomeScreen() {
         onHide={() => setToast((prev) => ({ ...prev, visible: false }))}
         onPress={handleOpenLatestArrivedDetail}
       />
+
+      <Modal
+        visible={!!pendingPaymentData}
+        transparent={true}
+        animationType="fade"
+      >
+        <View style={styles.forceModalOverlay}>
+          <View style={styles.forceModalContainer}>
+            <View style={styles.forceModalHeader}>
+              <Ionicons name="alert-circle" size={32} color={AppColors.error} />
+              <Text style={styles.forceModalTitle}>Dịch vụ chưa thanh toán</Text>
+            </View>
+
+            <View style={styles.forceModalBody}>
+              <Text style={styles.forceModalMessage}>
+                Bạn có một gói dịch vụ doanh nghiệp đang chờ thanh toán:
+                {"\n"}
+                <Text style={styles.forceModalHighlight}>{pendingPaymentData?.planName}</Text>
+              </Text>
+            </View>
+
+            <View style={styles.forceModalActions}>
+              <TouchableOpacity
+                style={styles.forceModalCancelButton}
+                onPress={() => {
+                  setPendingPaymentData(null);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.forceModalCancelText}>Hủy</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.forceModalButton}
+                onPress={() => {
+                  setPendingPaymentData(null);
+                  router.push({
+                    pathname: "/payment",
+                    params: {
+                      ...pendingPaymentData,
+                      amount: pendingPaymentData.amount.toString(),
+                      expiresAt: pendingPaymentData.expiresAt,
+                      remainingSeconds: pendingPaymentData.remainingSeconds?.toString(),
+                      planId: pendingPaymentData.planId?.toString(),
+                    },
+                  } as any);
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.forceModalButtonText}>Tiếp tục</Text>
+                <Ionicons name="arrow-forward" size={18} color={AppColors.white} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -795,5 +844,142 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     opacity: 0.6,
+  },
+  paymentBannerWrapper: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  paymentBannerCard: {
+    backgroundColor: AppColors.error + "10",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: AppColors.error + "30",
+    padding: 16,
+    shadowColor: AppColors.error,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  paymentBannerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  paymentIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: AppColors.error + "15",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  paymentTextContainer: {
+    flex: 1,
+  },
+  paymentBannerTitle: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: AppColors.error,
+    marginBottom: 2,
+  },
+  paymentBannerDesc: {
+    fontSize: 12,
+    color: AppColors.textSecondary,
+  },
+  paymentPayBtn: {
+    backgroundColor: AppColors.error,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  paymentPayBtnText: {
+    color: AppColors.white,
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+
+  // Forced Modal Styles
+  forceModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 30,
+  },
+  forceModalContainer: {
+    width: "100%",
+    backgroundColor: AppColors.white,
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 15,
+  },
+  forceModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+    gap: 12,
+  },
+  forceModalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: AppColors.textPrimary,
+    flex: 1,
+  },
+  forceModalBody: {
+    marginBottom: 24,
+  },
+  forceModalMessage: {
+    fontSize: 15,
+    color: AppColors.textPrimary,
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  forceModalHighlight: {
+    fontWeight: "bold",
+    color: AppColors.primary,
+  },
+  forceModalNote: {
+    fontSize: 13,
+    color: AppColors.textSecondary,
+    fontStyle: "italic",
+    lineHeight: 18,
+  },
+  forceModalActions: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+  },
+  forceModalCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 16,
+    backgroundColor: AppColors.gray[100],
+  },
+  forceModalCancelText: {
+    color: AppColors.textSecondary,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  forceModalButton: {
+    flex: 1.5,
+    backgroundColor: AppColors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 16,
+    gap: 8,
+  },
+  forceModalButtonText: {
+    color: AppColors.white,
+    fontSize: 15,
+    fontWeight: "bold",
   },
 });

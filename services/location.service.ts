@@ -15,11 +15,26 @@ export interface Ward {
     name: string;
 }
 
+// In-memory cache for location data
+const cache: {
+    provinces: Province[] | null;
+    districts: Record<string, District[]>;
+    wards: Record<string, Ward[]>;
+} = {
+    provinces: null,
+    districts: {},
+    wards: {},
+};
+
 export const locationService = {
     /**
      * Get list of all provinces in Vietnam
      */
     async getProvinces(): Promise<ApiResponse<Province[]>> {
+        if (cache.provinces) {
+            console.log('⚡ Using cached provinces');
+            return { success: true, data: cache.provinces };
+        }
         try {
             console.log('🔍 Fetching provinces (Open API)...');
             const response = await fetch('https://provinces.open-api.vn/api/p/');
@@ -30,6 +45,7 @@ export const locationService = {
                 name: p.name,
             }));
 
+            cache.provinces = provinces;
             console.log('✅ Provinces fetched:', provinces.length, 'items');
             return {
                 success: true,
@@ -48,6 +64,10 @@ export const locationService = {
      * Get list of districts by province code
      */
     async getDistricts(provinceCode: string): Promise<ApiResponse<District[]>> {
+        if (cache.districts[provinceCode]) {
+            console.log('⚡ Using cached districts for:', provinceCode);
+            return { success: true, data: cache.districts[provinceCode] };
+        }
         try {
             console.log('🔍 Fetching districts for province:', provinceCode);
             const response = await fetch(`https://provinces.open-api.vn/api/p/${provinceCode}?depth=2`);
@@ -58,6 +78,7 @@ export const locationService = {
                 name: d.name,
             }));
 
+            cache.districts[provinceCode] = districts;
             console.log('✅ Districts fetched:', districts.length, 'items');
             return {
                 success: true,
@@ -76,6 +97,10 @@ export const locationService = {
      * Get list of wards by district code
      */
     async getWards(districtCode: string): Promise<ApiResponse<Ward[]>> {
+        if (cache.wards[districtCode]) {
+            console.log('⚡ Using cached wards for:', districtCode);
+            return { success: true, data: cache.wards[districtCode] };
+        }
         try {
             console.log('🔍 Fetching wards for district:', districtCode);
             const response = await fetch(`https://provinces.open-api.vn/api/d/${districtCode}?depth=2`);
@@ -86,6 +111,7 @@ export const locationService = {
                 name: w.name,
             }));
 
+            cache.wards[districtCode] = wards;
             console.log('✅ Wards fetched:', wards.length, 'items');
             return {
                 success: true,

@@ -588,35 +588,6 @@ export default function CreateReportScreen() {
         selectedProvince
       ].filter(Boolean).join(', ');
 
-      // 3. Validation via geocoding on submit: Ensure the pinned map coordinates
-      // match the selected address within a reasonable distance (2km).
-      if (mapLocation && fullAddress) {
-        // Geocode the full address to get its actual coordinates
-        const geoResult = await locationService.geocodeAddress(fullAddress, latitude, longitude);
-
-        if (geoResult.success && geoResult.data) {
-          const dist = locationService.haversineDistance(
-            latitude,
-            longitude,
-            geoResult.data.latitude,
-            geoResult.data.longitude
-          );
-
-          console.log(`📏 CreateReport validation distance: ${dist.toFixed(3)} km`);
-
-          // If mismatch is more than 2km, warn user
-          if (dist > 2.0) {
-            setLoading(false);
-            showAlert(
-              t("createReport.locationMismatch"),
-              `Vị trí ghim và địa chỉ bạn chọn cách nhau ${dist.toFixed(1)}km (vượt quá giới hạn 2km). Vui lòng ghim bản đồ hoặc chọn khu vực khớp nhau hơn để tránh gian lận.`,
-              "warning"
-            );
-            return;
-          }
-        }
-      }
-
       const reportData: any = {
         address: fullAddress || streetAddress,
         latitude: latitude,

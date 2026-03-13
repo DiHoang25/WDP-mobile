@@ -4,6 +4,7 @@ export { default as Card } from "./Card";
 export { default as CustomAlert } from "./CustomAlert";
 export type { AlertType } from "./CustomAlert";
 export { default as EmptyState } from "./EmptyState";
+export { default as GlobalNotificationBanner } from "./GlobalNotificationBanner";
 export { GroupedServiceAreaPicker } from "./GroupedServiceAreaPicker";
 export { default as Header } from "./Header";
 export { default as Input } from "./Input";

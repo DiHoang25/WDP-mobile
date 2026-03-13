@@ -1,4 +1,4 @@
-import { Button, Card, Header, Loading } from "@/components/common";
+import { Button, Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { businessService } from "@/services/business.service";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,35 +17,55 @@ import {
 
 export default function PaymentScreen() {
     const params = useLocalSearchParams();
-    const referenceCode = params.referenceCode as string || "PAY-UNKNOWN";
-    const amount = parseFloat(params.amount as string || "0");
-    const planName = params.planName as string || "Gói đăng ký";
+    const referenceCodeParam = params.referenceCode as string || "PAY-UNKNOWN";
+    const amountParam = parseFloat(params.amount as string || "0");
+    const planNameParam = params.planName as string || "Gói đăng ký";
 
     // New parameters from BE
-    const qrUrl = params.qrUrl as string || "";
-    const bankName = params.bankName as string || "";
-    const accountNumber = params.accountNumber as string || "";
-    const accountHolder = params.accountHolder as string || "";
-    const transferContent = params.transferContent as string || referenceCode;
+    const qrUrlParam = params.qrUrl as string || "";
+    const bankNameParam = params.bankName as string || "";
+    const accountNumberParam = params.accountNumber as string || "";
+    const accountHolderParam = params.accountHolder as string || "";
+    const transferContentParam = params.transferContent as string || referenceCodeParam;
+    const planId = parseInt(params.planId as string || "0");
+
+    const [paymentData, setPaymentData] = useState({
+        referenceCode: referenceCodeParam,
+        amount: amountParam,
+        planName: planNameParam,
+        qrUrl: qrUrlParam,
+        bankName: bankNameParam,
+        accountNumber: accountNumberParam,
+        accountHolder: accountHolderParam,
+        transferContent: transferContentParam,
+    });
 
     const [status, setStatus] = useState<"PENDING" | "PAID" | "CANCELLED">("PENDING");
     const [loading, setLoading] = useState(false);
     const [checkingStatus, setCheckingStatus] = useState(false);
-    const [timeLeft, setTimeLeft] = useState(1800); // 30 minutes in seconds
-    const [isExpired, setIsExpired] = useState(false);
+
+    // Use dynamic remaining time if provided, otherwise fallback to 30 mins
+    const initialRemainingSeconds = params.remainingSeconds
+        ? parseInt(params.remainingSeconds as string)
+        : params.expiresAt
+            ? Math.max(0, Math.floor((new Date(params.expiresAt as string).getTime() - new Date().getTime()) / 1000))
+            : 1800;
+
+    const [timeLeft, setTimeLeft] = useState(initialRemainingSeconds);
+    const [isExpired, setIsExpired] = useState(initialRemainingSeconds <= 0);
 
     // Guard: If no valid reference code, don't render payment screen
     useEffect(() => {
-        if (referenceCode === "PAY-UNKNOWN") {
+        if (paymentData.referenceCode === "PAY-UNKNOWN") {
             console.log("[Payment] Invalid reference code, redirecting to login");
             router.replace("/login");
         }
-    }, [referenceCode]);
+    }, [paymentData.referenceCode]);
 
     useEffect(() => {
         let interval: any;
 
-        if (status === "PENDING" && referenceCode !== "PAY-UNKNOWN" && !isExpired) {
+        if (status === "PENDING" && paymentData.referenceCode !== "PAY-UNKNOWN" && !isExpired) {
             checkPaymentStatus();
             interval = setInterval(checkPaymentStatus, 2000);
         }
@@ -53,7 +73,7 @@ export default function PaymentScreen() {
         return () => {
             if (interval) clearInterval(interval);
         };
-    }, [status, referenceCode, isExpired]);
+    }, [status, paymentData.referenceCode, isExpired]);
 
     // QR Expiration Timer
     useEffect(() => {
@@ -81,8 +101,8 @@ export default function PaymentScreen() {
 
     const checkPaymentStatus = async () => {
         try {
-            console.log(`[Payment] Checking status for ${referenceCode}...`);
-            const response = await businessService.getPayment(referenceCode);
+            console.log(`[Payment] Checking status for ${paymentData.referenceCode}...`);
+            const response = await businessService.getPayment(paymentData.referenceCode);
             console.log("[Payment] Response:", response);
             if (response.success && response.data) {
                 const currentStatus = response.data.status?.toUpperCase();
@@ -90,8 +110,9 @@ export default function PaymentScreen() {
 
                 if (currentStatus === "PAID") {
                     setStatus("PAID");
-                } else if (currentStatus === "CANCELLED") {
+                } else if (currentStatus === "CANCELLED" || currentStatus === "FAILED" || currentStatus === "EXPIRED") {
                     setStatus("CANCELLED");
+                    setIsExpired(true);
                 }
             }
         } catch (error) {
@@ -102,7 +123,7 @@ export default function PaymentScreen() {
     const handleTestSuccess = async () => {
         setCheckingStatus(true);
         try {
-            const response = await businessService.testPaymentSuccess(referenceCode);
+            const response = await businessService.testPaymentSuccess(paymentData.referenceCode);
             if (response.success) {
                 Alert.alert("Thông báo", "Đã gửi yêu cầu giả lập thanh toán thành công. Vui lòng đợi trong giây lát.");
                 checkPaymentStatus();
@@ -116,15 +137,44 @@ export default function PaymentScreen() {
         }
     };
 
-    const handleRenewPayment = () => {
-        // Redirect back to registration or subscription plans to create a new payment
-        Alert.alert(
-            "Mã đã hết hạn",
-            "Mã thanh toán này đã hết hiệu lực. Bạn cần tạo mã mới để tiếp tục.",
-            [
-                { text: "Quay lại", onPress: () => router.replace("/(citizen)/register-enterprise-form") }
-            ]
-        );
+    const handleRenewPayment = async () => {
+        if (!planId) {
+            Alert.alert("Lỗi", "Không tìm thấy thông tin gói dịch vụ nhen!");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const response = await businessService.renewSubscription(planId);
+            if (response.success && response.data) {
+                const newData = response.data;
+                const payment = newData.pendingPayment || newData.payment || newData;
+                const qrCode = payment.qrCode || {};
+                const bankInfo = qrCode.bankInfo || {};
+
+                setPaymentData({
+                    referenceCode: payment.referenceCode || "",
+                    amount: payment.amount || 0,
+                    planName: payment.planName || paymentData.planName,
+                    qrUrl: qrCode.qrUrl || "",
+                    bankName: bankInfo.bankCode || bankInfo.bankName || "",
+                    accountNumber: bankInfo.accountNumber || "",
+                    accountHolder: bankInfo.accountHolder || "",
+                    transferContent: bankInfo.transferContent || payment.referenceCode || "",
+                });
+
+                setTimeLeft(payment.remainingSeconds || 1800);
+                setIsExpired(false);
+                setStatus("PENDING");
+            } else {
+                Alert.alert("Lỗi", response.message || "Không thể tạo mã mới nhen!");
+            }
+        } catch (error) {
+            console.error("[Payment] Renew error:", error);
+            Alert.alert("Lỗi", "Đã có lỗi xảy ra nhenn!");
+        } finally {
+            setLoading(false);
+        }
     };
 
     const copyToClipboard = (text: string, label: string) => {
@@ -148,15 +198,15 @@ export default function PaymentScreen() {
                     <Card variant="outlined" style={styles.successDetailCard}>
                         <View style={styles.detailRow}>
                             <Text style={styles.detailLabel}>Gói đăng ký:</Text>
-                            <Text style={styles.detailValue}>{planName}</Text>
+                            <Text style={styles.detailValue}>{paymentData.planName}</Text>
                         </View>
                         <View style={styles.detailRow}>
                             <Text style={styles.detailLabel}>Số tiền:</Text>
-                            <Text style={styles.detailValue}>{amount.toLocaleString("vi-VN")} đ</Text>
+                            <Text style={styles.detailValue}>{paymentData.amount.toLocaleString("vi-VN")} đ</Text>
                         </View>
                         <View style={styles.detailRow}>
                             <Text style={styles.detailLabel}>Mã tham chiếu:</Text>
-                            <Text style={styles.detailValue}>{referenceCode}</Text>
+                            <Text style={styles.detailValue}>{paymentData.referenceCode}</Text>
                         </View>
                     </Card>
 
@@ -172,122 +222,107 @@ export default function PaymentScreen() {
 
     return (
         <View style={styles.container}>
-            <Header title="Thanh toán Chuyển khoản" subtitle="Hoàn tất đăng ký doanh nghiệp" showBack />
+            <Header title="Thanh toán" subtitle="Hoàn tất đăng ký doanh nghiệp" showBack />
 
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 <View style={styles.statusBanner}>
                     <View style={styles.pulseContainer}>
                         <View style={styles.pulseDot} />
                     </View>
-                    <Text style={styles.statusText}>Đang chờ thanh toán...</Text>
+                    <Text style={styles.statusText}>
+                        {isExpired ? "Giao dịch đã hết hạn" : "Đang chờ thanh toán..."}
+                    </Text>
                 </View>
 
-                {qrUrl ? (
-                    <Card variant="elevated" style={[styles.qrCard, isExpired && styles.expiredCard]}>
-                        <View style={styles.timerHeader}>
-                            <Ionicons name="time-outline" size={18} color={isExpired ? AppColors.error : AppColors.secondary} />
-                            <Text style={[styles.timerText, isExpired && { color: AppColors.error }]}>
-                                {isExpired ? "Đã hết hạn" : `Hiệu lực còn: ${formatTime(timeLeft)}`}
-                            </Text>
+                {isExpired ? (
+                    <Card variant="elevated" style={styles.expiredFullCard}>
+                        <View style={styles.expiredIconContainer}>
+                            <Ionicons name="alert-circle" size={80} color={AppColors.error} />
                         </View>
-                        <Text style={styles.qrTitle}>Mã QR Thanh toán</Text>
-                        <Text style={styles.qrSubtitle}>Quét mã bằng ứng dụng Ngân hàng để thanh toán nhanh</Text>
-                        <View style={styles.qrContainer}>
-                            {isExpired ? (
-                                <View style={styles.expiredOverlay}>
-                                    <Ionicons name="alert-circle" size={60} color={AppColors.error} />
-                                    <Text style={styles.expiredText}>Mã đã hết hạn</Text>
-                                    <TouchableOpacity style={styles.renewBtn} onPress={handleRenewPayment}>
-                                        <Text style={styles.renewBtnText}>Tạo mã mới</Text>
+                        <Text style={styles.expiredFullTitle}>Mã thanh toán đã hết hạn</Text>
+                        <Text style={styles.expiredFullDesc}>
+                            Thông tin thanh toán này không còn hiệu lực. Vui lòng tạo mã QR mới để thực hiện giao dịch nhen!
+                        </Text>
+                        <Button
+                            title={loading ? "Đang tạo..." : "Tạo mã QR mới"}
+                            onPress={handleRenewPayment}
+                            loading={loading}
+                            style={styles.renewLargeBtn}
+                        />
+                    </Card>
+                ) : (
+                    <>
+                        {paymentData.qrUrl ? (
+                            <Card variant="elevated" style={styles.qrCard}>
+                                <View style={styles.timerHeader}>
+                                    <Ionicons name="time-outline" size={18} color={AppColors.secondary} />
+                                    <Text style={styles.timerText}>
+                                        Hiệu lực còn: {formatTime(timeLeft)}
+                                    </Text>
+                                </View>
+                                <Text style={styles.qrTitle}>Mã QR Thanh toán</Text>
+                                <Text style={styles.qrSubtitle}>Quét mã bằng ứng dụng Ngân hàng để thanh toán nhanh</Text>
+                                <View style={styles.qrContainer}>
+                                    <Image
+                                        source={{ uri: paymentData.qrUrl }}
+                                        style={styles.qrImage}
+                                        resizeMode="contain"
+                                    />
+                                </View>
+                            </Card>
+                        ) : null}
+
+                        <Card variant="elevated" style={styles.bankCard}>
+                            <Text style={styles.bankTitle}>Thông tin tài khoản</Text>
+
+                            <View style={styles.bankInfoItem}>
+                                <Text style={styles.bankLabel}>Ngân hàng</Text>
+                                <View style={styles.bankValueRow}>
+                                    <Text style={styles.bankValue}>{paymentData.bankName || "MB Bank"}</Text>
+                                    <TouchableOpacity onPress={() => copyToClipboard(paymentData.bankName || "MB Bank", "Tên ngân hàng")}>
+                                        <Ionicons name="copy-outline" size={20} color={AppColors.primary} />
                                     </TouchableOpacity>
                                 </View>
-                            ) : (
-                                <Image
-                                    source={{ uri: qrUrl }}
-                                    style={styles.qrImage}
-                                    resizeMode="contain"
-                                />
-                            )}
-                        </View>
-                    </Card>
-                ) : null}
+                            </View>
 
-                <Card variant="elevated" style={styles.bankCard}>
-                    <Text style={styles.bankTitle}>Thông tin tài khoản</Text>
+                            <View style={styles.bankInfoItem}>
+                                <Text style={styles.bankLabel}>Số tài khoản</Text>
+                                <View style={styles.bankValueRow}>
+                                    <Text style={[styles.bankValue, styles.bold]}>{paymentData.accountNumber || "1234567890"}</Text>
+                                    <TouchableOpacity onPress={() => copyToClipboard(paymentData.accountNumber || "1234567890", "Số tài khoản")}>
+                                        <Ionicons name="copy-outline" size={20} color={AppColors.primary} />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
 
-                    <View style={styles.bankInfoItem}>
-                        <Text style={styles.bankLabel}>Ngân hàng</Text>
-                        <View style={styles.bankValueRow}>
-                            <Text style={styles.bankValue}>{bankName || "MB Bank"}</Text>
-                            <TouchableOpacity onPress={() => copyToClipboard(bankName || "MB Bank", "Tên ngân hàng")}>
-                                <Ionicons name="copy-outline" size={20} color={AppColors.primary} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+                            <View style={styles.bankInfoItem}>
+                                <Text style={styles.bankLabel}>Chủ tài khoản</Text>
+                                <Text style={styles.bankValue}>{paymentData.accountHolder || "CÔNG TY ECO COLLECT"}</Text>
+                            </View>
 
-                    <View style={styles.bankInfoItem}>
-                        <Text style={styles.bankLabel}>Số tài khoản</Text>
-                        <View style={styles.bankValueRow}>
-                            <Text style={[styles.bankValue, styles.bold]}>{accountNumber || "1234567890"}</Text>
-                            <TouchableOpacity onPress={() => copyToClipboard(accountNumber || "1234567890", "Số tài khoản")}>
-                                <Ionicons name="copy-outline" size={20} color={AppColors.primary} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+                            <View style={styles.bankInfoItem}>
+                                <Text style={styles.bankLabel}>Số tiền</Text>
+                                <View style={styles.bankValueRow}>
+                                    <Text style={[styles.bankValue, styles.amountText]}>{paymentData.amount.toLocaleString("vi-VN")} đ</Text>
+                                    <TouchableOpacity onPress={() => copyToClipboard(paymentData.amount.toString(), "Số tiền")}>
+                                        <Ionicons name="copy-outline" size={20} color={AppColors.primary} />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
 
-                    <View style={styles.bankInfoItem}>
-                        <Text style={styles.bankLabel}>Chủ tài khoản</Text>
-                        <Text style={styles.bankValue}>{accountHolder || "CÔNG TY ECO COLLECT"}</Text>
-                    </View>
-
-                    <View style={styles.bankInfoItem}>
-                        <Text style={styles.bankLabel}>Số tiền</Text>
-                        <View style={styles.bankValueRow}>
-                            <Text style={[styles.bankValue, styles.amountText]}>{amount.toLocaleString("vi-VN")} đ</Text>
-                            <TouchableOpacity onPress={() => copyToClipboard(amount.toString(), "Số tiền")}>
-                                <Ionicons name="copy-outline" size={20} color={AppColors.primary} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
-                    <View style={[styles.bankInfoItem, styles.lastItem]}>
-                        <Text style={styles.bankLabel}>Nội dung chuyển khoản</Text>
-                        <View style={styles.bankValueRow}>
-                            <Text style={[styles.bankValue, styles.referenceText]}>{transferContent}</Text>
-                            <TouchableOpacity onPress={() => copyToClipboard(transferContent, "Nội dung")}>
-                                <Ionicons name="copy-outline" size={20} color={AppColors.primary} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </Card>
-
-                <View style={styles.alertBox}>
-                    <Ionicons name="alert-circle" size={24} color={AppColors.warning} />
-                    <Text style={styles.alertText}>
-                        Lưu ý: Bạn phải nhập chính xác <Text style={styles.bold}>Nội dung chuyển khoản</Text> để hệ thống tự động kích hoạt gói ngay lập tức.
-                    </Text>
-                </View>
-            </ScrollView>
-
-            <View style={styles.footer}>
-                {!isExpired && (
-                    <TouchableOpacity
-                        style={styles.testButtonSmall}
-                        onPress={handleTestSuccess}
-                        disabled={checkingStatus}
-                    >
-                        <Text style={styles.testButtonTextSmall}>
-                            {checkingStatus ? "Đang xử lý..." : "Test thanh toán thành công"}
-                        </Text>
-                    </TouchableOpacity>
+                            <View style={[styles.bankInfoItem, styles.lastItem]}>
+                                <Text style={styles.bankLabel}>Nội dung chuyển khoản</Text>
+                                <View style={styles.bankValueRow}>
+                                    <Text style={[styles.bankValue, styles.referenceText]}>{paymentData.transferContent}</Text>
+                                    <TouchableOpacity onPress={() => copyToClipboard(paymentData.transferContent, "Nội dung")}>
+                                        <Ionicons name="copy-outline" size={20} color={AppColors.primary} />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </Card>
+                    </>
                 )}
-                <View style={styles.pollingInfo}>
-                    {status === "PENDING" && !isExpired && <Loading size="small" />}
-                    <Text style={styles.pollingText}>
-                        {isExpired ? "Vui lòng tạo mã mới để tiếp tục" : "Hệ thống đang tự động kiểm tra trạng thái..."}
-                    </Text>
-                </View>
-            </View>
+            </ScrollView>
         </View>
     );
 }
@@ -544,5 +579,32 @@ const styles = StyleSheet.create({
     testButtonTextSmall: {
         fontSize: 12,
         color: AppColors.textSecondary,
+    },
+    // Expired Full Card Styles
+    expiredFullCard: {
+        padding: 30,
+        borderRadius: 24,
+        alignItems: "center",
+        marginTop: 20,
+    },
+    expiredIconContainer: {
+        marginBottom: 20,
+    },
+    expiredFullTitle: {
+        fontSize: 20,
+        fontWeight: "bold",
+        color: AppColors.textPrimary,
+        marginBottom: 12,
+        textAlign: "center",
+    },
+    expiredFullDesc: {
+        fontSize: 14,
+        color: AppColors.textSecondary,
+        textAlign: "center",
+        lineHeight: 22,
+        marginBottom: 30,
+    },
+    renewLargeBtn: {
+        width: "100%",
     },
 });
