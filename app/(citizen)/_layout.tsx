@@ -56,7 +56,7 @@ export default function CitizenLayout() {
 
       {/* Hidden screens - accessible via navigation but not in tab bar */}
       <Tabs.Screen
-        name="create-report"
+        name="report"
         options={{
           href: null, // Hide from tab bar
         }}
@@ -69,6 +69,30 @@ export default function CitizenLayout() {
       />
       <Tabs.Screen
         name="rewards"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="complain"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="complaint-history"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="complaint-detail"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
+      <Tabs.Screen
+        name="voucher-wallet"
         options={{
           href: null, // Hide from tab bar
         }}

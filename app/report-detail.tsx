@@ -10,8 +10,8 @@ import {
   getWasteTypeLabel,
 } from "@/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Image,
@@ -26,11 +26,13 @@ import { extractMediaUrls } from "../utils/media";
 
 export default function ReportDetailScreen() {
   const { user } = useAuth();
+  const router = useRouter();
   const {
     id,
     content: notificationContent,
     senderName,
   } = useLocalSearchParams();
+  const currentReportId = Number(Array.isArray(id) ? id[0] : id) || 0;
   const [report, setReport] = useState<WasteReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -49,6 +51,8 @@ export default function ReportDetailScreen() {
     message: "",
     type: "success",
   });
+  const [hasComplaintForReport, setHasComplaintForReport] = useState(false);
+  const complaintCheckRequestRef = useRef(0);
 
   const showToast = (message: string, type: ToastType = "success") => {
     setToast({ visible: true, message, type });
@@ -182,6 +186,45 @@ export default function ReportDetailScreen() {
   const status = report?.status;
   const canCancel =
     status?.toUpperCase() === "PENDING" || status?.toUpperCase() === "ACCEPTED";
+  const canComplain =
+    user?.roleId === 1 &&
+    (status?.toUpperCase() === "COMPLETED" ||
+      status?.toUpperCase() === "CANCELLED");
+
+  const checkComplaintForCurrentReport = useCallback(async () => {
+    const requestId = ++complaintCheckRequestRef.current;
+
+    if (!currentReportId || user?.roleId !== 1) {
+      if (requestId === complaintCheckRequestRef.current) {
+        setHasComplaintForReport(false);
+      }
+      return;
+    }
+
+    try {
+      const response = await citizenService.getMyComplaints();
+      if (requestId !== complaintCheckRequestRef.current) {
+        return;
+      }
+
+      if (response.success && response.data) {
+        const existed = response.data.some(
+          (item) => Number(item.reportId) === Number(currentReportId),
+        );
+        setHasComplaintForReport(existed);
+      } else {
+        setHasComplaintForReport(false);
+      }
+    } catch (error) {
+      if (requestId === complaintCheckRequestRef.current) {
+        setHasComplaintForReport(false);
+      }
+    }
+  }, [currentReportId, user?.roleId]);
+
+  useEffect(() => {
+    checkComplaintForCurrentReport();
+  }, [checkComplaintForCurrentReport]);
 
   const handleCancel = async () => {
     if (!report) return;
@@ -354,12 +397,19 @@ export default function ReportDetailScreen() {
   const totalWeight =
     normalizedItems.length > 0
       ? normalizedItems.reduce(
-        (sum, item) =>
-          sum +
-          (Number(item?.weight || item?.weightKg || item?.WeightKg || item?.weight_kg) || 0),
-        0,
-      )
-      : Number(getVal(report, ["weight", "weightKg", "WeightKg", "weight_kg"])) || 0;
+          (sum, item) =>
+            sum +
+            (Number(
+              item?.weight ||
+                item?.weightKg ||
+                item?.WeightKg ||
+                item?.weight_kg,
+            ) || 0),
+          0,
+        )
+      : Number(
+          getVal(report, ["weight", "weightKg", "WeightKg", "weight_kg"]),
+        ) || 0;
 
   // Unified address logic: reuse the full address from backend if available
   // Otherwise build it from component names
@@ -374,13 +424,13 @@ export default function ReportDetailScreen() {
   const fullAddress = isFullAddress
     ? addressStr
     : [
-      addressStr,
-      locationNames.ward,
-      locationNames.district,
-      locationNames.province,
-    ]
-      .filter(Boolean)
-      .join(", ");
+        addressStr,
+        locationNames.ward,
+        locationNames.district,
+        locationNames.province,
+      ]
+        .filter(Boolean)
+        .join(", ");
 
   return (
     <View style={styles.container}>
@@ -571,49 +621,117 @@ export default function ReportDetailScreen() {
                 <Text style={styles.sectionTitle}>So sánh khối lượng rác</Text>
                 <View style={styles.table}>
                   <View style={[styles.tableRow, styles.tableHeader]}>
-                    <Text style={[styles.tableCell, styles.typeCol, styles.headerText]}>Loại rác</Text>
-                    <Text style={[styles.tableCell, styles.weightCol, styles.headerText]}>Dự kiến</Text>
-                    <Text style={[styles.tableCell, styles.weightCol, styles.headerText]}>Thực tế</Text>
-                    <Text style={[styles.tableCell, styles.weightCol, styles.headerText]}>Độ sai lệch</Text>
+                    <Text
+                      style={[
+                        styles.tableCell,
+                        styles.typeCol,
+                        styles.headerText,
+                      ]}
+                    >
+                      Loại rác
+                    </Text>
+                    <Text
+                      style={[
+                        styles.tableCell,
+                        styles.weightCol,
+                        styles.headerText,
+                      ]}
+                    >
+                      Dự kiến
+                    </Text>
+                    <Text
+                      style={[
+                        styles.tableCell,
+                        styles.weightCol,
+                        styles.headerText,
+                      ]}
+                    >
+                      Thực tế
+                    </Text>
+                    <Text
+                      style={[
+                        styles.tableCell,
+                        styles.weightCol,
+                        styles.headerText,
+                      ]}
+                    >
+                      Độ sai lệch
+                    </Text>
                   </View>
 
                   {(() => {
                     const types = [
-                      { key: 'ORGANIC', label: 'Hữu cơ' },
-                      { key: 'RECYCLABLE', label: 'Tái chế' },
-                      { key: 'HAZARDOUS', label: 'Nguy hại' }
+                      { key: "ORGANIC", label: "Hữu cơ" },
+                      { key: "RECYCLABLE", label: "Tái chế" },
+                      { key: "HAZARDOUS", label: "Nguy hại" },
                     ];
 
                     return types.map((type, idx) => {
-                      const citizenItem = normalizedItems.find((i: any) =>
-                        String(i.wasteType || i.type || i.WasteType || i.waste_type || "").toUpperCase() === type.key
+                      const citizenItem = normalizedItems.find(
+                        (i: any) =>
+                          String(
+                            i.wasteType ||
+                              i.type ||
+                              i.WasteType ||
+                              i.waste_type ||
+                              "",
+                          ).toUpperCase() === type.key,
                       );
                       const citizenWeight = Number(
                         (citizenItem as any)?.weight ||
-                        (citizenItem as any)?.weightKg ||
-                        (citizenItem as any)?.WeightKg ||
-                        (citizenItem as any)?.weight_kg || 0
+                          (citizenItem as any)?.weightKg ||
+                          (citizenItem as any)?.WeightKg ||
+                          (citizenItem as any)?.weight_kg ||
+                          0,
                       );
 
-                      const collectorItem = ((report as any).actualWasteItems || []).find((i: any) =>
-                        String(i.wasteType || i.type || "").toUpperCase() === type.key
+                      const collectorItem = (
+                        (report as any).actualWasteItems || []
+                      ).find(
+                        (i: any) =>
+                          String(i.wasteType || i.type || "").toUpperCase() ===
+                          type.key,
                       );
                       const collectorWeight = Number(
                         (collectorItem as any)?.weight ||
-                        (collectorItem as any)?.weightKg ||
-                        (collectorItem as any)?.WeightKg ||
-                        (collectorItem as any)?.weight_kg || 0
+                          (collectorItem as any)?.weightKg ||
+                          (collectorItem as any)?.WeightKg ||
+                          (collectorItem as any)?.weight_kg ||
+                          0,
                       );
 
                       const diff = collectorWeight - citizenWeight;
-                      const diffColor = diff > 0 ? AppColors.success : diff < 0 ? AppColors.error : AppColors.textSecondary;
+                      const diffColor =
+                        diff > 0
+                          ? AppColors.success
+                          : diff < 0
+                            ? AppColors.error
+                            : AppColors.textSecondary;
 
                       return (
                         <View key={idx} style={styles.tableRow}>
-                          <Text style={[styles.tableCell, styles.typeCol]}>{type.label}</Text>
-                          <Text style={[styles.tableCell, styles.weightCol]}>{citizenWeight.toFixed(1)}kg</Text>
-                          <Text style={[styles.tableCell, styles.weightCol, { fontWeight: '700' }]}>{collectorWeight.toFixed(1)}kg</Text>
-                          <Text style={[styles.tableCell, styles.weightCol, { color: diffColor, fontWeight: '600' }]}>
+                          <Text style={[styles.tableCell, styles.typeCol]}>
+                            {type.label}
+                          </Text>
+                          <Text style={[styles.tableCell, styles.weightCol]}>
+                            {citizenWeight.toFixed(1)}kg
+                          </Text>
+                          <Text
+                            style={[
+                              styles.tableCell,
+                              styles.weightCol,
+                              { fontWeight: "700" },
+                            ]}
+                          >
+                            {collectorWeight.toFixed(1)}kg
+                          </Text>
+                          <Text
+                            style={[
+                              styles.tableCell,
+                              styles.weightCol,
+                              { color: diffColor, fontWeight: "600" },
+                            ]}
+                          >
                             {diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1)}
                           </Text>
                         </View>
@@ -622,11 +740,32 @@ export default function ReportDetailScreen() {
                   })()}
 
                   <View style={[styles.tableRow, styles.totalRowTable]}>
-                    <Text style={[styles.tableCell, styles.typeCol, styles.totalLabelTable]}>Tổng cộng</Text>
-                    <Text style={[styles.tableCell, styles.weightCol, styles.totalValueTable]}>
+                    <Text
+                      style={[
+                        styles.tableCell,
+                        styles.typeCol,
+                        styles.totalLabelTable,
+                      ]}
+                    >
+                      Tổng cộng
+                    </Text>
+                    <Text
+                      style={[
+                        styles.tableCell,
+                        styles.weightCol,
+                        styles.totalValueTable,
+                      ]}
+                    >
                       {totalWeight.toFixed(1)}kg
                     </Text>
-                    <Text style={[styles.tableCell, styles.weightCol, styles.totalValueTable, { color: AppColors.primary }]}>
+                    <Text
+                      style={[
+                        styles.tableCell,
+                        styles.weightCol,
+                        styles.totalValueTable,
+                        { color: AppColors.primary },
+                      ]}
+                    >
                       {((report as any).actualWeight || 0).toFixed(1)}kg
                     </Text>
                     <Text style={[styles.tableCell, styles.weightCol]}></Text>
@@ -636,15 +775,37 @@ export default function ReportDetailScreen() {
                 {(report as any).accuracyBucket && (
                   <View style={styles.accuracyContainer}>
                     <Text style={styles.accuracyLabel}>Độ chính xác:</Text>
-                    <View style={[
-                      styles.accuracyBadge,
-                      { backgroundColor: (report as any).accuracyBucket === 'MATCH' ? AppColors.success + '20' : (report as any).accuracyBucket === 'MODERATE' ? AppColors.warning + '20' : AppColors.error + '20' }
-                    ]}>
-                      <Text style={[
-                        styles.accuracyValue,
-                        { color: (report as any).accuracyBucket === 'MATCH' ? AppColors.success : (report as any).accuracyBucket === 'MODERATE' ? AppColors.warning : AppColors.error }
-                      ]}>
-                        {(report as any).accuracyBucket === 'MATCH' ? 'Khớp hoàn toàn' : (report as any).accuracyBucket === 'MODERATE' ? 'Lệch nhẹ' : 'Sai lệch nhiều'}
+                    <View
+                      style={[
+                        styles.accuracyBadge,
+                        {
+                          backgroundColor:
+                            (report as any).accuracyBucket === "MATCH"
+                              ? AppColors.success + "20"
+                              : (report as any).accuracyBucket === "MODERATE"
+                                ? AppColors.warning + "20"
+                                : AppColors.error + "20",
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.accuracyValue,
+                          {
+                            color:
+                              (report as any).accuracyBucket === "MATCH"
+                                ? AppColors.success
+                                : (report as any).accuracyBucket === "MODERATE"
+                                  ? AppColors.warning
+                                  : AppColors.error,
+                          },
+                        ]}
+                      >
+                        {(report as any).accuracyBucket === "MATCH"
+                          ? "Khớp hoàn toàn"
+                          : (report as any).accuracyBucket === "MODERATE"
+                            ? "Lệch nhẹ"
+                            : "Sai lệch nhiều"}
                       </Text>
                     </View>
                   </View>
@@ -663,48 +824,54 @@ export default function ReportDetailScreen() {
                     const grouped =
                       normalizedItems.length > 0
                         ? normalizedItems.reduce(
-                          (
-                            acc: Array<{ wasteType: string; weightKg: number }>,
-                            item: any,
-                          ) => {
-                            const wasteType =
-                              item.wasteType ||
-                              item.WasteType ||
-                              item.waste_type;
-                            const weightKg =
-                              Number(
-                                item.weightKg ||
-                                item.WeightKg ||
-                                item.weight_kg,
-                              ) || 0;
+                            (
+                              acc: Array<{
+                                wasteType: string;
+                                weightKg: number;
+                              }>,
+                              item: any,
+                            ) => {
+                              const wasteType =
+                                item.wasteType ||
+                                item.WasteType ||
+                                item.waste_type;
+                              const weightKg =
+                                Number(
+                                  item.weightKg ||
+                                    item.WeightKg ||
+                                    item.weight_kg,
+                                ) || 0;
 
-                            const existing = acc.find(
-                              (i: { wasteType: string; weightKg: number }) =>
-                                i.wasteType === wasteType,
-                            );
-                            if (existing) {
-                              existing.weightKg += weightKg;
-                            } else {
-                              acc.push({ wasteType, weightKg });
-                            }
-                            return acc;
-                          },
-                          [] as Array<{ wasteType: string; weightKg: number }>,
-                        )
+                              const existing = acc.find(
+                                (i: { wasteType: string; weightKg: number }) =>
+                                  i.wasteType === wasteType,
+                              );
+                              if (existing) {
+                                existing.weightKg += weightKg;
+                              } else {
+                                acc.push({ wasteType, weightKg });
+                              }
+                              return acc;
+                            },
+                            [] as Array<{
+                              wasteType: string;
+                              weightKg: number;
+                            }>,
+                          )
                         : [
-                          {
-                            wasteType:
-                              report.wasteType ||
-                              (report as any).WasteType ||
-                              (report as any).waste_type,
-                            weightKg: Number(
-                              report.weightKg ||
-                              (report as any).WeightKg ||
-                              (report as any).weight_kg ||
-                              0,
-                            ),
-                          },
-                        ];
+                            {
+                              wasteType:
+                                report.wasteType ||
+                                (report as any).WasteType ||
+                                (report as any).waste_type,
+                              weightKg: Number(
+                                report.weightKg ||
+                                  (report as any).WeightKg ||
+                                  (report as any).weight_kg ||
+                                  0,
+                              ),
+                            },
+                          ];
 
                     return grouped.map(
                       (
@@ -726,7 +893,9 @@ export default function ReportDetailScreen() {
                   <View style={styles.divider} />
 
                   <View style={styles.totalRow}>
-                    <Text style={styles.totalLabel}>Tổng khối lượng dự kiến</Text>
+                    <Text style={styles.totalLabel}>
+                      Tổng khối lượng dự kiến
+                    </Text>
                     <Text style={styles.totalValue}>
                       {totalWeight.toFixed(1)} kg
                     </Text>
@@ -734,7 +903,9 @@ export default function ReportDetailScreen() {
 
                   {points !== undefined && (
                     <View style={styles.pointsRow}>
-                      <Text style={styles.pointsLabel}>Điểm thưởng dự kiến</Text>
+                      <Text style={styles.pointsLabel}>
+                        Điểm thưởng dự kiến
+                      </Text>
                       <Text style={styles.pointsValue}>+{points} điểm</Text>
                     </View>
                   )}
@@ -803,6 +974,37 @@ export default function ReportDetailScreen() {
                   ))}
                 </ScrollView>
               </View>
+            )}
+
+            {canComplain && (
+              <TouchableOpacity
+                style={[
+                  styles.complaintButton,
+                  hasComplaintForReport && styles.complaintButtonDisabled,
+                ]}
+                onPress={() => {
+                  if (hasComplaintForReport) return;
+                  router.push({
+                    pathname: "/(citizen)/complain",
+                    params: {
+                      reportId: String(currentReportId || ""),
+                      source: "report-detail",
+                    },
+                  } as any);
+                }}
+                disabled={hasComplaintForReport}
+              >
+                <Text
+                  style={[
+                    styles.complaintButtonText,
+                    hasComplaintForReport && styles.complaintButtonTextDisabled,
+                  ]}
+                >
+                  {hasComplaintForReport
+                    ? "Đã gửi khiếu nại"
+                    : "Khiếu nại báo cáo"}
+                </Text>
+              </TouchableOpacity>
             )}
           </>
         )}
@@ -1053,6 +1255,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
+  complaintButton: {
+    backgroundColor: AppColors.error,
+    alignSelf: "stretch",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderRadius: 12,
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  complaintButtonText: {
+    color: AppColors.white,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  complaintButtonDisabled: {
+    backgroundColor: AppColors.gray[300],
+  },
+  complaintButtonTextDisabled: {
+    color: AppColors.gray[700],
+  },
   trackingButton: {
     backgroundColor: AppColors.primary,
     flexDirection: "row",
@@ -1190,21 +1414,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: AppColors.gray[200],
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   tableRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     borderBottomWidth: 1,
     borderBottomColor: AppColors.gray[100],
     paddingVertical: 12,
     paddingHorizontal: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   tableHeader: {
     backgroundColor: AppColors.gray[50],
   },
   headerText: {
-    fontWeight: '700',
+    fontWeight: "700",
     color: AppColors.gray[600],
     fontSize: 12,
   },
@@ -1217,24 +1441,24 @@ const styles = StyleSheet.create({
   },
   weightCol: {
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
   },
   totalRowTable: {
     backgroundColor: AppColors.primary + "10",
     borderBottomWidth: 0,
   },
   totalLabelTable: {
-    fontWeight: '700',
+    fontWeight: "700",
     color: AppColors.gray[800],
   },
   totalValueTable: {
-    fontWeight: '800',
-    textAlign: 'center',
+    fontWeight: "800",
+    textAlign: "center",
   },
   accuracyContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
@@ -1244,7 +1468,7 @@ const styles = StyleSheet.create({
   accuracyLabel: {
     fontSize: 14,
     color: AppColors.gray[600],
-    fontWeight: '600',
+    fontWeight: "600",
   },
   accuracyBadge: {
     paddingHorizontal: 12,
@@ -1253,6 +1477,6 @@ const styles = StyleSheet.create({
   },
   accuracyValue: {
     fontSize: 14,
-    fontWeight: '700',
-  }
+    fontWeight: "700",
+  },
 });

@@ -6,15 +6,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-  Alert,
-  Image,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Image,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 export default function ProfileScreen() {
@@ -25,7 +25,7 @@ export default function ProfileScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshProfile();
-    }, [])
+    }, []),
   );
 
   const handleLogout = async () => {
@@ -51,18 +51,18 @@ export default function ProfileScreen() {
   const menuItems = [
     ...(user?.roleId === 1
       ? [
-        {
-          icon: "business",
-          title: t("profile.menu.registerEnterprise"),
-          subtitle: t("profile.menu.registerEnterpriseSubtitle"),
-          onPress: () =>
-            router.push({
-              pathname: "/(citizen)/register-enterprise-form",
-              params: { source: "profile" },
-            } as any),
-          highlight: true,
-        },
-      ]
+          {
+            icon: "business",
+            title: t("profile.menu.registerEnterprise"),
+            subtitle: t("profile.menu.registerEnterpriseSubtitle"),
+            onPress: () =>
+              router.push({
+                pathname: "/(citizen)/register-enterprise-form",
+                params: { source: "profile" },
+              } as any),
+            highlight: true,
+          },
+        ]
       : []),
     {
       icon: "document-text",
@@ -82,6 +82,17 @@ export default function ProfileScreen() {
       onPress: () =>
         router.push({
           pathname: "/(citizen)/rewards",
+          params: { source: "profile" },
+        } as any),
+      highlight: true,
+    },
+    {
+      icon: "chatbox-ellipses",
+      title: "Lịch sử khiếu nại",
+      subtitle: "Theo dõi tình trạng xử lý khiếu nại",
+      onPress: () =>
+        router.push({
+          pathname: "/(citizen)/complaint-history",
           params: { source: "profile" },
         } as any),
       highlight: true,
@@ -130,9 +141,7 @@ export default function ProfileScreen() {
               ) : (
                 <View style={styles.avatarPlaceholder}>
                   <Text style={styles.avatarText}>
-                    {user?.name?.charAt(0) ||
-                      user?.email?.charAt(0) ||
-                      "?"}
+                    {user?.name?.charAt(0) || user?.email?.charAt(0) || "?"}
                   </Text>
                 </View>
               )}
@@ -146,7 +155,9 @@ export default function ProfileScreen() {
               </View>
               <View style={styles.pointsBadge}>
                 <Ionicons name="star" size={12} color={AppColors.warning} />
-                <Text style={styles.pointsBadgeText}>{user?.points || 0} {t("profile.points") || "điểm"}</Text>
+                <Text style={styles.pointsBadgeText}>
+                  {user?.points || 0} {t("profile.points") || "điểm"}
+                </Text>
               </View>
             </View>
           </View>
@@ -156,17 +167,29 @@ export default function ProfileScreen() {
       {/* Menu Items */}
       <View style={styles.menuContainer}>
         {menuItems.map((item, index) => (
-          <TouchableOpacity key={index} onPress={item.onPress} activeOpacity={0.8}>
+          <TouchableOpacity
+            key={index}
+            onPress={item.onPress}
+            activeOpacity={0.8}
+          >
             <View style={styles.highlightedMenuContainer}>
               <View style={styles.highlightedMenuInner}>
                 <View style={styles.highlightedIconBox}>
-                  <Ionicons name={item.icon as any} size={24} color={AppColors.primary} />
+                  <Ionicons
+                    name={item.icon as any}
+                    size={24}
+                    color={AppColors.primary}
+                  />
                 </View>
                 <View style={styles.menuTextContainer}>
                   <Text style={styles.highlightedMenuTitle}>{item.title}</Text>
                   <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color={AppColors.gray[400]} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={AppColors.gray[400]}
+                />
               </View>
             </View>
           </TouchableOpacity>
@@ -207,34 +230,58 @@ export default function ProfileScreen() {
             <Text style={styles.modalTitle}>{t("profile.selectLanguage")}</Text>
 
             <TouchableOpacity
-              style={[styles.languageOption, language === "vi" && styles.languageOptionActive]}
+              style={[
+                styles.languageOption,
+                language === "vi" && styles.languageOptionActive,
+              ]}
               onPress={() => {
                 setLanguage("vi");
                 setShowLanguageModal(false);
               }}
             >
               <Text style={styles.languageFlag}>🇻🇳</Text>
-              <Text style={[styles.languageText, language === "vi" && styles.languageTextActive]}>
+              <Text
+                style={[
+                  styles.languageText,
+                  language === "vi" && styles.languageTextActive,
+                ]}
+              >
                 Tiếng Việt
               </Text>
               {language === "vi" && (
-                <Ionicons name="checkmark-circle" size={22} color={AppColors.primary} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={22}
+                  color={AppColors.primary}
+                />
               )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.languageOption, language === "en" && styles.languageOptionActive]}
+              style={[
+                styles.languageOption,
+                language === "en" && styles.languageOptionActive,
+              ]}
               onPress={() => {
                 setLanguage("en");
                 setShowLanguageModal(false);
               }}
             >
               <Text style={styles.languageFlag}>🇺🇸</Text>
-              <Text style={[styles.languageText, language === "en" && styles.languageTextActive]}>
+              <Text
+                style={[
+                  styles.languageText,
+                  language === "en" && styles.languageTextActive,
+                ]}
+              >
                 English
               </Text>
               {language === "en" && (
-                <Ionicons name="checkmark-circle" size={22} color={AppColors.primary} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={22}
+                  color={AppColors.primary}
+                />
               )}
             </TouchableOpacity>
 

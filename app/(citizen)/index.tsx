@@ -20,7 +20,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -157,7 +157,8 @@ export default function CitizenHomeScreen() {
         data.planName ||
         "Gói đăng ký";
 
-      const planId = payment?.subscriptionPlanConfigId || data.subscriptionPlanConfigId || 0;
+      const planId =
+        payment?.subscriptionPlanConfigId || data.subscriptionPlanConfigId || 0;
       const qrCode = payment?.qrCode || data.qrCode || {};
       const qrUrl = qrCode.qrUrl || "";
       const bankInfo = qrCode.bankInfo || payment?.bankInfo || {};
@@ -247,11 +248,11 @@ export default function CitizenHomeScreen() {
       route: "/(citizen)/history",
     },
     {
-      title: "Xếp hạng",
+      title: "Ví voucher",
 
-      icon: "trophy",
+      icon: "wallet",
       color: AppColors.warning,
-      route: "/(citizen)/leaderboard",
+      route: "/(citizen)/voucher-wallet",
     },
     {
       title: "Đổi thưởng",
@@ -277,7 +278,10 @@ export default function CitizenHomeScreen() {
         style={[
           styles.header,
           {
-            paddingTop: Math.max(insets.top + (Platform.OS === 'android' ? 10 : 0), Platform.OS === 'android' ? 45 : 10),
+            paddingTop: Math.max(
+              insets.top + (Platform.OS === "android" ? 10 : 0),
+              Platform.OS === "android" ? 45 : 10,
+            ),
           },
         ]}
       >
@@ -340,12 +344,11 @@ export default function CitizenHomeScreen() {
         </View>
       </LinearGradient>
 
-
       {/* Main Action - Create Report */}
       <View style={styles.mainActionSection}>
         <TouchableOpacity
           style={styles.mainActionButton}
-          onPress={() => router.push("/(citizen)/create-report")}
+          onPress={() => router.push("/(citizen)/report")}
           activeOpacity={0.9}
         >
           <LinearGradient
@@ -387,14 +390,10 @@ export default function CitizenHomeScreen() {
               key={index}
               style={styles.actionCard}
               onPress={() => {
-                if (
-                  action.route === "/(citizen)/history" ||
-                  action.route === "/(citizen)/rewards" ||
-                  action.route === "/(citizen)/register-enterprise-form"
-                ) {
+                if (action.route.startsWith("/(citizen)/")) {
                   router.push({
                     pathname: action.route as any,
-                    params: { source: "home" },
+                    params: { source: "home", ...(action as any).params },
                   } as any);
                   return;
                 }
@@ -462,7 +461,7 @@ export default function CitizenHomeScreen() {
             message={t("home.noReportsMsg")}
             action={{
               label: t("home.createReport"),
-              onPress: () => router.push("/(citizen)/create-report"),
+              onPress: () => router.push("/(citizen)/report"),
             }}
           />
         )}
@@ -487,14 +486,18 @@ export default function CitizenHomeScreen() {
           <View style={styles.forceModalContainer}>
             <View style={styles.forceModalHeader}>
               <Ionicons name="alert-circle" size={32} color={AppColors.error} />
-              <Text style={styles.forceModalTitle}>Dịch vụ chưa thanh toán</Text>
+              <Text style={styles.forceModalTitle}>
+                Dịch vụ chưa thanh toán
+              </Text>
             </View>
 
             <View style={styles.forceModalBody}>
               <Text style={styles.forceModalMessage}>
                 Bạn có một gói dịch vụ doanh nghiệp đang chờ thanh toán:
                 {"\n"}
-                <Text style={styles.forceModalHighlight}>{pendingPaymentData?.planName}</Text>
+                <Text style={styles.forceModalHighlight}>
+                  {pendingPaymentData?.planName}
+                </Text>
               </Text>
             </View>
 
@@ -519,7 +522,8 @@ export default function CitizenHomeScreen() {
                       ...pendingPaymentData,
                       amount: pendingPaymentData.amount.toString(),
                       expiresAt: pendingPaymentData.expiresAt,
-                      remainingSeconds: pendingPaymentData.remainingSeconds?.toString(),
+                      remainingSeconds:
+                        pendingPaymentData.remainingSeconds?.toString(),
                       planId: pendingPaymentData.planId?.toString(),
                     },
                   } as any);
@@ -527,7 +531,11 @@ export default function CitizenHomeScreen() {
                 activeOpacity={0.8}
               >
                 <Text style={styles.forceModalButtonText}>Tiếp tục</Text>
-                <Ionicons name="arrow-forward" size={18} color={AppColors.white} />
+                <Ionicons
+                  name="arrow-forward"
+                  size={18}
+                  color={AppColors.white}
+                />
               </TouchableOpacity>
             </View>
           </View>
