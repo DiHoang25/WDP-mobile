@@ -1,9 +1,9 @@
 import {
-    EmptyState,
-    Header,
-    Loading,
-    Toast,
-    ToastType,
+  EmptyState,
+  Header,
+  Loading,
+  Toast,
+  ToastType,
 } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { citizenService, ComplaintItem } from "@/services/citizen.service";
@@ -11,12 +11,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const getComplaintStatusLabel = (status: ComplaintItem["status"]) => {
@@ -193,9 +193,16 @@ export default function ComplaintHistoryScreen() {
                       size={16}
                       color={AppColors.primary}
                     />
-                    <Text style={styles.reportRefText}>
-                      Báo cáo #{item.reportId}
-                    </Text>
+                    <View>
+                      <Text style={styles.reportRefText}>
+                        Báo cáo #{item.reportId}
+                      </Text>
+                      {item.reportInfo?.address && (
+                        <Text style={styles.addressText} numberOfLines={1}>
+                          {item.reportInfo.address}
+                        </Text>
+                      )}
+                    </View>
                   </View>
                   <View
                     style={[
@@ -340,6 +347,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: AppColors.textPrimary,
+  },
+  addressText: {
+    fontSize: 11,
+    color: AppColors.textSecondary,
+    marginTop: 2,
   },
   statusBadge: {
     paddingHorizontal: 10,

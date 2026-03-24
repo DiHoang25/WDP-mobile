@@ -16,6 +16,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     const { isRead, title, content, createdAt, type } = notification;
 
     const getIcon = () => {
+        if (isIncident) return "warning";
         switch (type) {
             case "REPORT_STATUS_CHANGED":
                 return "document-text";
@@ -27,6 +28,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     };
 
     const getIconColor = () => {
+        if (isIncident) return AppColors.error;
         switch (type) {
             case "REPORT_STATUS_CHANGED":
                 return AppColors.primary;
@@ -37,7 +39,17 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         }
     };
 
+    const meta = notification.meta || (notification as any).data || {};
+    const metaType = String(meta.type || "").toUpperCase();
+
+    const isIncident = metaType === "DISPUTE_REPORTED" ||
+        (title || "").toLowerCase().includes("sự cố") ||
+        (content || "").toLowerCase().includes("sự cố") ||
+        (title || "").toLowerCase().includes("khiếu nại") ||
+        (content || "").toLowerCase().includes("khiếu nại");
+
     const getSenderName = () => {
+        if (isIncident) return "HỆ THỐNG";
         if (type === "BROADCAST" || type === "SYSTEM") return "HỆ THỐNG";
         if (type === "REPORT_STATUS_CHANGED") {
             // Ưu tiên sử dụng enterpriseName từ meta.
@@ -45,6 +57,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         }
         return "THÔNG BÁO";
     };
+
+    const displayTitle = isIncident ? "Báo cáo sự cố" : title;
+    const displayContent = isIncident ? "Báo cáo của bạn đã bị đánh dấu sự cố, vui lòng vô phần Lịch sử khiếu nại để theo dõi thêm" : content;
 
     const formatTime = (dateString: string) => {
         const date = new Date(dateString);
@@ -95,8 +110,8 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     return (
         <TouchableOpacity
             style={[styles.container, !isRead && styles.unreadContainer]}
-            onPress={() => onPress(notification)}
-            activeOpacity={0.7}
+            onPress={() => !isIncident && onPress(notification)}
+            activeOpacity={isIncident ? 1 : 0.7}
         >
             <View style={styles.iconContainer}>
                 <View style={[styles.iconCircle, { backgroundColor: getIconColor() + "20" }]}>
@@ -109,9 +124,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                     <Text style={styles.senderName}>{getSenderName()}</Text>
                     <Text style={styles.time}>{formatTime(createdAt)}</Text>
                 </View>
-                <Text style={[styles.title, !isRead && styles.unreadText]}>{translateContent(title)}</Text>
+                <Text style={[styles.title, !isRead && styles.unreadText]}>{translateContent(displayTitle)}</Text>
                 <Text style={[styles.content, !isRead && styles.unreadText]}>
-                    {translateContent(content)}
+                    {translateContent(displayContent)}
                 </Text>
             </View>
         </TouchableOpacity>

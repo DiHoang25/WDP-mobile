@@ -110,6 +110,15 @@ export interface CreateComplaintRequest {
   files?: string[];
 }
 
+export interface ReportInfo {
+  address: string;
+  reportStatus: string;
+  collectorName?: string;
+  collectorAvatar?: string;
+  enterpriseName?: string;
+  enterpriseAvatar?: string;
+}
+
 export interface ComplaintItem {
   id: number;
   reportId: number;
@@ -121,6 +130,7 @@ export interface ComplaintItem {
   adminResponse?: string | null;
   createdAt: string;
   resolvedAt?: string | null;
+  reportInfo?: ReportInfo;
 }
 
 // ========================
@@ -227,6 +237,14 @@ export const citizenService = {
    */
   async getMyComplaints(): Promise<ApiResponse<ComplaintItem[]>> {
     return apiClient.get<ComplaintItem[]>("/citizen/complaints");
+  },
+
+  /**
+   * Get complaint detail by ID
+   * GET /api/v1/citizen/complaints/:id
+   */
+  async getComplaintDetail(id: number): Promise<ApiResponse<ComplaintItem>> {
+    return apiClient.get<ComplaintItem>(`/citizen/complaints/${id}`);
   },
 
   /**

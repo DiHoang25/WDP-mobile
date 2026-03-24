@@ -24,7 +24,7 @@ export default function WasteReportCard({
   // Debug log để kiểm tra cấu trúc dữ liệu từ API
   console.log(`[DEBUG] Card ID: ${report.id} - Data:`, JSON.stringify(report, null, 2));
 
-  const { wasteItems, weightKg, address, status, points, createdAt, district, wasteType } =
+  const { wasteItems, weightKg, address, status, createdAt, district, wasteType } =
     report;
 
   // Super robust case-insensitive field extractor
@@ -47,6 +47,8 @@ export default function WasteReportCard({
     }
     return undefined;
   };
+
+  const points = findVal(report, ['points', 'Points', 'reward_points', 'eco_points', 'EcoPoints', 'rewardPoints']);
 
   const getBackendWasteType = (item: any) => findVal(item, ['wasteType', 'waste_type', 'type', 'label', 'wasteTypeLabel']);
   const getBackendWeight = (item: any) => findVal(item, ['weightKg', 'weight_kg', 'weight', 'estimatedWeight', 'weight_Kg', 'WeightKg']) || 0;
@@ -82,9 +84,7 @@ export default function WasteReportCard({
 
   const displayType = getWasteTypeLabel(displayTypeRaw);
 
-  const displayTitle = (parsedItems && parsedItems.length > 1)
-    ? `${displayType} (+${parsedItems.length - 1})`
-    : displayType;
+  const displayTitle = displayType;
 
   const totalWeight = (parsedItems && parsedItems.length > 0)
     ? parsedItems.reduce((sum, item) => sum + (Number(getBackendWeight(item)) || 0), 0)
@@ -131,7 +131,9 @@ export default function WasteReportCard({
             <Text style={styles.infoLabel}>{t("reportCard.wasteType")}</Text>
             <View style={styles.valueRow}>
               <Ionicons name="trash-outline" size={16} color={AppColors.primary} />
-              <Text style={styles.infoValue} numberOfLines={1}>{displayTitle}</Text>
+              <Text style={styles.infoValue} numberOfLines={1}>
+                {displayTitle}
+              </Text>
             </View>
           </View>
 
@@ -167,14 +169,15 @@ export default function WasteReportCard({
             {new Date(createdAt).toLocaleDateString("vi-VN")}
           </Text>
         </View>
-        {points && (
+
+        {(points !== undefined && points !== null) && (
           <View style={styles.pointsBadge}>
             <Ionicons name="star" size={12} color={AppColors.warning} />
-            <Text style={styles.pointsText}>{t("reportCard.points", { points })}</Text>
+            <Text style={styles.pointsText}>+{points} EcoPoints</Text>
           </View>
         )}
       </View>
-    </TouchableOpacity>
+    </TouchableOpacity >
   );
 }
 

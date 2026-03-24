@@ -52,6 +52,7 @@ export default function ReportDetailScreen() {
     type: "success",
   });
   const [hasComplaintForReport, setHasComplaintForReport] = useState(false);
+  const [earnedPoints, setEarnedPoints] = useState<number | null>(null);
   const complaintCheckRequestRef = useRef(0);
 
   const showToast = (message: string, type: ToastType = "success") => {
@@ -138,6 +139,27 @@ export default function ReportDetailScreen() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (report?.status?.toUpperCase() === "COMPLETED" && report?.id) {
+      const fetchPoints = async () => {
+        try {
+          const res = await citizenService.getMyRedemptions("EARN");
+          if (res.success && res.data) {
+            const reportTransaction = res.data.find(
+              (t) => Number(t.reportId) === Number(report.id),
+            );
+            if (reportTransaction) {
+              setEarnedPoints(reportTransaction.amount);
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching points for report:", err);
+        }
+      };
+      fetchPoints();
+    }
+  }, [report?.status, report?.id]);
 
   const fetchLocationNames = async () => {
     if (!report) return;
@@ -397,19 +419,19 @@ export default function ReportDetailScreen() {
   const totalWeight =
     normalizedItems.length > 0
       ? normalizedItems.reduce(
-          (sum, item) =>
-            sum +
-            (Number(
-              item?.weight ||
-                item?.weightKg ||
-                item?.WeightKg ||
-                item?.weight_kg,
-            ) || 0),
-          0,
-        )
+        (sum, item) =>
+          sum +
+          (Number(
+            item?.weight ||
+            item?.weightKg ||
+            item?.WeightKg ||
+            item?.weight_kg,
+          ) || 0),
+        0,
+      )
       : Number(
-          getVal(report, ["weight", "weightKg", "WeightKg", "weight_kg"]),
-        ) || 0;
+        getVal(report, ["weight", "weightKg", "WeightKg", "weight_kg"]),
+      ) || 0;
 
   // Unified address logic: reuse the full address from backend if available
   // Otherwise build it from component names
@@ -424,13 +446,13 @@ export default function ReportDetailScreen() {
   const fullAddress = isFullAddress
     ? addressStr
     : [
-        addressStr,
-        locationNames.ward,
-        locationNames.district,
-        locationNames.province,
-      ]
-        .filter(Boolean)
-        .join(", ");
+      addressStr,
+      locationNames.ward,
+      locationNames.district,
+      locationNames.province,
+    ]
+      .filter(Boolean)
+      .join(", ");
 
   return (
     <View style={styles.container}>
@@ -450,6 +472,11 @@ export default function ReportDetailScreen() {
               >
                 {getStatusText(status!)}
               </Text>
+              {status?.toUpperCase() === "COMPLETED" && earnedPoints !== null && (
+                <Text style={styles.pointsEarnedText}>
+                  +{earnedPoints} EcoPoints
+                </Text>
+              )}
             </View>
             <View style={styles.dateContainer}>
               <Text style={styles.label}>Cập nhật lúc</Text>
@@ -547,12 +574,57 @@ export default function ReportDetailScreen() {
         )}
 
         {/* 2. Content (From Notification or Report) */}
-        {displayContent && (
-          <Card variant="elevated" style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Nội dung báo cáo</Text>
-            <View style={styles.contentBox}>
-              <Text style={styles.contentText}>{displayContent}</Text>
+        {/* 2. Content (From Notification or Report) */}
+        {!!displayContent && (
+          <Card
+            variant="elevated"
+            style={[
+              styles.sectionCard,
+              String(displayContent).toLowerCase().includes("sự cố") || String(displayContent).toLowerCase().includes("tranh chấp")
+                ? { borderColor: AppColors.error + "30", borderWidth: 1 }
+                : {},
+            ]}
+          >
+            <View style={styles.incidentHeaderRow}>
+              <Ionicons
+                name={
+                  String(displayContent).toLowerCase().includes("sự cố")
+                    ? "warning"
+                    : "document-text"
+                }
+                size={20}
+                color={
+                  String(displayContent).toLowerCase().includes("sự cố")
+                    ? AppColors.error
+                    : AppColors.primary
+                }
+              />
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  String(displayContent).toLowerCase().includes("sự cố") && {
+                    color: AppColors.error,
+                    borderLeftColor: AppColors.error,
+                  },
+                ]}
+              >
+                {String(displayContent).toLowerCase().includes("sự cố")
+                  ? "Báo cáo sự cố"
+                  : "Nội dung báo cáo"}
+              </Text>
             </View>
+            <View style={styles.contentBox}>
+              <Text style={styles.contentText}>{String(displayContent)}</Text>
+            </View>
+            {String(displayContent).toLowerCase().includes("sự cố") && (
+              <View style={styles.incidentNotice}>
+                <Text style={styles.incidentNoticeText}>
+                  Tài xế đã ghi nhận một sự cố trong quá trình thu gom. Nếu bạn
+                  thấy thông tin này không chính xác, hãy sử dụng chức năng
+                  Khiếu nại.
+                </Text>
+              </View>
+            )}
           </Card>
         )}
 
@@ -671,18 +743,18 @@ export default function ReportDetailScreen() {
                         (i: any) =>
                           String(
                             i.wasteType ||
-                              i.type ||
-                              i.WasteType ||
-                              i.waste_type ||
-                              "",
+                            i.type ||
+                            i.WasteType ||
+                            i.waste_type ||
+                            "",
                           ).toUpperCase() === type.key,
                       );
                       const citizenWeight = Number(
                         (citizenItem as any)?.weight ||
-                          (citizenItem as any)?.weightKg ||
-                          (citizenItem as any)?.WeightKg ||
-                          (citizenItem as any)?.weight_kg ||
-                          0,
+                        (citizenItem as any)?.weightKg ||
+                        (citizenItem as any)?.WeightKg ||
+                        (citizenItem as any)?.weight_kg ||
+                        0,
                       );
 
                       const collectorItem = (
@@ -694,10 +766,10 @@ export default function ReportDetailScreen() {
                       );
                       const collectorWeight = Number(
                         (collectorItem as any)?.weight ||
-                          (collectorItem as any)?.weightKg ||
-                          (collectorItem as any)?.WeightKg ||
-                          (collectorItem as any)?.weight_kg ||
-                          0,
+                        (collectorItem as any)?.weightKg ||
+                        (collectorItem as any)?.WeightKg ||
+                        (collectorItem as any)?.weight_kg ||
+                        0,
                       );
 
                       const diff = collectorWeight - citizenWeight;
@@ -824,54 +896,54 @@ export default function ReportDetailScreen() {
                     const grouped =
                       normalizedItems.length > 0
                         ? normalizedItems.reduce(
-                            (
-                              acc: Array<{
-                                wasteType: string;
-                                weightKg: number;
-                              }>,
-                              item: any,
-                            ) => {
-                              const wasteType =
-                                item.wasteType ||
-                                item.WasteType ||
-                                item.waste_type;
-                              const weightKg =
-                                Number(
-                                  item.weightKg ||
-                                    item.WeightKg ||
-                                    item.weight_kg,
-                                ) || 0;
-
-                              const existing = acc.find(
-                                (i: { wasteType: string; weightKg: number }) =>
-                                  i.wasteType === wasteType,
-                              );
-                              if (existing) {
-                                existing.weightKg += weightKg;
-                              } else {
-                                acc.push({ wasteType, weightKg });
-                              }
-                              return acc;
-                            },
-                            [] as Array<{
+                          (
+                            acc: Array<{
                               wasteType: string;
                               weightKg: number;
                             }>,
-                          )
+                            item: any,
+                          ) => {
+                            const wasteType =
+                              item.wasteType ||
+                              item.WasteType ||
+                              item.waste_type;
+                            const weightKg =
+                              Number(
+                                item.weightKg ||
+                                item.WeightKg ||
+                                item.weight_kg,
+                              ) || 0;
+
+                            const existing = acc.find(
+                              (i: { wasteType: string; weightKg: number }) =>
+                                i.wasteType === wasteType,
+                            );
+                            if (existing) {
+                              existing.weightKg += weightKg;
+                            } else {
+                              acc.push({ wasteType, weightKg });
+                            }
+                            return acc;
+                          },
+                          [] as Array<{
+                            wasteType: string;
+                            weightKg: number;
+                          }>,
+                        )
                         : [
-                            {
-                              wasteType:
-                                report.wasteType ||
-                                (report as any).WasteType ||
-                                (report as any).waste_type,
-                              weightKg: Number(
-                                report.weightKg ||
-                                  (report as any).WeightKg ||
-                                  (report as any).weight_kg ||
-                                  0,
-                              ),
-                            },
-                          ];
+                          {
+                            wasteType:
+                              report.wasteType ||
+                              (report as any).WasteType ||
+                              (report as any).waste_type,
+                            weightKg: Number(
+                              report.weightKg ||
+                              (report as any).WeightKg ||
+                              (report as any).weight_kg ||
+                              0,
+                            ),
+                          },
+                        ];
 
                     return grouped.map(
                       (
@@ -1478,5 +1550,31 @@ const styles = StyleSheet.create({
   accuracyValue: {
     fontSize: 14,
     fontWeight: "700",
+  },
+  incidentHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  },
+  incidentNotice: {
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: AppColors.error + "10",
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: AppColors.error,
+  },
+  incidentNoticeText: {
+    fontSize: 12,
+    color: AppColors.error,
+    lineHeight: 18,
+    fontStyle: "italic",
+  },
+  pointsEarnedText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: AppColors.primary,
+    marginTop: 4,
   },
 });

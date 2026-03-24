@@ -3,19 +3,20 @@ import { WasteReportCard } from "@/components/reports";
 import { AppColors } from "@/constants/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { citizenService } from "@/services/citizen.service";
 import { wasteService } from "@/services/waste.service";
 import { WasteReport } from "@/types";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function HistoryScreen() {
@@ -45,29 +46,34 @@ export default function HistoryScreen() {
   const fetchHistory = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const response = await wasteService.getHistory();
-      if (response.success && response.data) {
-        // Robust extraction logic
-        let reportsList: WasteReport[] = [];
-        const rawData = response.data;
+      const [reportsRes, pointsRes] = await Promise.all([
+        wasteService.getHistory(),
+        citizenService.getMyRedemptions("EARN")
+      ]);
 
-        if (Array.isArray(rawData)) {
-          reportsList = rawData;
-        } else if (rawData.data && Array.isArray(rawData.data)) {
-          reportsList = rawData.data;
-        } else if (rawData.items && Array.isArray(rawData.items)) {
-          reportsList = rawData.items;
-        } else if (rawData.reports && Array.isArray(rawData.reports)) {
-          reportsList = rawData.reports;
-        } else if (typeof rawData === "object" && rawData !== null) {
-          // Check for any first child that is an array
-          const firstArrayKey = Object.keys(rawData).find((key) =>
-            Array.isArray(rawData[key]),
-          );
-          if (firstArrayKey) reportsList = rawData[firstArrayKey];
+      if (reportsRes.success && reportsRes.data) {
+        // 1. Extract reports with robust logic
+        let reportsList: WasteReport[] = [];
+        const rawData = reportsRes.data;
+        if (Array.isArray(rawData)) reportsList = rawData;
+        else if (rawData.data && Array.isArray(rawData.data)) reportsList = rawData.data;
+        else if (rawData.items && Array.isArray(rawData.items)) reportsList = rawData.items;
+
+        // 2. Map points from redemptions (reportId -> amount)
+        const pointsMap: Record<string | number, number> = {};
+        if (pointsRes.success && Array.isArray(pointsRes.data)) {
+          pointsRes.data.forEach(tx => {
+            if (tx.reportId) pointsMap[tx.reportId] = tx.amount;
+          });
         }
 
-        setReports(reportsList);
+        // 3. Inject points into reports
+        const enrichedReports = reportsList.map(report => ({
+          ...report,
+          points: pointsMap[report.id] || (report as any).points || (report as any).rewardPoints
+        }));
+
+        setReports(enrichedReports);
       }
     } catch (error) {
       console.error("Fetch history error:", error);

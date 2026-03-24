@@ -92,11 +92,40 @@ export default function NotificationsScreen() {
         }
 
         // Navigate based on type
-        if (notification.meta?.reportId) {
+        const titleStr = String(notification.title || "").toLowerCase();
+        const contentStr = String(notification.content || "").toLowerCase();
+        const typeStr = String(notification.type || "").toLowerCase();
+
+        const meta = notification.meta || (notification as any).data || {};
+        const metaType = String(meta.type || "").toUpperCase();
+        const complaintId = meta.complaintId || meta.complaint_id || meta.complaintID;
+        const reportId = meta.reportId || meta.report_id || meta.reportID || meta.id;
+
+        const isIncident =
+            metaType === "DISPUTE_REPORTED" ||
+            titleStr.includes("khiếu nại") || contentStr.includes("khiếu nại") ||
+            contentStr.includes("sự cố") || titleStr.includes("sự cố") ||
+            titleStr.includes("hệ thống") ||
+            contentStr.includes("xử lý") || contentStr.includes("chấp nhận") ||
+            contentStr.includes("từ chối") || contentStr.includes("processed");
+
+        if (isIncident) return; // Disable click for incidents
+
+        if (complaintId) {
+            router.push({
+                pathname: "/(citizen)/complaint-detail",
+                params: { complaintId: String(complaintId) }
+            } as any);
+        } else if (isIncident && reportId) {
+            router.push({
+                pathname: "/(citizen)/complaint-detail",
+                params: { complaintId: `r${reportId}` }
+            } as any);
+        } else if (reportId) {
             router.push({
                 pathname: "/report-detail",
                 params: {
-                    id: notification.meta.reportId,
+                    id: String(reportId),
                     content: notification.content,
                     senderName: notification.meta?.enterprise?.name || notification.meta?.enterpriseName || notification.meta?.senderName || ""
                 }

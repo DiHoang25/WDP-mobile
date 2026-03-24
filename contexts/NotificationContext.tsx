@@ -50,7 +50,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                                 // Citizen
                                 shouldShow = contentLower.includes('assigned') ||
                                     contentLower.includes('đã nhận đơn') ||
-                                    titleLower.includes('assigned');
+                                    contentLower.includes('sự cố') ||
+                                    contentLower.includes('khiếu nại') ||
+                                    contentLower.includes('chấp nhận') ||
+                                    contentLower.includes('từ chối') ||
+                                    titleLower.includes('assigned') ||
+                                    titleLower.includes('sự cố') ||
+                                    titleLower.includes('khiếu nại');
                             } else if (user?.roleId === 3) {
                                 // Collector
                                 shouldShow = contentLower.includes('collector_pending') ||
@@ -60,7 +66,23 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                             }
 
                             if (shouldShow) {
-                                setLatestNotification(latest);
+                                const meta = latest.meta || (latest as any).data || {};
+                                const metaType = String(meta.type || "").toUpperCase();
+                                const titleStr = latest.title.toLowerCase();
+                                const contentStr = latest.content.toLowerCase();
+                                const isIncident = metaType === "DISPUTE_REPORTED" ||
+                                    titleStr.includes('sự cố') || contentStr.includes('sự cố') ||
+                                    titleStr.includes('khiếu nại') || contentStr.includes('khiếu nại');
+
+                                if (isIncident) {
+                                    setLatestNotification({
+                                        ...latest,
+                                        title: "Hệ thống",
+                                        content: "Báo cáo của bạn đã bị đánh dấu sự cố, vui lòng vô phần Lịch sử khiếu nại để theo dõi thêm"
+                                    });
+                                } else {
+                                    setLatestNotification(latest);
+                                }
                             }
                         }
                         seenNotificationIds.current.add(latest.id);
@@ -89,25 +111,46 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const handleBannerPress = () => {
         if (!latestNotification) return;
 
-        const reportId = latestNotification.meta?.reportId || latestNotification.meta?.taskId;
-        if (!reportId) {
-            setLatestNotification(null);
-            return;
-        }
+        const meta = latestNotification.meta || (latestNotification as any).data || {};
+        const metaType = String(meta.type || "").toUpperCase();
+        const complaintId = meta.complaintId || meta.complaint_id || meta.complaintID;
+        const reportId = meta.reportId || meta.report_id || meta.reportID || meta.id;
 
-        // Role-based navigation
+        const titleStr = String(latestNotification.title || "").toLowerCase();
+        const contentStr = String(latestNotification.content || "").toLowerCase();
+        const isIncident = metaType === "DISPUTE_REPORTED" ||
+            titleStr.includes("khiếu nại") || contentStr.includes("khiếu nại") ||
+            titleStr.includes("sự cố") || contentStr.includes("sự cố") ||
+            titleStr.includes("hệ thống");
+
+        if (isIncident) return; // Disable click for incidents
+
         if (user?.roleId === 3) {
             // Shipper/Collector
-            router.push({
-                pathname: "/(collectors)/task-detail",
-                params: { id: String(reportId), reportId: String(reportId) }
-            } as any);
+            if (reportId) {
+                router.push({
+                    pathname: "/(collectors)/task-detail",
+                    params: { id: String(reportId), reportId: String(reportId) }
+                } as any);
+            }
         } else {
             // Citizen
-            router.push({
-                pathname: "/report-detail",
-                params: { id: String(reportId) }
-            });
+            if (complaintId) {
+                router.push({
+                    pathname: "/(citizen)/complaint-detail",
+                    params: { complaintId: String(complaintId) }
+                } as any);
+            } else if (isIncident && reportId) {
+                router.push({
+                    pathname: "/(citizen)/complaint-detail",
+                    params: { complaintId: `r${reportId}` }
+                } as any);
+            } else if (reportId) {
+                router.push({
+                    pathname: "/report-detail",
+                    params: { id: String(reportId) }
+                });
+            }
         }
 
         setLatestNotification(null);
