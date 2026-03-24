@@ -62,7 +62,7 @@ export default function CollectorProfileScreen() {
   const toggleAvailability = async () => {
     if (!profile) return;
 
-    const currentAvailability = profile.status.availability;
+    const currentAvailability = profile.status?.availability;
     const isOffline = currentAvailability === "OFFLINE";
 
     // --- Block toggling ON outside working hours ---
@@ -70,7 +70,7 @@ export default function CollectorProfileScreen() {
       const now = new Date();
       const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
       const todayKey = dayNames[now.getDay()] as keyof typeof profile.workingHours;
-      const todaySchedule = profile.workingHours[todayKey];
+      const todaySchedule = profile.workingHours?.[todayKey];
 
       if (!todaySchedule || !todaySchedule.active) {
         Alert.alert(
@@ -146,7 +146,7 @@ export default function CollectorProfileScreen() {
   }
 
   const { user, enterprise, status, workingHours, employeeCode, totalCompleted, queueLength, zones } = profile;
-  const isOnline = status.availability === "ONLINE_AVAILABLE";
+  const isOnline = status?.availability === "ONLINE_AVAILABLE" || status?.availability === "ONLINE_BUSY";
 
   return (
     <View style={{ flex: 1 }}>
@@ -216,7 +216,7 @@ export default function CollectorProfileScreen() {
           <Card variant="elevated" style={styles.infoCard}>
             <InfoRow icon="call-outline" label="Số điện thoại" value={user.phone} />
             <InfoRow icon="mail-outline" label="Email" value={user.email} />
-            <InfoRow icon="business-outline" label="Doanh nghiệp" value={enterprise.name} />
+            <InfoRow icon="business-outline" label="Doanh nghiệp" value={enterprise?.name || "N/A"} />
           </Card>
 
           {/* Zones Section */}
@@ -239,12 +239,12 @@ export default function CollectorProfileScreen() {
           {/* Working Schedule */}
           <Text style={styles.sectionTitle}>Lịch làm việc cố định</Text>
           <Card variant="elevated" style={styles.scheduleCard}>
-            {Object.keys(workingHours).map((day) => {
+            {workingHours && Object.keys(workingHours).map((day) => {
               const schedule = (workingHours as any)[day];
               return (
                 <View key={day} style={styles.scheduleRow}>
                   <Text style={styles.dayLabel}>{translateDay(day)}</Text>
-                  {schedule.active ? (
+                  {schedule?.active ? (
                     <View style={styles.timeContainer}>
                       <Text style={styles.timeValue}>{schedule.start} - {schedule.end}</Text>
                     </View>

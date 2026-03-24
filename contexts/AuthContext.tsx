@@ -28,6 +28,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Load user and token on app start
   useEffect(() => {
     loadStoredAuth();
+    // Register unauthorized callback for auto-logout
+    apiClient.registerOnUnauthorized(logout);
   }, []);
 
   const loadStoredAuth = async () => {

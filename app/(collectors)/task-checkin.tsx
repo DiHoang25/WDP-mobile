@@ -37,7 +37,7 @@ export default function TaskCheckinScreen() {
     visible: false, message: "", type: "success",
   });
 
-  const ALLOWED_RADIUS = 300; // 300m
+  const ALLOWED_RADIUS = 500; // 500m
 
   const showToast = (message: string, type: ToastType = "success") => {
     setToast({ visible: true, message, type });

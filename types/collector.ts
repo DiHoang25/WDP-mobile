@@ -128,7 +128,8 @@ export type CollectorTaskStatus =
   | "COLLECTING"
   | "COMPLETED"
   | "REJECTED"
-  | "EXPIRED";
+  | "EXPIRED"
+  | "CANCELLED";
 
 export interface CollectorTaskItem {
   id: number;

@@ -23,6 +23,7 @@ function formatErrorMessage(error: any): string {
 class ApiClient {
     private baseUrl: string;
     private token: string | null = null;
+    private onUnauthorized: (() => void) | null = null;
 
     constructor() {
         this.baseUrl = config.apiUrl;
@@ -34,6 +35,10 @@ class ApiClient {
 
     getToken() {
         return this.token;
+    }
+
+    registerOnUnauthorized(callback: () => void) {
+        this.onUnauthorized = callback;
     }
 
     private async request<T>(
@@ -77,6 +82,14 @@ class ApiClient {
             }
 
             if (!response.ok) {
+                if (response.status === 401) {
+                    console.warn('📡 [apiClient] 401 Unauthorized detected. Clearing token and triggering logout callback...');
+                    this.token = null;
+                    if (this.onUnauthorized) {
+                        this.onUnauthorized();
+                    }
+                }
+
                 return {
                     success: false,
                     error: formatErrorMessage(responseData.message || responseData.error || 'Request failed'),
@@ -161,6 +174,14 @@ class ApiClient {
             }
 
             if (!response.ok) {
+                if (response.status === 401) {
+                    console.warn('📡 [apiClient] 401 Unauthorized detected (FormData). Clearing token and triggering logout callback...');
+                    this.token = null;
+                    if (this.onUnauthorized) {
+                        this.onUnauthorized();
+                    }
+                }
+
                 console.error(`❌ API ${method} FormData Error Details:`, {
                     status: response.status,
                     statusText: response.statusText,

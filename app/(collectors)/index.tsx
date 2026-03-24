@@ -44,8 +44,8 @@ export default function CollectorDashboard() {
       console.log("👤 Collector Profile:", JSON.stringify({
         id: data.id,
         code: data.employeeCode,
-        enterprise: data.enterprise.name,
-        availability: data.status.availability
+        enterprise: data.enterprise?.name || "N/A",
+        availability: data.status?.availability || "OFFLINE"
       }));
       setProfile(data);
     } catch (error) {
@@ -64,7 +64,7 @@ export default function CollectorDashboard() {
   const handleToggleShift = async () => {
     if (!profile) return;
 
-    const isOffline = profile.status.availability === "OFFLINE";
+    const isOffline = profile.status?.availability === "OFFLINE";
     if (isOffline) {
       // Check working hours before toggling ON
       const now = new Date();
@@ -146,7 +146,7 @@ export default function CollectorDashboard() {
     );
   }
 
-  const isOnline = profile.status.availability === "ONLINE_AVAILABLE" || profile.status.availability === "ONLINE_BUSY";
+  const isOnline = profile.status?.availability === "ONLINE_AVAILABLE" || profile.status?.availability === "ONLINE_BUSY";
 
   return (
     <View style={styles.container}>
@@ -164,7 +164,7 @@ export default function CollectorDashboard() {
         <LinearGradient colors={[AppColors.primary, AppColors.primaryDark]} style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.avatarContainer}>
-              {profile.user.avatar ? (
+              {profile.user?.avatar ? (
                 <Image source={{ uri: profile.user.avatar }} style={styles.avatarImg} />
               ) : (
                 <View style={styles.avatar}>
@@ -172,8 +172,8 @@ export default function CollectorDashboard() {
                 </View>
               )}
               <View>
-                <Text style={styles.headerName}>{profile.user.fullName}</Text>
-                <Text style={styles.headerCode}>Mã NV: {profile.employeeCode}</Text>
+                <Text style={styles.headerName}>{profile.user?.fullName || "Người dùng"}</Text>
+                <Text style={styles.headerCode}>Mã NV: {profile.employeeCode || "—"}</Text>
               </View>
             </View>
             <TouchableOpacity onPress={() => router.push("/(collectors)/notifications")}>
@@ -202,7 +202,7 @@ export default function CollectorDashboard() {
 
             <View style={styles.enterpriseInfo}>
               <Ionicons name="business" size={18} color={AppColors.gray[600]} />
-              <Text style={styles.enterpriseText}>{profile.enterprise.name}</Text>
+              <Text style={styles.enterpriseText}>{profile.enterprise?.name || "N/A"}</Text>
             </View>
           </Card>
         </View>
@@ -251,7 +251,7 @@ export default function CollectorDashboard() {
             </View>
             {/* Table Body - Monday to Sunday */}
             {(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const).map((day) => {
-              const hours = profile.workingHours[day];
+              const hours = profile?.workingHours?.[day];
               const now = new Date();
               const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
               const isToday = dayNames[now.getDay()] === day;

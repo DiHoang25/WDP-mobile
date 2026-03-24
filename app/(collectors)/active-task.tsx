@@ -18,12 +18,13 @@ import {
   Image,
   Linking,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { WebView } from "react-native-webview";
 
@@ -370,6 +371,12 @@ export default function ActiveTaskScreen() {
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
+  const getTimeStatusColor = (totalSeconds: number) => {
+    if (totalSeconds < 60) return AppColors.error;
+    if (totalSeconds < 180) return AppColors.warning;
+    return AppColors.success;
+  };
+
   // Keep ref in sync
   useEffect(() => {
     phaseRef.current = phase;
@@ -705,51 +712,59 @@ export default function ActiveTaskScreen() {
     citizen?.avatar,
   ]);
 
-  // Poll for citizen presence when arrived
+  // Poll for status changes (presence, cancellation, etc.)
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
 
-    if (phase === "ARRIVED" && citizenPresence === "PENDING" && task?.reportId) {
+    // Poll during all active phases to catch cancellations or presence confirmations
+    const activePhases: ActivePhase[] = ["ACCEPTED", "ON_THE_WAY", "ARRIVED"];
+    if (activePhases.includes(phase) && task?.id) {
       const poll = async () => {
         try {
-          console.log(`[Presence] Polling task ${task.id} (Report ${task.reportId}) for presence confirmation...`);
+          console.log(`📡 [Poll] Checking status for task ${task.id}...`);
 
-          let updatedReportData: any = null;
-
-          // Use getTaskById as the primary poll source for collectors
+          // Use getTaskById as the primary poll source
           const res = await collectorService.getTaskById(task.id);
 
           if (res && res.report) {
-            updatedReportData = res.report;
-            console.log(`📡 [Presence] Fetched latest report data via task endpoint`);
-          }
-
-          if (updatedReportData) {
+            const updatedReportData = res.report;
             const currentStatus = updatedReportData.status?.toUpperCase();
-            const citizenConfirmed = !!updatedReportData.citizenConfirmedAt;
-            const citizenAbsented = !!updatedReportData.citizenAbsentAt;
 
-            console.log(`[Presence] Report ${task.reportId} status: ${currentStatus}, confirmed: ${citizenConfirmed}, absent: ${citizenAbsented}`);
+            console.log(`📡 [Poll] Task status: ${res.status}, Report status: ${currentStatus}`);
 
-            // Determine presence based on status or timestamp
-            const isConfirmed = citizenConfirmed || currentStatus === "CONFIRMED_PRESENCE" || currentStatus === "COLLECTING";
-            const isAbsented = citizenAbsented || currentStatus === "REPORTED_ABSENT" || currentStatus === "ABSENT";
-
-            if (isConfirmed) {
-              console.log("✅ [Presence] Citizen confirmed presence!");
-              setCitizenPresence("CONFIRMED");
-              showToast("Công dân đã xác nhận có mặt!", "success");
-            } else if (isAbsented) {
-              console.log("❌ [Presence] Citizen reported absent!");
-              setCitizenPresence("ABSENT");
-              showToast("Công dân báo vắng mặt. Đơn hàng sẽ kết thúc.", "info");
+            // 1. Handle Cancellation (Priority)
+            if (currentStatus === "CANCELLED" || res.status === "CANCELLED") {
+              console.log("❌ [Poll] Order was CANCELLED!");
+              showToast("Đơn hàng đã bị hủy bởi Công dân.", "error");
+              // Clear any other timers
+              if (pollingRef.current) clearInterval(pollingRef.current);
+              if (interval) clearInterval(interval);
               setTimeout(() => router.replace("/(collectors)" as any), 2000);
+              return;
             }
-          } else {
-            console.error(`❌ [Presence] FAILED to get updated report data for reportId: ${task.reportId}`);
+
+            // 2. Handle Presence Confirmation (Only in ARRIVED phase)
+            if (phase === "ARRIVED" && citizenPresence === "PENDING") {
+              const citizenConfirmed = !!updatedReportData.citizenConfirmedAt;
+              const citizenAbsented = !!updatedReportData.citizenAbsentAt;
+
+              const isConfirmed = citizenConfirmed || currentStatus === "CONFIRMED_PRESENCE" || currentStatus === "COLLECTING";
+              const isAbsented = citizenAbsented || currentStatus === "REPORTED_ABSENT" || currentStatus === "ABSENT";
+
+              if (isConfirmed) {
+                console.log("✅ [Presence] Citizen confirmed presence!");
+                setCitizenPresence("CONFIRMED");
+                showToast("Công dân đã xác nhận có mặt!", "success");
+              } else if (isAbsented) {
+                console.log("❌ [Presence] Citizen reported absent!");
+                setCitizenPresence("ABSENT");
+                showToast("Công dân báo vắng mặt. Đơn hàng sẽ kết thúc.", "info");
+                setTimeout(() => router.replace("/(collectors)" as any), 2000);
+              }
+            }
           }
         } catch (error) {
-          console.error("[Presence] Critical poll error:", error);
+          console.error("[Poll] Error fetching status update:", error);
         }
       };
 
@@ -760,7 +775,7 @@ export default function ActiveTaskScreen() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [phase, citizenPresence, task?.reportId, id]);
+  }, [phase, citizenPresence, task?.id, task?.reportId]);
 
   // Handle status changes
   const handleUpdateStatus = async (newStatus: string, statusLabel: string) => {
@@ -1017,6 +1032,19 @@ export default function ActiveTaskScreen() {
         </View>
         <View style={{ width: 40 }} />
       </View>
+
+      {/* Expiry Timer Banner */}
+      {!isExpired && task?.expiredAt && (
+        <View style={[styles.timerBanner, { backgroundColor: getTimeStatusColor(remainingSeconds) + "10" }]}>
+          <Ionicons name="timer-outline" size={20} color={getTimeStatusColor(remainingSeconds)} />
+          <Text style={styles.timerLabel}>
+            Thời gian còn lại:
+          </Text>
+          <Text style={[styles.timerValue, { color: getTimeStatusColor(remainingSeconds) }]}>
+            {formatRemainingTime(remainingSeconds)}
+          </Text>
+        </View>
+      )}
 
       <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {phase === "ARRIVED" ? (
@@ -1312,11 +1340,6 @@ export default function ActiveTaskScreen() {
                       ]}>
                         Báo vắng khách
                       </Text>
-                      {!isExpired && (
-                        <Text style={{ fontSize: 10, color: AppColors.gray[400] }}>
-                          Chờ {formatRemainingTime(remainingSeconds)}
-                        </Text>
-                      )}
                     </View>
                   </TouchableOpacity>
                 )}
@@ -1419,50 +1442,52 @@ export default function ActiveTaskScreen() {
       </Modal>
 
       {/* Fullscreen OSM navigation modal */}
-      {currentLocation && report && (
-        <Modal
-          visible={mapModalVisible}
-          animationType="slide"
-          onRequestClose={() => setMapModalVisible(false)}
-        >
-          <View style={{ flex: 1, backgroundColor: AppColors.background }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-                backgroundColor: AppColors.white,
-                borderBottomWidth: 1,
-                borderBottomColor: AppColors.gray[200],
-              }}
-            >
-              <TouchableOpacity onPress={() => setMapModalVisible(false)}>
-                <Ionicons name="close" size={24} color={AppColors.gray[700]} />
-              </TouchableOpacity>
-              <Text
+      {
+        currentLocation && report && (
+          <Modal
+            visible={mapModalVisible}
+            animationType="slide"
+            onRequestClose={() => setMapModalVisible(false)}
+          >
+            <View style={{ flex: 1, backgroundColor: AppColors.background }}>
+              <View
                 style={{
-                  flex: 1,
-                  textAlign: "center",
-                  fontSize: 16,
-                  fontWeight: "700",
-                  color: AppColors.gray[800],
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  backgroundColor: AppColors.white,
+                  borderBottomWidth: 1,
+                  borderBottomColor: AppColors.gray[200],
                 }}
               >
-                Chi tiết đường đi
-              </Text>
-              <View style={{ width: 24 }} />
-            </View>
+                <TouchableOpacity onPress={() => setMapModalVisible(false)}>
+                  <Ionicons name="close" size={24} color={AppColors.gray[700]} />
+                </TouchableOpacity>
+                <Text
+                  style={{
+                    flex: 1,
+                    textAlign: "center",
+                    fontSize: 16,
+                    fontWeight: "700",
+                    color: AppColors.gray[800],
+                  }}
+                >
+                  Chi tiết đường đi
+                </Text>
+                <View style={{ width: 24 }} />
+              </View>
 
-            <WebView
-              originWhitelist={["*"]}
-              ref={modalMapRef}
-              source={routingSource}
-              style={{ flex: 1 }}
-            />
-          </View>
-        </Modal>
-      )}
+              <WebView
+                originWhitelist={["*"]}
+                ref={modalMapRef}
+                source={routingSource}
+                style={{ flex: 1 }}
+              />
+            </View>
+          </Modal>
+        )
+      }
     </View >
   );
 }
@@ -1521,8 +1546,28 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   statusBannerText: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "700",
+  },
+  timerBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    backgroundColor: AppColors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: AppColors.gray[100],
+    gap: 8,
+  },
+  timerLabel: {
+    fontSize: 14,
+    color: AppColors.gray[600],
+    fontWeight: "600",
+  },
+  timerValue: {
+    fontSize: 16,
+    fontWeight: "800",
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   scrollContent: {
     flex: 1,

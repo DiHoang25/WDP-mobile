@@ -7,11 +7,12 @@ import { getWasteTypeLabel } from "@/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -30,6 +31,15 @@ export default function TaskListScreen() {
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: ToastType }>({
     visible: false, message: "", type: "success",
   });
+  const [now, setNow] = useState(new Date());
+
+  // Update timer every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const showToast = (message: string, type: ToastType = "success") => {
     setToast({ visible: true, message, type });
@@ -115,6 +125,25 @@ export default function TaskListScreen() {
     return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
   };
 
+  const getRemainingTime = (expiredAt: string) => {
+    const exp = new Date(expiredAt).getTime();
+    const diff = exp - now.getTime();
+    if (diff <= 0) return "00:00";
+
+    const totalSeconds = Math.floor(diff / 1000);
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
+  const getTimeStatusColor = (expiredAt: string) => {
+    const exp = new Date(expiredAt).getTime();
+    const diff = exp - now.getTime();
+    if (diff < 60000) return AppColors.error; // Less than 1 min
+    if (diff < 180000) return AppColors.warning; // Less than 3 mins
+    return AppColors.success;
+  };
+
   const getStatusLabel = (status: string) => {
     switch (status) {
       case "PENDING_COLLECTOR": return { label: "Chờ xác nhận", color: AppColors.warning };
@@ -189,7 +218,7 @@ export default function TaskListScreen() {
             const totalWeight = Array.isArray(report.wasteItems)
               ? report.wasteItems.reduce((sum: number, item: any) => sum + Number(item?.weightKg || item?.weight || 0), 0)
               : 0;
-            const isExpired = task.expiredAt ? new Date(task.expiredAt).getTime() < new Date().getTime() : false;
+            const isExpired = task.expiredAt ? new Date(task.expiredAt).getTime() < now.getTime() : false;
             const isResponding = respondingId === task.id;
             const statusLabel = isExpired && (task.status === "PENDING_COLLECTOR" || task.status === "COLLECTOR_PENDING")
               ? { label: "Hết hạn", color: AppColors.gray[400] }
@@ -205,9 +234,20 @@ export default function TaskListScreen() {
                 <Card variant="elevated" style={styles.taskCard}>
                   {/* Status badge */}
                   <View style={styles.taskHeader}>
-                    <View style={[styles.statusBadge, { backgroundColor: statusLabel.color + "20" }]}>
-                      <View style={[styles.statusDot, { backgroundColor: statusLabel.color }]} />
-                      <Text style={[styles.statusText, { color: statusLabel.color }]}>{statusLabel.label}</Text>
+                    <View style={styles.headerLeftGroup}>
+                      <View style={[styles.statusBadge, { backgroundColor: statusLabel.color + "20" }]}>
+                        <View style={[styles.statusDot, { backgroundColor: statusLabel.color }]} />
+                        <Text style={[styles.statusText, { color: statusLabel.color }]}>{statusLabel.label}</Text>
+                      </View>
+
+                      {!isExpired && (task.status === "PENDING_COLLECTOR" || task.status === "COLLECTOR_PENDING") && task.expiredAt && (
+                        <View style={[styles.timerBadge, { backgroundColor: getTimeStatusColor(task.expiredAt) + "15" }]}>
+                          <Ionicons name="time-outline" size={14} color={getTimeStatusColor(task.expiredAt)} />
+                          <Text style={[styles.timerText, { color: getTimeStatusColor(task.expiredAt) }]}>
+                            {getRemainingTime(task.expiredAt)}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                     <Text style={styles.taskDate}>{formatDate(task.createdAt)}</Text>
                   </View>
@@ -368,6 +408,26 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
+  },
+  headerLeftGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  timerBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+  },
+  timerText: {
+    fontSize: 12,
+    fontWeight: "700",
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   statusBadge: {
     flexDirection: "row",

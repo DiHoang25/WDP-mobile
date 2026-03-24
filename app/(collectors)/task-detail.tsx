@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -32,6 +33,14 @@ export default function TaskDetailScreen() {
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: ToastType }>({
     visible: false, message: "", type: "success",
   });
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const showToast = (message: string, type: ToastType = "success") => {
     setToast({ visible: true, message, type });
@@ -189,6 +198,24 @@ export default function TaskDetailScreen() {
     return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
   };
 
+  const getRemainingTime = (expiredAt: string) => {
+    const exp = new Date(expiredAt).getTime();
+    const diff = exp - now.getTime();
+    if (diff <= 0) return "00:00";
+
+    const totalSeconds = Math.floor(diff / 1000);
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+  const getTimeStatusColor = (expiredAt: string) => {
+    const exp = new Date(expiredAt).getTime();
+    const diff = exp - now.getTime();
+    if (diff < 60000) return AppColors.error;
+    if (diff < 180000) return AppColors.warning;
+    return AppColors.success;
+  };
+
   const getStatusLabel = (status: string) => {
     const label = getStatusText(status);
     switch (status) {
@@ -259,11 +286,23 @@ export default function TaskDetailScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Expiration Notice */}
-        {task.expiredAt && new Date(task.expiredAt).getTime() < new Date().getTime() && (task.status === "PENDING_COLLECTOR" || task.status === "COLLECTOR_PENDING") && (
-          <View style={styles.expirationBanner}>
-            <Ionicons name="alert-circle" size={20} color={AppColors.error} />
-            <Text style={styles.expirationText}>Đơn hàng này đã hết hạn xác nhận và được chuyển cho người khác.</Text>
-          </View>
+        {task.expiredAt && (task.status === "PENDING_COLLECTOR" || task.status === "COLLECTOR_PENDING") && (
+          new Date(task.expiredAt).getTime() < now.getTime() ? (
+            <View style={styles.expirationBanner}>
+              <Ionicons name="alert-circle" size={20} color={AppColors.error} />
+              <Text style={styles.expirationText}>Đơn hàng này đã hết hạn xác nhận và được chuyển cho người khác.</Text>
+            </View>
+          ) : (
+            <View style={[styles.timerBanner, { backgroundColor: getTimeStatusColor(task.expiredAt) + "10" }]}>
+              <Ionicons name="timer" size={22} color={getTimeStatusColor(task.expiredAt)} />
+              <View style={styles.timerContent}>
+                <Text style={styles.timerLabel}>Thời gian xác nhận còn lại</Text>
+                <Text style={[styles.timerDisplay, { color: getTimeStatusColor(task.expiredAt) }]}>
+                  {getRemainingTime(task.expiredAt)}
+                </Text>
+              </View>
+            </View>
+          )
         )}
 
         {/* Status Header */}
@@ -483,7 +522,7 @@ export default function TaskDetailScreen() {
                   title="✅ Chấp nhận đơn"
                   onPress={() => handleRespond(true)}
                   loading={responding}
-                  disabled={task.expiredAt ? new Date(task.expiredAt).getTime() < new Date().getTime() : false}
+                  disabled={task.expiredAt ? new Date(task.expiredAt).getTime() < now.getTime() : false}
                 />
               </View>
               <View style={{ width: '100%', marginTop: 12 }}>
@@ -493,7 +532,7 @@ export default function TaskDetailScreen() {
                   variant="outline"
                   onPress={() => handleRespond(false)}
                   loading={responding}
-                  disabled={task.expiredAt ? new Date(task.expiredAt).getTime() < new Date().getTime() : false}
+                  disabled={task.expiredAt ? new Date(task.expiredAt).getTime() < now.getTime() : false}
                 />
               </View>
             </View>
@@ -540,6 +579,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: AppColors.error,
     fontWeight: "600",
+  },
+  timerBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+    gap: 12,
+  },
+  timerContent: {
+    flex: 1,
+  },
+  timerLabel: {
+    fontSize: 12,
+    color: AppColors.gray[600],
+    marginBottom: 2,
+  },
+  timerDisplay: {
+    fontSize: 20,
+    fontWeight: "800",
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   loadingContainer: {
     flex: 1,
