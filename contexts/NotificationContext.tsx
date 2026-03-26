@@ -78,7 +78,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                                     setLatestNotification({
                                         ...latest,
                                         title: "Hệ thống",
-                                        content: "Báo cáo của bạn đã được xử lý.Vui lòng vào 'Lịch sử khiếu nại' để xem chi tiết."
+                                        content: "Báo cáo của bạn đã được xử lý. Cảm ơn bạn đã phản hồi để hệ thống tốt hơn!."
                                     });
                                 } else {
                                     setLatestNotification(latest);

@@ -16,9 +16,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSelector } from "react-redux";
+import { RootState } from "@/store";
 
 export default function ProfileScreen() {
   const { user, logout, refreshProfile } = useAuth();
+  const reduxPoints = useSelector((state: RootState) => state.user.points);
   const { t, language, setLanguage } = useLanguage();
   const { showAlert } = useAlert();
   const [showLanguageModal, setShowLanguageModal] = useState(false);
@@ -157,7 +160,7 @@ export default function ProfileScreen() {
               <View style={styles.pointsBadge}>
                 <Ionicons name="star" size={12} color={AppColors.warning} />
                 <Text style={styles.pointsBadgeText}>
-                  {user?.points || 0} {t("profile.points") || "điểm"}
+                  {reduxPoints} {t("profile.points") || "điểm"}
                 </Text>
               </View>
             </View>

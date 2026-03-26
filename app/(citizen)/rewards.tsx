@@ -24,6 +24,9 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState, AppDispatch } from "@/store";
+import { fetchPoints } from "@/store/slices/userSlice";
 
 type TabType = "gifts" | "history";
 type GiftTypeFilter = "all" | GiftType;
@@ -148,7 +151,9 @@ const Barcode = ({ code }: { code: string }) => {
 };
 
 export default function RewardsScreen() {
-  const { user, refreshProfile, refreshPoints } = useAuth();
+  const { user, refreshProfile } = useAuth();
+  const reduxPoints = useSelector((state: RootState) => state.user.points);
+  const dispatch = useDispatch<AppDispatch>();
   const { t } = useLanguage();
   const { showAlert } = useAlert();
   const params = useLocalSearchParams<{
@@ -197,7 +202,7 @@ export default function RewardsScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshProfile();
-      refreshPoints();
+      dispatch(fetchPoints());
       fetchInitialData();
     }, []),
   );
@@ -255,7 +260,7 @@ export default function RewardsScreen() {
   };
 
   const handleRedeem = async (gift: Gift) => {
-    const points = user?.points || 0;
+    const points = reduxPoints;
     if (points < gift.requiredPoints) {
       showAlert(
         "Không đủ điểm",
@@ -289,7 +294,7 @@ export default function RewardsScreen() {
                       onPress: () => {
                         // Refresh data
                         fetchGifts();
-                        refreshPoints();
+                        dispatch(fetchPoints());
                       },
                     },
                   ],
@@ -346,7 +351,7 @@ export default function RewardsScreen() {
             <Text style={styles.pointsLabel}>{t("rewards.yourPoints")}</Text>
             <View style={styles.pointsValueContainer}>
               <Ionicons name="star" size={24} color={AppColors.warning} />
-              <Text style={styles.pointsValue}> {user?.points || 0}</Text>
+              <Text style={styles.pointsValue}> {reduxPoints}</Text>
             </View>
           </View>
         </Card>
@@ -544,7 +549,7 @@ export default function RewardsScreen() {
             </View>
           ) : (
             displayedGifts.map((gift) => {
-              const canAfford = (user?.points || 0) >= gift.requiredPoints;
+              const canAfford = reduxPoints >= gift.requiredPoints;
               const isOutOfStock = gift.stock <= 0;
 
               return (
@@ -601,14 +606,14 @@ export default function RewardsScreen() {
                         title={
                           isOutOfStock
                             ? "Hết hàng"
-                            : (user?.points || 0) >= gift.requiredPoints
+                            : reduxPoints >= gift.requiredPoints
                               ? "Đổi ngay"
                               : "Chưa đủ điểm"
                         }
                         onPress={() => handleRedeem(gift)}
-                        disabled={!((user?.points || 0) >= gift.requiredPoints) || isOutOfStock || submitting}
+                        disabled={!(reduxPoints >= gift.requiredPoints) || isOutOfStock || submitting}
                         variant={
-                          (user?.points || 0) >= gift.requiredPoints && !isOutOfStock ? "primary" : "outline"
+                          reduxPoints >= gift.requiredPoints && !isOutOfStock ? "primary" : "outline"
                         }
                         size="small"
                       />

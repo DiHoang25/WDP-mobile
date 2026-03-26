@@ -86,7 +86,7 @@ export default function ReportDetailScreen() {
 
     // Show toast immediately if it's already ARRIVED
     if (currentStatus === "ARRIVED" && !hasShownArrivedToast) {
-      showToast("Shipper đã đến nơi! Vui lòng xác nhận sự có mặt.", "info");
+      // showToast("Shipper đã đến nơi! Vui lòng xác nhận sự có mặt.", "info");
       setHasShownArrivedToast(true);
     }
 
@@ -103,10 +103,10 @@ export default function ReportDetailScreen() {
             const newStatus = res.data.status?.toUpperCase();
             if (newStatus === "ARRIVED" && !hasShownArrivedToast) {
               setReport(res.data);
-              showToast(
-                "Shipper đã đến nơi! Vui lòng xác nhận sự có mặt.",
-                "info",
-              );
+              // showToast(
+              //   "Shipper đã đến nơi! Vui lòng xác nhận sự có mặt.",
+              //   "info",
+              // );
               setHasShownArrivedToast(true);
             } else if (newStatus !== currentStatus) {
               setReport(res.data);
@@ -505,8 +505,8 @@ export default function ReportDetailScreen() {
           </View>
         )}
 
-        {/* Presence confirmation - New compact banner */}
-        {status?.toUpperCase() === "ARRIVED" && (
+        {/* Presence confirmation - Hidden as requested */}
+        {/* {status?.toUpperCase() === "ARRIVED" && (
           <View style={styles.arrivedBanner}>
             <View style={styles.arrivedInfoRow}>
               <View style={styles.arrivedIconCircle}>
@@ -554,7 +554,7 @@ export default function ReportDetailScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        )}
+        )} */}
 
         {/* Collector Info */}
         {collector && (

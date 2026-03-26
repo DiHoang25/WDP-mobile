@@ -41,7 +41,10 @@ export default function HistoryScreen() {
       if (activeTab === "ACCEPTED") {
         data = await collectorService.getAcceptedTasks();
       } else if (activeTab === "COMPLETED") {
-        data = await collectorService.getCompletedTasks();
+        const all = await collectorService.getCompletedTasks();
+        data = all.filter((t: any) =>
+          (t.status || "").toUpperCase() === "COMPLETED"
+        );
       } else {
         // CANCELLED: get completed tasks filtered by cancelled/rejected statuses
         const all = await collectorService.getCompletedTasks();
@@ -82,7 +85,7 @@ export default function HistoryScreen() {
   };
 
   const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return "—";
+    if (!dateStr) return "không có";
     const d = new Date(dateStr);
     return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
   };
@@ -232,18 +235,19 @@ export default function HistoryScreen() {
           />
         ) : (
           displayedTasks.map((task: any) => {
-            // Determine structure style
-            const isHistoryItem = activeTab === "COMPLETED" && !task.report;
+            // Determine structure style (Flat report vs Task with nested report)
+            const isHistoryItem = !task.report;
 
             // Extract common display data
             const report = isHistoryItem ? task : (task.report || {});
-            const dateStr = isHistoryItem ? task.completedAt : task.createdAt;
+            const dateStr = isHistoryItem ? (task.completedAt || task.createdAt) : task.createdAt;
             const displayAddress = isHistoryItem ? task.address : (report.address || "");
 
             const wasteItems = report.wasteItems || [];
+            const estimatedWeight = wasteItems.reduce((sum: number, item: any) => sum + (item.weightKg || item.weight || 0), 0);
             const totalWeight = isHistoryItem
-              ? (task.actualWeight || wasteItems.reduce((sum: number, item: any) => sum + (item.weight || 0), 0))
-              : wasteItems.reduce((sum: number, item: any) => sum + (item.weightKg || 0), 0);
+              ? (task.actualWeight !== null && task.actualWeight !== undefined ? task.actualWeight : estimatedWeight)
+              : estimatedWeight;
 
             const citizenNameRaw =
               report.citizen?.fullName ||
@@ -277,7 +281,7 @@ export default function HistoryScreen() {
 
                     <View style={styles.mainInfo}>
                       <Text style={styles.historyAddress} numberOfLines={2}>
-                        {displayAddress || "—"}
+                        {displayAddress || "không có"}
                       </Text>
 
                       <View style={styles.metaRow}>
@@ -289,7 +293,7 @@ export default function HistoryScreen() {
                         <View style={styles.metaPill}>
                           <Ionicons name="scale-outline" size={13} color={AppColors.primary} />
                           <Text style={[styles.metaText, { color: AppColors.primary, fontWeight: "800" }]}>
-                            {Number.isFinite(totalWeight) ? totalWeight.toFixed(1) : "0.0"} kg
+                            {Number.isFinite(totalWeight) && totalWeight > 0 ? `${totalWeight.toFixed(1)} kg` : "không có"}
                           </Text>
                         </View>
                       </View>

@@ -1101,7 +1101,7 @@ export default function ActiveTaskScreen() {
 
       {/* Status Banner */}
       <View style={[styles.statusBanner, { backgroundColor: phaseInfo.bg }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.replace("/(collectors)")}>
           <Ionicons name="arrow-back" size={24} color={AppColors.gray[700]} />
         </TouchableOpacity>
         <View style={styles.statusBannerContent}>
@@ -1180,7 +1180,7 @@ export default function ActiveTaskScreen() {
                       accuracyLevel === level && styles.accuracyChipTextActive,
                     ]}
                   >
-                    {level === "MATCH" ? "Đúng" : level === "MODERATE" ? "Sai số" : "Sai nhiều"}
+                    {level === "MATCH" ? "Đúng" : level === "MODERATE" ? "Sai số ít" : "Sai số nhiều"}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -1388,7 +1388,8 @@ export default function ActiveTaskScreen() {
               </TouchableOpacity>
 
               <View style={styles.secondaryActions}>
-                {citizenPresence !== "CONFIRMED" && (
+                {/* Absent report button hidden as requested */}
+                {/* {citizenPresence !== "CONFIRMED" && (
                   <TouchableOpacity
                     style={[
                       styles.secondaryBtn,
@@ -1421,7 +1422,7 @@ export default function ActiveTaskScreen() {
                       </Text>
                     </View>
                   </TouchableOpacity>
-                )}
+                )} */}
 
                 <TouchableOpacity
                   style={styles.secondaryBtn}

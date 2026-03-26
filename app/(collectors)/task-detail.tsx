@@ -174,7 +174,7 @@ export default function TaskDetailScreen() {
                   }, 800);
                 } else {
                   showToast("Đã từ chối đơn hàng", "info");
-                  setTimeout(() => router.back(), 1500);
+                  setTimeout(() => router.replace("/(collectors)"), 1500);
                 }
               } else {
                 showToast(res.message || "Không thể xử lý yêu cầu", "error");
@@ -194,7 +194,7 @@ export default function TaskDetailScreen() {
 
 
   const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return "—";
+    if (!dateStr) return "không có";
     const d = new Date(dateStr);
     return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
   };
@@ -236,7 +236,7 @@ export default function TaskDetailScreen() {
   };
 
   const getReportStatusLabel = (status: string) => {
-    if (!status) return "—";
+    if (!status) return "không có";
     return getStatusText(status);
   };
 
@@ -311,10 +311,12 @@ export default function TaskDetailScreen() {
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => {
-              if (initialData || task.status === "COMPLETED") {
+              const status = task.status as any;
+              if (initialData || status === "COMPLETED" || status === "CANCELLED" || status === "REJECTED" || status === "FAILED") {
                 router.push("/(collectors)/history");
               } else {
-                router.back();
+                // For pending or active tasks, explicitly go back to the main tasks tab
+                router.replace("/(collectors)");
               }
             }}
           >
@@ -352,9 +354,9 @@ export default function TaskDetailScreen() {
           {citizen && (
             <Card variant="elevated" style={styles.card}>
               <Text style={styles.cardTitle}>Thông tin khách hàng</Text>
-              <InfoRow icon="person" label="Tên" value={citizen.fullName || (citizen as any).name || (report as any).fullName || (report as any).citizenName || (report as any).name || "—"} />
-              <InfoRow icon="call" label="Số điện thoại" value={citizen.phone || "—"} />
-              <InfoRow icon="mail" label="Email" value={citizen.email || "—"} />
+              <InfoRow icon="person" label="Tên" value={citizen.fullName || (citizen as any).name || (report as any).fullName || (report as any).citizenName || (report as any).name || "không có"} />
+              <InfoRow icon="call" label="Số điện thoại" value={citizen.phone || "không có"} />
+              <InfoRow icon="mail" label="Email" value={citizen.email || "không có"} />
             </Card>
           )}
 
@@ -380,8 +382,8 @@ export default function TaskDetailScreen() {
           <Card variant="elevated" style={styles.card}>
             <Text style={styles.cardTitle}>Chi tiết báo cáo</Text>
 
-            <InfoRow icon="location" label="Địa chỉ" value={report.address || "N/A"} />
-            <InfoRow icon="chatbox" label="Mô tả" value={report.description || "Không có"} />
+            <InfoRow icon="location" label="Địa chỉ" value={report.address || "không có"} />
+            <InfoRow icon="chatbox" label="Mô tả" value={report.description || "không có"} />
             {report.actualWeight !== null && report.actualWeight !== undefined && <InfoRow icon="scale" label="Khối lượng thực tế" value={`${report.actualWeight} kg`} />}
             {!!report.accuracyBucket && <InfoRow icon="analytics" label="Mức độ chính xác" value={
               report.accuracyBucket === "MATCH" ? "Chính xác" :
@@ -520,7 +522,7 @@ export default function TaskDetailScreen() {
               <View style={{ width: '100%' }}>
                 <Button
                   key="accept-btn"
-                  title="✅ Chấp nhận đơn"
+                  title="Chấp nhận đơn"
                   onPress={() => handleRespond(true)}
                   loading={responding}
                   disabled={task.expiredAt ? new Date(task.expiredAt).getTime() < now.getTime() : false}
@@ -529,7 +531,7 @@ export default function TaskDetailScreen() {
               <View style={{ width: '100%', marginTop: 12 }}>
                 <Button
                   key="reject-btn"
-                  title="❌ Từ chối đơn"
+                  title="Từ chối đơn"
                   variant="outline"
                   onPress={() => handleRespond(false)}
                   loading={responding}

@@ -23,11 +23,14 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSelector } from "react-redux";
+import { RootState } from "@/store";
 
 const { width } = Dimensions.get("window");
 
 export default function CitizenHomeScreen() {
   const { user, refreshProfile, refreshPoints } = useAuth();
+  const reduxPoints = useSelector((state: RootState) => state.user.points);
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -221,7 +224,7 @@ export default function CitizenHomeScreen() {
   const stats = [
     {
       label: t("home.stats.points"),
-      value: user?.points || 0,
+      value: reduxPoints,
       color: AppColors.warning,
     },
     {

@@ -5,6 +5,8 @@ import { apiClient } from "@/utils/api";
 import { getRoleNameByRoleId } from "@/utils/roleHelper";
 import { storage } from "@/utils/storage";
 import React, { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import { useDispatch } from "react-redux";
+import { setPoints, fetchPoints } from "@/store/slices/userSlice";
 
 interface AuthContextType {
   user: User | null;
@@ -25,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingPayment, setPendingPayment] = useState<{ referenceCode: string; amount: number } | null>(null);
+  const dispatch = useDispatch();
 
   // Load user and token on app start
   useEffect(() => {
@@ -42,6 +45,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (storedUser && token) {
         setUser(storedUser);
+        if (storedUser.points !== undefined) {
+          dispatch(setPoints(storedUser.points));
+        }
         apiClient.setToken(token);
 
         // If enterprise, check for pending subscription
@@ -119,6 +125,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Save to state
         setUser(normalizedUser);
+        if (normalizedUser.points !== undefined) {
+          dispatch(setPoints(normalizedUser.points));
+        }
 
         // Save to storage
         const savePromises = [
@@ -204,6 +213,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.success && response.data) {
         const normalizedUser = normalizeUser(response.data, user);
         setUser(normalizedUser);
+        if (normalizedUser.points !== undefined) {
+          dispatch(setPoints(normalizedUser.points));
+        }
         await storage.saveUser(normalizedUser);
       }
     } catch (error) {
@@ -213,19 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshPoints = async () => {
     try {
-      const { citizenService } = await import("@/services/citizen.service");
-      const response = await citizenService.getMyPoints();
-      if (response.success && response.data) {
-        const points = response.data.points;
-        setUser((prev) => {
-          if (!prev) return null;
-          return { ...prev, points };
-        });
-        const storedUser = await storage.getUser();
-        if (storedUser) {
-          await storage.saveUser({ ...storedUser, points });
-        }
-      }
+      dispatch(fetchPoints() as any);
     } catch (error) {
       console.error("Refresh points error:", error);
     }
