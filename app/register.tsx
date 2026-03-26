@@ -1,5 +1,6 @@
 import { Button, Header, Input } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserRole } from "@/types";
 import {
@@ -33,6 +34,7 @@ export default function RegisterScreen() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
+  const { showAlert } = useAlert();
 
 
 
@@ -84,8 +86,11 @@ export default function RegisterScreen() {
     setLoading(false);
 
     if (response.success) {
-      alert("Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.");
-      router.replace("/login");
+      showAlert(
+        "Đăng ký thành công",
+        "Tài khoản của bạn đã được tạo. Vui lòng đăng nhập để tiếp tục.",
+        [{ text: "Đăng nhập", onPress: () => router.replace("/login") }]
+      );
     } else {
       setError(response.error || "Đăng ký thất bại. Vui lòng thử lại");
     }

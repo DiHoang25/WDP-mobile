@@ -228,17 +228,26 @@ export default function CitizenHomeScreen() {
       color: AppColors.warning,
     },
     {
-      label: "Báo cáo",
-      value: allReports.filter((r) => r.status?.toLowerCase() !== "completed")
-        .length,
-
+      label: "Đang xử lý",
+      value: allReports.filter((r) => {
+        const s = r.status?.toString().toUpperCase();
+        return (
+          s &&
+          s !== "COMPLETED" &&
+          s !== "CANCELLED" &&
+          s !== "REJECTED" &&
+          s !== "EXPIRED" &&
+          s !== "FAILED" &&
+          s !== "CITIZEN_ABSENT"
+        );
+      }).length,
       color: AppColors.primary,
     },
     {
       label: "Đã thu gom",
-      value: allReports.filter((r) => r.status?.toLowerCase() === "completed")
-        .length,
-
+      value: allReports.filter(
+        (r) => r.status?.toString().toUpperCase() === "COMPLETED",
+      ).length,
       color: AppColors.success,
     },
   ];
@@ -317,16 +326,14 @@ export default function CitizenHomeScreen() {
               style={styles.avatar}
               onPress={() => router.push("/(citizen)/profile")}
             >
-              {user?.avatar ? (
-                <Image
-                  source={{ uri: user.avatar }}
-                  style={styles.avatarImage}
-                />
-              ) : (
-                <Text style={styles.avatarText}>
-                  {user?.name?.charAt(0) || user?.email?.charAt(0) || "?"}
-                </Text>
-              )}
+              <Image
+                source={{
+                  uri:
+                    user?.avatar ||
+                    "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y",
+                }}
+                style={styles.avatarImage}
+              />
             </TouchableOpacity>
           </View>
         </View>

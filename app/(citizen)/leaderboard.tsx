@@ -242,18 +242,14 @@ export default function LeaderboardScreen() {
                 </View>
 
                 <View style={styles.avatarContainer}>
-                  {entry.avatar ? (
-                    <Image
-                      source={{ uri: entry.avatar }}
-                      style={styles.avatar}
-                    />
-                  ) : (
-                    <View style={styles.avatarPlaceholder}>
-                      <Text style={styles.avatarText}>
-                        {entry.fullName.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
+                  <Image
+                    source={{
+                      uri:
+                        entry.avatar ||
+                        "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y",
+                    }}
+                    style={styles.avatar}
+                  />
                 </View>
 
                 <View style={styles.userInfo}>

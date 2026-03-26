@@ -561,16 +561,14 @@ export default function ReportDetailScreen() {
           <Card variant="elevated" style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Người thu gom</Text>
             <View style={styles.userInfoRow}>
-              {collector.avatar ? (
-                <Image
-                  source={{ uri: collector.avatar }}
-                  style={styles.avatar}
-                />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Ionicons name="person" size={24} color={AppColors.white} />
-                </View>
-              )}
+              <Image
+                source={{
+                  uri:
+                    collector.avatar ||
+                    "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y",
+                }}
+                style={styles.avatar}
+              />
               <View style={styles.userMeta}>
                 <Text style={styles.userName}>{collector.fullName}</Text>
                 <Text style={styles.userPhone}>

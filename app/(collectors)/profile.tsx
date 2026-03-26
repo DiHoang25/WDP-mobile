@@ -146,7 +146,7 @@ export default function CollectorProfileScreen() {
     );
   }
 
-  const { user, enterprise, status, workingHours, employeeCode, totalCompleted, queueLength, zones } = profile;
+  const { user, enterprise, status, workingHours, employeeCode, totalCompleted, queueLength, zones, trustScore } = profile;
   const isOnline = status?.availability === "ONLINE_AVAILABLE" || status?.availability === "ONLINE_BUSY";
 
   return (
@@ -164,14 +164,24 @@ export default function CollectorProfileScreen() {
             <Text style={styles.headerCode}>#{employeeCode}</Text>
           </View>
           <View style={styles.avatarContainer}>
-            {user.avatar ? (
-              <Image source={{ uri: user.avatar }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                <Ionicons name="person" size={40} color={AppColors.white} />
-              </View>
-            )}
-            <View style={[styles.statusIndicator, { backgroundColor: isOnline ? AppColors.success : AppColors.gray[400] }]} />
+            <Image
+              source={{
+                uri:
+                  user.avatar ||
+                  "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y",
+              }}
+              style={styles.avatar}
+            />
+            <View
+              style={[
+                styles.statusIndicator,
+                {
+                  backgroundColor: isOnline
+                    ? AppColors.success
+                    : AppColors.gray[400],
+                },
+              ]}
+            />
           </View>
           <Text style={styles.name}>{user.fullName}</Text>
           <View style={styles.statusBadge}>
@@ -192,6 +202,22 @@ export default function CollectorProfileScreen() {
               <Text style={styles.statLabel}>Đang chờ xử lý</Text>
             </View>
           </View>
+
+          {/* Trust Score Card */}
+          <Card variant="elevated" style={styles.trustCard}>
+            <View style={styles.trustContent}>
+              <View style={styles.trustIconBox}>
+                <Ionicons name="shield-checkmark" size={24} color={AppColors.success} />
+              </View>
+              <View style={styles.trustTextContainer}>
+                <Text style={styles.trustTitle}>Điểm uy tín</Text>
+                <Text style={styles.trustSubText}>Độ tin cậy của bạn trong hệ thống</Text>
+              </View>
+              <View style={styles.trustValueBox}>
+                <Text style={styles.trustValue}>{trustScore || 0}</Text>
+              </View>
+            </View>
+          </Card>
 
           {/* Availability Toggle */}
           <Card variant="elevated" style={styles.actionCard}>
@@ -591,5 +617,50 @@ const styles = StyleSheet.create({
   logoutBtn: {
     borderColor: AppColors.error,
     borderWidth: 1,
+  },
+  trustCard: {
+    padding: 16,
+    borderRadius: 20,
+    marginBottom: 24,
+    backgroundColor: AppColors.white,
+    borderColor: AppColors.success + "20",
+    borderWidth: 1,
+  },
+  trustContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  trustIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: AppColors.success + "15",
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  trustTextContainer: {
+    flex: 1,
+  },
+  trustTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: AppColors.gray[900],
+  },
+  trustSubText: {
+    fontSize: 12,
+    color: AppColors.gray[500],
+    marginTop: 2,
+  },
+  trustValueBox: {
+    backgroundColor: AppColors.success + "10",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  trustValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: AppColors.success,
   },
 });

@@ -140,15 +140,14 @@ export default function ProfileScreen() {
         <Card variant="elevated">
           <View style={styles.profileHeader}>
             <View style={styles.avatarContainer}>
-              {user?.avatar ? (
-                <Image source={{ uri: user.avatar }} style={styles.avatar} />
-              ) : (
-                <View style={styles.avatarPlaceholder}>
-                  <Text style={styles.avatarText}>
-                    {user?.name?.charAt(0) || user?.email?.charAt(0) || "?"}
-                  </Text>
-                </View>
-              )}
+              <Image
+                source={{
+                  uri:
+                    user?.avatar ||
+                    "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y",
+                }}
+                style={styles.avatar}
+              />
             </View>
             <Text style={styles.userName}>{user?.name}</Text>
             <Text style={styles.userEmail}>{user?.email}</Text>

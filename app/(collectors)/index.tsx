@@ -165,13 +165,14 @@ export default function CollectorDashboard() {
         <LinearGradient colors={[AppColors.primary, AppColors.primaryDark]} style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.avatarContainer}>
-              {profile.user?.avatar ? (
-                <Image source={{ uri: profile.user.avatar }} style={styles.avatarImg} />
-              ) : (
-                <View style={styles.avatar}>
-                  <Ionicons name="person" size={32} color={AppColors.white} />
-                </View>
-              )}
+              <Image
+                source={{
+                  uri:
+                    profile.user?.avatar ||
+                    "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y",
+                }}
+                style={styles.avatarImg}
+              />
               <View>
                 <Text style={styles.headerName}>{profile.user?.fullName || "Người dùng"}</Text>
                 <Text style={styles.headerCode}>Mã NV: {profile.employeeCode || "—"}</Text>
