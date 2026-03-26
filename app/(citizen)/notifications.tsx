@@ -99,17 +99,21 @@ export default function NotificationsScreen() {
         const meta = notification.meta || (notification as any).data || {};
         const metaType = String(meta.type || "").toUpperCase();
         const complaintId = meta.complaintId || meta.complaint_id || meta.complaintID;
-        const reportId = meta.reportId || meta.report_id || meta.reportID || meta.id;
 
+        // Lấy reportId từ nhiều field possible của meta
+        const reportId =
+            meta.reportId || meta.report_id || meta.reportID ||
+            meta.id || meta.taskId || meta.task_id ||
+            (notification as any).reportId || (notification as any).report_id;
+
+        // CHỈ coi là incident/khiếu nại khi thực sự là sự cố hoặc khiếu nại
         const isIncident =
             metaType === "DISPUTE_REPORTED" ||
             titleStr.includes("khiếu nại") || contentStr.includes("khiếu nại") ||
             contentStr.includes("sự cố") || titleStr.includes("sự cố") ||
-            titleStr.includes("hệ thống") ||
-            contentStr.includes("xử lý") || contentStr.includes("chấp nhận") ||
-            contentStr.includes("từ chối") || contentStr.includes("processed");
+            titleStr.includes("hệ thống");
 
-        if (isIncident) return; // Disable click for incidents
+        // KHÔNG block các từ khoá đơn hàng bình thường (chấp nhận, xử lý, tiếp nhận...)
 
         if (complaintId) {
             router.push({

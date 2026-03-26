@@ -1,23 +1,24 @@
-import { Button, Card, Header, Toast, ToastType } from "@/components/common";
+import { Button, Card, Header, Picker, Toast, ToastType } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { citizenService } from "@/services/citizen.service";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function CreateComplaintScreen() {
   const router = useRouter();
+  const { showAlert } = useAlert();
   const params = useLocalSearchParams<{ reportId?: string; source?: string }>();
 
   const reportId = useMemo(() => {
@@ -29,6 +30,7 @@ export default function CreateComplaintScreen() {
   }, [params.reportId]);
 
   const [content, setContent] = useState("");
+  const [type, setType] = useState("OTHER");
   const [images, setImages] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [alreadyComplained, setAlreadyComplained] = useState(false);
@@ -68,7 +70,7 @@ export default function CreateComplaintScreen() {
   const handlePickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert(
+      showAlert(
         "Thiếu quyền",
         "Vui lòng cấp quyền thư viện ảnh để đính kèm bằng chứng.",
       );
@@ -94,12 +96,12 @@ export default function CreateComplaintScreen() {
     const message = content.trim();
 
     if (alreadyComplained) {
-      Alert.alert("Đã gửi khiếu nại", "Báo cáo này đã có khiếu nại trước đó.");
+      showAlert("Đã gửi khiếu nại", "Báo cáo này đã có khiếu nại trước đó.");
       return;
     }
 
     if (!reportId) {
-      Alert.alert(
+      showAlert(
         "Thiếu dữ liệu",
         "Không tìm thấy mã báo cáo để gửi khiếu nại.",
       );
@@ -107,7 +109,7 @@ export default function CreateComplaintScreen() {
     }
 
     if (!message) {
-      Alert.alert("Thiếu nội dung", "Vui lòng nhập nội dung khiếu nại.");
+      showAlert("Thiếu nội dung", "Vui lòng nhập nội dung khiếu nại.");
       return;
     }
 
@@ -115,7 +117,7 @@ export default function CreateComplaintScreen() {
       setSubmitting(true);
       const response = await citizenService.createComplaint({
         reportId,
-        type: "OTHER",
+        type: type as any,
         content: message,
         files: images,
       });
@@ -126,10 +128,10 @@ export default function CreateComplaintScreen() {
           router.back();
         }, 700);
       } else {
-        Alert.alert("Lỗi", response.error || "Không thể gửi khiếu nại.");
+        showAlert("Lỗi", response.error || "Không thể gửi khiếu nại.");
       }
     } catch (error) {
-      Alert.alert("Lỗi", "Đã có lỗi xảy ra khi gửi khiếu nại.");
+      showAlert("Lỗi", "Đã có lỗi xảy ra khi gửi khiếu nại.");
     } finally {
       setSubmitting(false);
     }
@@ -151,6 +153,22 @@ export default function CreateComplaintScreen() {
               Báo cáo này đã được gửi khiếu nại trước đó. Bạn không thể gửi lại.
             </Text>
           )}
+
+          <Picker
+            label="Loại khiếu nại"
+            selectedValue={type}
+            onValueChange={setType}
+            disabled={alreadyComplained || submitting}
+            options={[
+              { label: "Thái độ phục vụ", value: "ATTITUDE" },
+              { label: "Khối lượng rác không khớp", value: "WEIGHT_MISMATCH" },
+              { label: "Thu phí không hợp lệ", value: "UNAUTHORIZED_FEE" },
+              { label: "Collector không đến", value: "NO_SHOW" },
+              { label: "Khác", value: "OTHER" },
+            ]}
+          />
+
+          <Text style={[styles.label, { marginTop: 8 }]}>Chi tiết khiếu nại</Text>
           <TextInput
             style={styles.input}
             value={content}
@@ -191,7 +209,7 @@ export default function CreateComplaintScreen() {
           </TouchableOpacity>
 
           <Text style={styles.hintText}>
-            Hệ thống sẽ tự gửi loại khiếu nại mặc định và mã báo cáo hiện tại.
+            Hệ thống sẽ ghi nhận loại khiếu nại và mã báo cáo hiện tại để Admin xử lý.
           </Text>
         </Card>
 

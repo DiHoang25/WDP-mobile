@@ -1,6 +1,7 @@
 import type { ToastType } from "@/components/common";
 import { Button, Card, Toast } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { collectorService } from "@/services/collector.service";
 import { CollectorProfile, CollectorStatus } from "@/types/collector";
@@ -9,7 +10,6 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Platform,
   ScrollView,
@@ -20,6 +20,7 @@ import {
 
 export default function CollectorProfileScreen() {
   const { logout } = useAuth();
+  const { showAlert } = useAlert();
   const [profile, setProfile] = useState<CollectorProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -53,7 +54,7 @@ export default function CollectorProfileScreen() {
       setProfile(mergedProfile);
     } catch (error) {
       console.error("Error fetching profile:", error);
-      Alert.alert("Lỗi", "Không thể tải thông tin cá nhân");
+      showAlert("Lỗi", "Không thể tải thông tin cá nhân");
     } finally {
       setLoading(false);
     }
@@ -73,7 +74,7 @@ export default function CollectorProfileScreen() {
       const todaySchedule = profile.workingHours?.[todayKey];
 
       if (!todaySchedule || !todaySchedule.active) {
-        Alert.alert(
+        showAlert(
           "Ngoài lịch làm việc",
           `Hôm nay (${translateDay(todayKey)}) không phải ngày làm việc của bạn. Bạn không thể bật trạng thái hoạt động.`
         );
@@ -88,7 +89,7 @@ export default function CollectorProfileScreen() {
       const endMinutes = endH * 60 + endM;
 
       if (nowMinutes < startMinutes || nowMinutes >= endMinutes) {
-        Alert.alert(
+        showAlert(
           "Ngoài giờ làm việc",
           `Giờ làm việc hôm nay (${translateDay(todayKey)}) là ${todaySchedule.start} - ${todaySchedule.end}.\nHiện tại ngoài khung giờ này, bạn không thể bật trạng thái hoạt động.`
         );
@@ -273,7 +274,7 @@ export default function CollectorProfileScreen() {
                 if (Platform.OS === "web") {
                   await doLogout();
                 } else {
-                  Alert.alert("Đăng xuất", "Bạn có chắc muốn đăng xuất?", [
+                  showAlert("Đăng xuất", "Bạn có chắc muốn đăng xuất?", [
                     { text: "Hủy", style: "cancel" },
                     { text: "Đăng xuất", style: "destructive", onPress: doLogout },
                   ]);

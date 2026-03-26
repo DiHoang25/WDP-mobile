@@ -1,6 +1,7 @@
 import type { ToastType } from "@/components/common";
 import { Button, Card, Toast } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { collectorService } from "@/services/collector.service";
 import { locationService } from "@/services/location.service";
@@ -14,7 +15,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Linking,
   Modal,
@@ -33,7 +33,7 @@ type ActivePhase = "ACCEPTED" | "ON_THE_WAY" | "ARRIVED" | "COMPLETED";
 // Dev-only flag: enable fake GPS route simulation for testing
 const USE_FAKE_LOCATION = __DEV__;
 // Easy place to tweak fake GPS duration (in minutes)
-const FAKE_ROUTE_DURATION_MINUTES = 2;
+const FAKE_ROUTE_DURATION_MINUTES = 1;
 
 const getRoutingMapHtml = (
   userLat: number,
@@ -305,6 +305,7 @@ export default function ActiveTaskScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user: authUser } = useAuth();
+  const { showAlert } = useAlert();
   const [task, setTask] = useState<CollectorTaskItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -339,14 +340,21 @@ export default function ActiveTaskScreen() {
   }, []);
 
   const isExpired = useMemo(() => {
-    if (!task?.expiredAt) return false;
-    const expDate = new Date(task.expiredAt);
+    // If task is already accepted (ASSIGNED/ON_THE_WAY etc.), ignore the acceptance expiry
+    const isAccepted = task?.status && !["PENDING_COLLECTOR", "COLLECTOR_PENDING"].includes(task.status);
+
+    const expiredAt = isAccepted
+      ? task?.report?.arrivalDeadline
+      : (task?.expiredAt || task?.report?.arrivalDeadline);
+
+    if (!expiredAt) return false;
+    const expDate = new Date(expiredAt);
     return now.getTime() > expDate.getTime();
-  }, [now, task?.expiredAt]);
+  }, [now, task?.status, task?.expiredAt, task?.report?.arrivalDeadline]);
 
   useEffect(() => {
     if (isExpired && (task?.status === "PENDING_COLLECTOR" || task?.status === "COLLECTOR_PENDING")) {
-      Alert.alert(
+      showAlert(
         "Đơn hàng hết hạn",
         "Đơn hàng này đã hết hạn xác nhận và được chuyển cho người khác.",
         [{ text: "OK", onPress: () => router.replace("/(collectors)" as any) }]
@@ -355,10 +363,16 @@ export default function ActiveTaskScreen() {
   }, [isExpired, task?.status]);
 
   const remainingSeconds = useMemo(() => {
-    if (!task?.expiredAt || isExpired) return 0;
-    const diff = new Date(task.expiredAt).getTime() - now.getTime();
+    const isAccepted = task?.status && !["PENDING_COLLECTOR", "COLLECTOR_PENDING"].includes(task.status);
+
+    const expiredAt = isAccepted
+      ? task?.report?.arrivalDeadline
+      : (task?.expiredAt || task?.report?.arrivalDeadline);
+
+    if (!expiredAt || isExpired) return 0;
+    const diff = new Date(expiredAt).getTime() - now.getTime();
     return Math.max(0, Math.floor(diff / 1000));
-  }, [now, task?.expiredAt, isExpired]);
+  }, [now, task?.status, task?.expiredAt, task?.report?.arrivalDeadline, isExpired]);
 
   const formatRemainingTime = (totalSeconds: number) => {
     const hours = Math.floor(totalSeconds / 3600);
@@ -383,6 +397,7 @@ export default function ActiveTaskScreen() {
   }, [phase]);
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isStoppingPolling = useRef(false);
 
   // Fake route simulation (DEV)
   const fakeRouteRef = useRef<{ latitude: number; longitude: number }[] | null>(null);
@@ -397,6 +412,7 @@ export default function ActiveTaskScreen() {
   const [initialCollectorPos, setInitialCollectorPos] = useState<
     { latitude: number; longitude: number } | null
   >(null);
+  const [modalRoutingSource, setModalRoutingSource] = useState({ html: "" });
 
   const [toast, setToast] = useState<{ visible: boolean; message: string; type: ToastType }>({
     visible: false, message: "", type: "success",
@@ -484,12 +500,34 @@ export default function ActiveTaskScreen() {
     }
 
     // Try to get real driving route from OSRM / Mapbox so marker follows the same path as drawn trên map
+    // We want a high resolution for a smooth 1-minute trip, so we'll interpolate if the route is too sparse
     const routedPath = await fetchRouteMultiSource(
       { latitude: startLat, longitude: startLng },
       { latitude: reportLat, longitude: reportLng },
     );
+
     if (routedPath && routedPath.length > 1) {
-      route = routedPath;
+      // Interpolate to ensure at least 30-40 points for a smooth 1-min trip (one update every 1.5-2s)
+      const minPoints = 40;
+      if (routedPath.length < minPoints) {
+        const interpolated: { latitude: number; longitude: number }[] = [];
+        for (let i = 0; i < routedPath.length - 1; i++) {
+          const p1 = routedPath[i];
+          const p2 = routedPath[i + 1];
+          const segments = Math.ceil(minPoints / routedPath.length);
+          for (let j = 0; j < segments; j++) {
+            const t = j / segments;
+            interpolated.push({
+              latitude: p1.latitude + (p2.latitude - p1.latitude) * t,
+              longitude: p1.longitude + (p2.longitude - p1.longitude) * t,
+            });
+          }
+        }
+        interpolated.push(routedPath[routedPath.length - 1]);
+        route = interpolated;
+      } else {
+        route = routedPath;
+      }
       // Đảm bảo điểm cuối TRÙNG CHÍNH XÁC với vị trí user (report)
       route[route.length - 1] = {
         latitude: reportLat,
@@ -649,7 +687,7 @@ export default function ActiveTaskScreen() {
       if (phaseRef.current === "ON_THE_WAY") {
         sendLocationUpdate();
       }
-    }, 30000);
+    }, 5000);
 
     // Initial send
     sendLocationUpdate();
@@ -664,22 +702,30 @@ export default function ActiveTaskScreen() {
     };
   }, []);
 
-  // Khi currentLocation thay đổi, chỉ di chuyển marker trong WebView, không đổi source => không chớp map
-  useEffect(() => {
+  const syncMapLocation = useCallback(() => {
     if (!currentLocation) return;
-
     const js = `
       if (window.updateCollectorPosition) {
         window.updateCollectorPosition(${currentLocation.latitude}, ${currentLocation.longitude});
+        true;
+      } else {
+        false;
       }
-      true;
     `;
-
     inlineMapRef.current?.injectJavaScript(js);
+
     if (mapModalVisible) {
+      // Retry a few times when modal opens to ensure Leaflet is ready
       modalMapRef.current?.injectJavaScript(js);
+      setTimeout(() => modalMapRef.current?.injectJavaScript(js), 500);
+      setTimeout(() => modalMapRef.current?.injectJavaScript(js), 1500);
     }
   }, [currentLocation, mapModalVisible]);
+
+  // Khi currentLocation thay đổi, chỉ di chuyển marker trong WebView
+  useEffect(() => {
+    syncMapLocation();
+  }, [currentLocation, mapModalVisible, syncMapLocation]);
 
   // Dữ liệu phụ thuộc task/report - khai báo TRƯỚC mọi early return để không vi phạm Rules of Hooks
   const report = task?.report;
@@ -689,13 +735,13 @@ export default function ActiveTaskScreen() {
   const routingSource = useMemo(() => {
     if (!report) return { html: "" };
 
-    const startLat = initialCollectorPos?.latitude ?? report.latitude;
-    const startLng = initialCollectorPos?.longitude ?? report.longitude;
+    const currentStartLat = (mapModalVisible && currentLocation) ? currentLocation.latitude : (initialCollectorPos?.latitude ?? report.latitude);
+    const currentStartLng = (mapModalVisible && currentLocation) ? currentLocation.longitude : (initialCollectorPos?.longitude ?? report.longitude);
 
     return {
       html: getRoutingMapHtml(
-        startLat,
-        startLng,
+        currentStartLat,
+        currentStartLng,
         report.latitude,
         report.longitude,
         authUser?.avatar || null,
@@ -712,6 +758,26 @@ export default function ActiveTaskScreen() {
     citizen?.avatar,
   ]);
 
+  // Update modalRoutingSource only when modal opens
+  useEffect(() => {
+    if (mapModalVisible && report) {
+      const startLat = currentLocation?.latitude ?? initialCollectorPos?.latitude ?? report.latitude;
+      const startLng = currentLocation?.longitude ?? initialCollectorPos?.longitude ?? report.longitude;
+      setModalRoutingSource({
+        html: getRoutingMapHtml(
+          startLat,
+          startLng,
+          report.latitude,
+          report.longitude,
+          authUser?.avatar || null,
+          citizen?.avatar || null,
+        ),
+      });
+    }
+    // We intentionally only trigger this when mapModalVisible changes to true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapModalVisible]);
+
   // Poll for status changes (presence, cancellation, etc.)
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
@@ -720,13 +786,20 @@ export default function ActiveTaskScreen() {
     const activePhases: ActivePhase[] = ["ACCEPTED", "ON_THE_WAY", "ARRIVED"];
     if (activePhases.includes(phase) && task?.id) {
       const poll = async () => {
+        if (isStoppingPolling.current) return;
         try {
           console.log(`📡 [Poll] Checking status for task ${task.id}...`);
 
           // Use getTaskById as the primary poll source
           const res = await collectorService.getTaskById(task.id);
 
-          if (res && res.report) {
+          if (!res) {
+            console.log("⚠️ [Poll] Task no longer found. Stopping poll.");
+            if (interval) clearInterval(interval);
+            return;
+          }
+
+          if (res.report) {
             const updatedReportData = res.report;
             const currentStatus = updatedReportData.status?.toUpperCase();
 
@@ -795,7 +868,7 @@ export default function ActiveTaskScreen() {
       console.log(`[active-task] Distance to target: ${dist.toFixed(3)} km`);
 
       if (dist > 0.5) { // 500m = 0.5km
-        Alert.alert(
+        showAlert(
           "Chưa đến nơi",
           `Bạn đang cách điểm thu gom ${(dist * 1000).toFixed(0)}m. Vui lòng di chuyển đến gần hơn (dưới 500m) để xác nhận.`
         );
@@ -803,7 +876,7 @@ export default function ActiveTaskScreen() {
       }
     }
 
-    Alert.alert(
+    showAlert(
       "Xác nhận",
       `Bạn có chắc muốn chuyển sang trạng thái "${statusLabel}"?`,
       [
@@ -828,6 +901,9 @@ export default function ActiveTaskScreen() {
 
               if (res.success) {
                 showToast(`Đã chuyển sang: ${statusLabel}`, "success");
+                if (newStatus === "COMPLETED") {
+                  isStoppingPolling.current = true;
+                }
                 if (newStatus === "ARRIVED") {
                   setPhase("ARRIVED");
                 } else if (newStatus === "ON_THE_WAY") {
@@ -900,6 +976,7 @@ export default function ActiveTaskScreen() {
         showToast("Đã hoàn tất thu gom!", "success");
         setCompleteModalVisible(false);
         setPhase("COMPLETED");
+        isStoppingPolling.current = true;
         if (pollingRef.current) clearInterval(pollingRef.current);
         setTimeout(() => router.replace("/(collectors)" as any), 2000);
       } else {
@@ -943,6 +1020,7 @@ export default function ActiveTaskScreen() {
 
       if (res.success) {
         showToast("Đã gửi báo cáo", "success");
+        isStoppingPolling.current = true;
         setReportModalVisible(false);
         router.back();
       } else {
@@ -1033,8 +1111,8 @@ export default function ActiveTaskScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Expiry Timer Banner */}
-      {!isExpired && task?.expiredAt && (
+      {/* Expiry Timer Banner - ONLY show when pending collector acceptance */}
+      {!isExpired && task?.status && ["PENDING_COLLECTOR", "COLLECTOR_PENDING"].includes(task.status) && task?.expiredAt && (
         <View style={[styles.timerBanner, { backgroundColor: getTimeStatusColor(remainingSeconds) + "10" }]}>
           <Ionicons name="timer-outline" size={20} color={getTimeStatusColor(remainingSeconds)} />
           <Text style={styles.timerLabel}>
@@ -1142,6 +1220,7 @@ export default function ActiveTaskScreen() {
                       source={routingSource}
                       style={styles.webView}
                       scrollEnabled={false}
+                      onLoadEnd={syncMapLocation}
                     />
                   ) : (
                     <View style={styles.mapPlaceholder}>
@@ -1317,7 +1396,7 @@ export default function ActiveTaskScreen() {
                     ]}
                     onPress={() => {
                       if (!isExpired) {
-                        Alert.alert(
+                        showAlert(
                           "Chưa đủ thời gian chờ",
                           `Vui lòng chờ thêm ${formatRemainingTime(remainingSeconds)} trước khi có thể báo vắng khách.`
                         );
@@ -1481,8 +1560,9 @@ export default function ActiveTaskScreen() {
               <WebView
                 originWhitelist={["*"]}
                 ref={modalMapRef}
-                source={routingSource}
+                source={modalRoutingSource}
                 style={{ flex: 1 }}
+                onLoadEnd={syncMapLocation}
               />
             </View>
           </Modal>

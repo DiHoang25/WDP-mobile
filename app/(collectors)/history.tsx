@@ -9,20 +9,24 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
-type TabType = "ACCEPTED" | "COMPLETED";
+type TabType = "ACCEPTED" | "COMPLETED" | "CANCELLED";
+
+const PROCESSING_STATUSES = ["ALL", "ACCEPTED", "ON_THE_WAY", "ARRIVED", "COLLECTING"] as const;
+type ProcessingFilter = typeof PROCESSING_STATUSES[number];
 
 export default function HistoryScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>("ACCEPTED");
+  const [processingFilter, setProcessingFilter] = useState<ProcessingFilter>("ALL");
   const [tasks, setTasks] = useState<CollectorTaskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -36,8 +40,16 @@ export default function HistoryScreen() {
       let data: CollectorTaskItem[] = [];
       if (activeTab === "ACCEPTED") {
         data = await collectorService.getAcceptedTasks();
-      } else {
+      } else if (activeTab === "COMPLETED") {
         data = await collectorService.getCompletedTasks();
+      } else {
+        // CANCELLED: get completed tasks filtered by cancelled/rejected statuses
+        const all = await collectorService.getCompletedTasks();
+        data = all.filter((t: any) =>
+          ["CANCELLED", "REJECTED", "FAILED", "FAILED_NO_RESPONSE", "FAILED_CITIZEN_NOT_HOME"].includes(
+            (t.status || "").toUpperCase()
+          )
+        );
       }
       setTasks(data);
     } catch (error) {
@@ -76,14 +88,43 @@ export default function HistoryScreen() {
   };
 
   const getStatusLabel = (status: string) => {
-    switch (status) {
+    switch (status?.toUpperCase()) {
       case "ACCEPTED": return { label: "Đang xử lý", color: AppColors.info };
       case "ON_THE_WAY": return { label: "Đang di chuyển", color: AppColors.primary };
       case "ARRIVED": return { label: "Đã đến nơi", color: AppColors.secondary };
       case "COLLECTING": return { label: "Đang thu gom", color: AppColors.warning };
       case "COMPLETED": return { label: "Hoàn thành", color: AppColors.success };
       case "REJECTED": return { label: "Bị từ chối", color: AppColors.error };
+      case "CANCELLED": return { label: "Đã hủy", color: AppColors.error };
+      case "FAILED": return { label: "Thất bại", color: AppColors.error };
+      case "FAILED_NO_RESPONSE": return { label: "Không phản hồi", color: AppColors.error };
+      case "FAILED_CITIZEN_NOT_HOME": return { label: "Vắng nhà", color: AppColors.error };
       default: return { label: status, color: AppColors.gray[500] };
+    }
+  };
+
+  // Filter tasks by selected processing status
+  const displayedTasks = (activeTab === "ACCEPTED" && processingFilter !== "ALL")
+    ? tasks.filter((t: any) => (t.status || "").toUpperCase() === processingFilter)
+    : tasks;
+
+  const getProcessingFilterLabel = (f: ProcessingFilter) => {
+    switch (f) {
+      case "ALL": return "Tất cả";
+      case "ACCEPTED": return "Chờ xử lý";
+      case "ON_THE_WAY": return "Di chuyển";
+      case "ARRIVED": return "Đã đến";
+      case "COLLECTING": return "Thu gom";
+    }
+  };
+
+  const getProcessingFilterColor = (f: ProcessingFilter) => {
+    switch (f) {
+      case "ALL": return AppColors.gray[600];
+      case "ACCEPTED": return AppColors.info;
+      case "ON_THE_WAY": return AppColors.primary;
+      case "ARRIVED": return AppColors.secondary;
+      case "COLLECTING": return AppColors.warning;
     }
   };
 
@@ -111,7 +152,7 @@ export default function HistoryScreen() {
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === "ACCEPTED" && styles.activeTab]}
-          onPress={() => setActiveTab("ACCEPTED")}
+          onPress={() => { setActiveTab("ACCEPTED"); setProcessingFilter("ALL"); }}
         >
           <Text style={[styles.tabText, activeTab === "ACCEPTED" && styles.activeTabText]}>
             Đang xử lý
@@ -125,7 +166,45 @@ export default function HistoryScreen() {
             Hoàn tất
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "CANCELLED" && styles.cancelledTab]}
+          onPress={() => setActiveTab("CANCELLED")}
+        >
+          <Text style={[styles.tabText, activeTab === "CANCELLED" && styles.cancelledTabText]}>
+            Đã hủy
+          </Text>
+        </TouchableOpacity>
       </View>
+
+      {/* Status Filter Chips (only for ACCEPTED tab) */}
+      {activeTab === "ACCEPTED" && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipScroll}
+          contentContainerStyle={styles.chipContent}
+        >
+          {PROCESSING_STATUSES.map((f) => {
+            const isActive = processingFilter === f;
+            const color = getProcessingFilterColor(f);
+            return (
+              <TouchableOpacity
+                key={f}
+                style={[
+                  styles.chip,
+                  isActive && { backgroundColor: color, borderColor: color },
+                ]}
+                onPress={() => setProcessingFilter(f)}
+              >
+                {isActive && <View style={[styles.chipDot, { backgroundColor: AppColors.white }]} />}
+                <Text style={[styles.chipText, isActive && { color: AppColors.white }]}>
+                  {getProcessingFilterLabel(f)}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
 
       {/* Content */}
       <ScrollView
@@ -137,14 +216,22 @@ export default function HistoryScreen() {
           <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color={AppColors.primary} />
           </View>
-        ) : !Array.isArray(tasks) || tasks.length === 0 ? (
+        ) : !Array.isArray(displayedTasks) || displayedTasks.length === 0 ? (
           <EmptyState
             icon="calendar-outline"
-            title={activeTab === "ACCEPTED" ? "Không có đơn đang xử lý" : "Chưa có đơn hoàn thành"}
-            message={activeTab === "ACCEPTED" ? "Các đơn bạn chấp nhận sẽ hiện ở đây" : "Danh sách các đơn bạn đã hoàn thành việc thu gom"}
+            title={
+              activeTab === "ACCEPTED" ? "Không có đơn đang xử lý" :
+                activeTab === "COMPLETED" ? "Chưa có đơn hoàn thành" :
+                  "Không có đơn bị hủy"
+            }
+            message={
+              activeTab === "ACCEPTED" ? "Các đơn bạn chấp nhận sẽ hiện ở đây" :
+                activeTab === "COMPLETED" ? "Danh sách các đơn bạn đã hoàn thành việc thu gom" :
+                  "Các đơn bị từ chối hoặc hủy sẽ hiện ở đây"
+            }
           />
         ) : (
-          tasks.map((task: any) => {
+          displayedTasks.map((task: any) => {
             // Determine structure style
             const isHistoryItem = activeTab === "COMPLETED" && !task.report;
 
@@ -297,6 +384,9 @@ const styles = StyleSheet.create({
   activeTab: {
     backgroundColor: AppColors.primary + "10",
   },
+  cancelledTab: {
+    backgroundColor: AppColors.error + "10",
+  },
   tabText: {
     fontSize: 14,
     fontWeight: "600",
@@ -304,6 +394,40 @@ const styles = StyleSheet.create({
   },
   activeTabText: {
     color: AppColors.primary,
+  },
+  cancelledTabText: {
+    color: AppColors.error,
+  },
+  chipScroll: {
+    maxHeight: 48,
+  },
+  chipContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: AppColors.gray[200],
+    backgroundColor: AppColors.white,
+    gap: 6,
+  },
+  chipDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: AppColors.gray[600],
   },
   content: {
     flex: 1,

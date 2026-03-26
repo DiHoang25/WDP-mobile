@@ -6,6 +6,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { citizenService } from "@/services/citizen.service";
 import { wasteService } from "@/services/waste.service";
 import { WasteReport } from "@/types";
+import { getCancelledReportIds, getKnownReportIds, removeCancelledReportId, removeKnownReportIds } from "@/utils/cancelledReports";
+
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
@@ -29,7 +31,12 @@ export default function HistoryScreen() {
   const [reports, setReports] = useState<WasteReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<"all" | "pending" | "completed">("all");
+  const [filter, setFilter] = useState<"all" | "processing" | "completed" | "cancelled">("all");
+
+  // Define status groups
+  const processingStatuses = ["PENDING", "ACCEPTED", "ASSIGNED", "ON_THE_WAY", "ARRIVED", "COLLECTING", "COLLECTED"];
+  const completedStatuses = ["COMPLETED"];
+  const cancelledStatuses = ["CANCELLED", "REJECTED", "FAILED", "FAILED_NO_RESPONSE", "FAILED_CITIZEN_NOT_HOME"];
 
   // Re-fetch data every time the screen comes into focus
   useFocusEffect(
@@ -51,30 +58,63 @@ export default function HistoryScreen() {
         citizenService.getMyRedemptions("EARN")
       ]);
 
-      if (reportsRes.success && reportsRes.data) {
-        // 1. Extract reports with robust logic
-        let reportsList: WasteReport[] = [];
-        const rawData = reportsRes.data;
-        if (Array.isArray(rawData)) reportsList = rawData;
-        else if (rawData.data && Array.isArray(rawData.data)) reportsList = rawData.data;
-        else if (rawData.items && Array.isArray(rawData.items)) reportsList = rawData.items;
+      // Helper: extract list from API response
+      const extractList = (res: any): WasteReport[] => {
+        if (!res?.success || !res?.data) return [];
+        const raw = res.data;
+        if (Array.isArray(raw)) return raw;
+        if (raw.data && Array.isArray(raw.data)) return raw.data;
+        if (raw.items && Array.isArray(raw.items)) return raw.items;
+        return [];
+      };
 
-        // 2. Map points from redemptions (reportId -> amount)
-        const pointsMap: Record<string | number, number> = {};
-        if (pointsRes.success && Array.isArray(pointsRes.data)) {
-          pointsRes.data.forEach(tx => {
-            if (tx.reportId) pointsMap[tx.reportId] = tx.amount;
-          });
-        }
+      const mainList = extractList(reportsRes);
+      const existingIds = new Set(mainList.map((r: any) => r.id));
 
-        // 3. Inject points into reports
-        const enrichedReports = reportsList.map(report => ({
-          ...report,
-          points: pointsMap[report.id] || (report as any).points || (report as any).rewardPoints
-        }));
+      // Đọc các ID đã hủy + ID mới tạo từ AsyncStorage, fetch detail cho những cái thiếu
+      const [cancelledIds, knownIds] = await Promise.all([
+        getCancelledReportIds(),
+        getKnownReportIds(),
+      ]);
+      // Gộp 2 danh sách, loại trùng
+      const allLocalIds = Array.from(new Set([...cancelledIds, ...knownIds]));
+      const missingIds = allLocalIds.filter((id) => !existingIds.has(id));
 
-        setReports(enrichedReports);
+      let localReports: WasteReport[] = [];
+      if (missingIds.length > 0) {
+        const detailResults = await Promise.allSettled(
+          missingIds.map((id: number) => wasteService.getReportById(id))
+        );
+        detailResults.forEach((result) => {
+          if (result.status === "fulfilled" && result.value?.success && result.value?.data) {
+            localReports.push(result.value.data as WasteReport);
+          }
+        });
       }
+
+      // Cleanup: xóa IDs đã được API list trả về rồi
+      const foundIds = allLocalIds.filter((id) => existingIds.has(id));
+      foundIds.forEach((id: number) => removeCancelledReportId(id));
+      removeKnownReportIds(foundIds);
+
+      // Merge: main list + local cache
+      const merged: WasteReport[] = [...mainList, ...localReports];
+
+      // Map points from redemptions (reportId -> amount)
+      const pointsMap: Record<string | number, number> = {};
+      if (pointsRes.success && Array.isArray(pointsRes.data)) {
+        pointsRes.data.forEach((tx: any) => {
+          if (tx.reportId) pointsMap[tx.reportId] = tx.amount;
+        });
+      }
+
+      // Inject points into reports (ưu tiên earnedPoints từ API)
+      const enrichedReports = merged.map(report => ({
+        ...report,
+        points: (report as any).earnedPoints ?? pointsMap[report.id] ?? (report as any).points ?? (report as any).rewardPoints
+      }));
+
+      setReports(enrichedReports);
     } catch (error) {
       console.error("Fetch history error:", error);
     } finally {
@@ -83,25 +123,32 @@ export default function HistoryScreen() {
     }
   };
 
+
   const filteredReports = reports.filter((r) => {
+    const s = r.status?.toUpperCase();
     if (filter === "all") return true;
-    if (filter === "completed") return r.status?.toLowerCase() === "completed";
-    return r.status?.toLowerCase() !== "completed";
+    if (filter === "completed") return completedStatuses.includes(s);
+    if (filter === "cancelled") return cancelledStatuses.includes(s);
+    if (filter === "processing") return processingStatuses.includes(s);
+    return true;
   });
 
   const filters = [
     { value: "all" as const, label: t("common.all"), count: reports.length },
     {
-      value: "pending" as const,
+      value: "processing" as const,
       label: t("history.pending"),
-      count: reports.filter((r) => r.status?.toLowerCase() !== "completed")
-        .length,
+      count: reports.filter((r) => processingStatuses.includes(r.status?.toUpperCase())).length,
     },
     {
       value: "completed" as const,
       label: t("history.completed"),
-      count: reports.filter((r) => r.status?.toLowerCase() === "completed")
-        .length,
+      count: reports.filter((r) => completedStatuses.includes(r.status?.toUpperCase())).length,
+    },
+    {
+      value: "cancelled" as const,
+      label: t("history.cancelled"),
+      count: reports.filter((r) => cancelledStatuses.includes(r.status?.toUpperCase())).length,
     },
   ];
 
@@ -194,9 +241,11 @@ export default function HistoryScreen() {
               message={
                 filter === "all"
                   ? t("history.noReportsAll")
-                  : filter === "pending"
+                  : filter === "processing"
                     ? t("history.noReportsPending")
-                    : t("history.noReportsCompleted")
+                    : filter === "completed"
+                      ? t("history.noReportsCompleted")
+                      : t("history.noReportsCancelled")
               }
             />
           </ScrollView>

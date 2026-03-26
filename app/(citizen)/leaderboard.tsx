@@ -1,5 +1,6 @@
 import { Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
@@ -10,10 +11,9 @@ import {
 } from "@/services/citizen.service";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -25,6 +25,7 @@ import {
 export default function LeaderboardScreen() {
   const { user, refreshProfile } = useAuth();
   const { t } = useLanguage();
+  const { showAlert } = useAlert();
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<LeaderboardCategory>(
     LeaderboardCategory.POINTS,
@@ -52,11 +53,11 @@ export default function LeaderboardScreen() {
       if (response.success && response.data) {
         setLeaderboardData(response.data);
       } else {
-        Alert.alert("Lỗi", response.error || "Không thể tải bảng xếp hạng");
+        showAlert("Lỗi", response.error || "Không thể tải bảng xếp hạng");
       }
     } catch (error) {
       console.error("Fetch leaderboard error:", error);
-      Alert.alert("Lỗi", "Không thể tải bảng xếp hạng");
+      showAlert("Lỗi", "Không thể tải bảng xếp hạng");
     } finally {
       setLoading(false);
     }
@@ -142,7 +143,7 @@ export default function LeaderboardScreen() {
                 style={[
                   styles.filterButtonText,
                   selectedCategory === category &&
-                    styles.filterButtonTextActive,
+                  styles.filterButtonTextActive,
                 ]}
               >
                 {getCategoryLabel(category)}
@@ -170,7 +171,7 @@ export default function LeaderboardScreen() {
                 style={[
                   styles.filterButtonSmallText,
                   selectedTimeframe === timeframe &&
-                    styles.filterButtonTextActive,
+                  styles.filterButtonTextActive,
                 ]}
               >
                 {getTimeframeLabel(timeframe)}

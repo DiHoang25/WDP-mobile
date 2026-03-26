@@ -1,6 +1,7 @@
 import type { ToastType } from "@/components/common";
 import { Card, EmptyState, Toast } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { collectorService } from "@/services/collector.service";
 import { CollectorTaskItem } from "@/types/collector";
 import { getWasteTypeLabel } from "@/utils/helpers";
@@ -10,7 +11,6 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Platform,
   RefreshControl,
@@ -23,6 +23,7 @@ import {
 
 export default function TaskListScreen() {
   const router = useRouter();
+  const { showAlert } = useAlert();
   const { refreshKey } = useLocalSearchParams<{ refreshKey?: string }>();
   const [tasks, setTasks] = useState<CollectorTaskItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,7 +83,7 @@ export default function TaskListScreen() {
   };
 
   const handleRespond = (task: CollectorTaskItem, accept: boolean) => {
-    Alert.alert(
+    showAlert(
       accept ? "Xác nhận đơn" : "Từ chối đơn",
       accept
         ? `Bạn có chắc muốn chấp nhận đơn #${task.reportId}?`

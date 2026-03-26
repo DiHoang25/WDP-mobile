@@ -1,6 +1,7 @@
 import type { ToastType } from "@/components/common";
 import { Button, Card, Input, Toast } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { collectorService } from "@/services/collector.service";
 import { AccuracyRating } from "@/types/collector";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,7 +9,6 @@ import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -20,6 +20,7 @@ import {
 export default function TaskCompleteScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { showAlert } = useAlert();
 
   const [weightOrganic, setWeightOrganic] = useState("");
   const [weightRecyclable, setWeightRecyclable] = useState("");
@@ -63,16 +64,16 @@ export default function TaskCompleteScreen() {
     const wHaz = parseFloat(weightHazardous) || 0;
 
     if (wOrg <= 0 && wRec <= 0 && wHaz <= 0) {
-      Alert.alert("Lỗi", "Vui lòng nhập ít nhất một loại khối lượng rác");
+      showAlert("Lỗi", "Vui lòng nhập ít nhất một loại khối lượng rác");
       return;
     }
 
     if (images.length === 0) {
-      Alert.alert("Lỗi", "Vui lòng chụp ít nhất 1 ảnh bằng chứng");
+      showAlert("Lỗi", "Vui lòng chụp ít nhất 1 ảnh bằng chứng");
       return;
     }
 
-    Alert.alert("Xác nhận", "Hoàn tất thu gom Đơn hàng này?", [
+    showAlert("Xác nhận", "Hoàn tất thu gom Đơn hàng này?", [
       { text: "Hủy", style: "cancel" },
       {
         text: "Xác nhận",

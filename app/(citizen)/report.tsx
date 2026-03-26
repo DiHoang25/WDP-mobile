@@ -1,12 +1,14 @@
-import { AlertType, Button, Card, CustomAlert, Header, Input, MapLocationPicker, Picker } from "@/components/common";
+import { Button, Card, Header, Input, MapLocationPicker, Picker } from "@/components/common";
 import { WasteTypeSelector } from "@/components/waste";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LOCATION_DATA, WASTE_TYPES } from "@/data/mockData";
 import { District, locationService, Province, Ward } from "@/services/location.service";
 import { wasteService } from "@/services/waste.service";
 import { BackendWasteItem, WasteType } from "@/types";
+import { saveKnownReportId } from "@/utils/cancelledReports";
 import { getWasteTypeLabel } from "@/utils/helpers";
 import { validateRequired } from "@/utils/validators";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,7 +18,6 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Modal,
   ScrollView,
@@ -30,6 +31,7 @@ import {
 export default function CreateReportScreen() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { showAlert } = useAlert();
   const [wasteItems, setWasteItems] = useState<BackendWasteItem[]>([]);
   const [currentType, setCurrentType] = useState<WasteType>("ORGANIC");
   const [currentWeight, setCurrentWeight] = useState("");
@@ -70,23 +72,6 @@ export default function CreateReportScreen() {
 
   const [isAddressLoading, setIsAddressLoading] = useState(false);
   const lastRequestId = React.useRef(0);
-
-  const [alertConfig, setAlertConfig] = useState<{
-    visible: boolean;
-    title: string;
-    message: string;
-    type: AlertType;
-    buttons?: any[];
-  }>({
-    visible: false,
-    title: "",
-    message: "",
-    type: "info"
-  });
-
-  const showAlert = (title: string, message: string, type: AlertType = "info", buttons?: any[]) => {
-    setAlertConfig({ visible: true, title, message, type, buttons });
-  };
 
   useEffect(() => {
     loadProvinces();
@@ -192,7 +177,7 @@ export default function CreateReportScreen() {
       }
     } catch (error) {
       console.error(error);
-      Alert.alert("Lỗi", "Không thể lấy vị trí hiện tại.");
+      showAlert("Lỗi", "Không thể lấy vị trí hiện tại.");
     } finally {
       setLoading(false);
     }
@@ -205,7 +190,10 @@ export default function CreateReportScreen() {
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .replace(/đ/g, "d")
-      .replace(/^(tinh|thanh pho|thanh pho|quan|huyen|thi xa|phuong|xa|thi tran|p\.|q\.|tp\.)\s*/gi, "")
+      .replace(
+        /^(tinh|thanh pho|city|province|district|ward|quan|huyen|thi xa|phuong|xa|thi tran|p\.|q\.|tp\.|td\.|tphcm\.)\s*/gi,
+        ""
+      )
       .replace(/\s+/g, " ")
       .trim();
   };
@@ -276,76 +264,84 @@ export default function CreateReportScreen() {
           }
         }
 
-        // Check if this is still the latest request
         if (requestId !== lastRequestId.current) return;
 
-        const provinceName = raw.province || raw.region || (raw.city && raw.city.includes("Thành phố") ? raw.city : "");
-        let normProvince = normalizeLocationName(provinceName);
+        // SPECIAL CORRECTION: Handle Thu Duc shifting (Province -> District) 
+        const rawJson = JSON.stringify(raw).toLowerCase();
+        const hasThuDuc = rawJson.includes("thu duc") || (loc.address && loc.address.toLowerCase().includes("thu duc"));
+        const hasHCM = rawJson.includes("ho chi minh") || rawJson.includes("hcm") ||
+          (loc.address && (loc.address.toLowerCase().includes("ho chi minh") || loc.address.toLowerCase().includes("hcm")));
 
+        let searchProvince = raw.province || raw.region || (hasHCM ? "Thành phố Hồ Chí Minh" : "");
+        let searchDistrict = raw.district || raw.osm_city_district || raw.osm_town || raw.city || "";
+        let searchWard = raw.ward || raw.osm_suburb || raw.suburb || "";
+
+        if (hasThuDuc) {
+          searchProvince = "Thành phố Hồ Chí Minh";
+          searchDistrict = "Thành phố Thủ Đức";
+        }
+
+        // A. MATCH PROVINCE (79 for HCMC)
         let matchedProvince = null;
+        let normProvince = normalizeLocationName(searchProvince);
+
         if (normProvince && provincesData.length > 0) {
-          matchedProvince = provincesData.find((p: any) => {
-            const pNorm = normalizeLocationName(p.name);
-            return normProvince.includes(pNorm) || pNorm.includes(normProvince);
-          });
+          matchedProvince = provincesData.find((p: any) => normalizeLocationName(p.name) === normProvince);
         }
 
-        if (!matchedProvince && loc.address && provincesData.length > 0) {
-          const normFullAddress = normalizeLocationName(loc.address);
-          matchedProvince = provincesData.find((p: any) => normFullAddress.includes(normalizeLocationName(p.name)));
-        }
-
-        if (matchedProvince && requestId === lastRequestId.current) {
+        if (matchedProvince) {
           setProvinceCode(matchedProvince.code);
           setIsFieldAutoFilled(prev => ({ ...prev, province: true }));
+
+          // B. MATCH DISTRICT
           const distRes = await locationService.getDistricts(matchedProvince.code);
-
-          if (requestId !== lastRequestId.current) return;
-
-          if (distRes.success && distRes.data) {
+          if (distRes.success && distRes.data && requestId === lastRequestId.current) {
             setDistricts(distRes.data);
-            const districtCandidates = [raw.district, raw.osm_city_district, raw.osm_town, raw.osm_city, raw.city].filter(Boolean);
+
+            const districtCandidates = [
+              searchDistrict,
+              raw.osm_city_district,
+              hasThuDuc ? "Thành phố Thủ Đức" : "",
+              raw.osm_town,
+              raw.city,
+              raw.name,
+            ].filter(c => !!c && normalizeLocationName(c) !== normProvince);
+
             let matchedDistrict = null;
-            for (const candidate of districtCandidates) {
-              const normCand = normalizeLocationName(candidate);
-              matchedDistrict = distRes.data.find((d: any) => {
-                const dNorm = normalizeLocationName(d.name);
-                return normCand.includes(dNorm) || dNorm.includes(normCand);
-              });
+            for (const cand of districtCandidates) {
+              const normCand = normalizeLocationName(cand);
+              matchedDistrict = distRes.data.find((d: any) => normalizeLocationName(d.name) === normCand);
               if (matchedDistrict) break;
             }
 
-            if (!matchedDistrict && loc.address) {
-              const normFullAddress = normalizeLocationName(loc.address);
-              matchedDistrict = distRes.data.find((d: any) => normFullAddress.includes(normalizeLocationName(d.name)));
-            }
-
-            if (matchedDistrict && requestId === lastRequestId.current) {
+            if (matchedDistrict) {
               setDistrictCode(matchedDistrict.code);
               setIsFieldAutoFilled(prev => ({ ...prev, district: true }));
+
+              // C. MATCH WARD
               const wardRes = await locationService.getWards(matchedDistrict.code);
-
-              if (requestId !== lastRequestId.current) return;
-
-              if (wardRes.success && wardRes.data) {
+              if (wardRes.success && wardRes.data && requestId === lastRequestId.current) {
                 setWards(wardRes.data);
-                const wardCandidates = [raw.ward, raw.subdistrict, raw.osm_suburb, raw.osm_city_district].filter(Boolean);
+
+                const wardCandidates = [
+                  searchWard,
+                  raw.osm_suburb,
+                  raw.suburb,
+                  raw.street,
+                  raw.name
+                ].filter(c => !!c && normalizeLocationName(c) !== normalizeLocationName(matchedDistrict?.name || ""));
+
                 let matchedWard = null;
-                for (const candidate of wardCandidates) {
-                  const normCand = normalizeLocationName(candidate);
+                for (const cand of wardCandidates) {
+                  const normCand = normalizeLocationName(cand);
                   matchedWard = wardRes.data.find((w: any) => {
                     const wNorm = normalizeLocationName(w.name);
-                    return normCand.includes(wNorm) || wNorm.includes(normCand);
+                    return wNorm.includes(normCand) || normCand.includes(wNorm);
                   });
                   if (matchedWard) break;
                 }
 
-                if (!matchedWard && loc.address) {
-                  const normFullAddress = normalizeLocationName(loc.address);
-                  matchedWard = wardRes.data.find((w: any) => normFullAddress.includes(normalizeLocationName(w.name)));
-                }
-
-                if (matchedWard && requestId === lastRequestId.current) {
+                if (matchedWard) {
                   setWardCode(matchedWard.code);
                   setIsFieldAutoFilled(prev => ({ ...prev, ward: true }));
                 }
@@ -354,7 +350,7 @@ export default function CreateReportScreen() {
           }
         }
       } catch (err) {
-        console.error("Error in address matching:", err);
+        console.error("Auto-match location error:", err);
       }
     } else if (loc.address && loc.address !== "Đang xác định...") {
       setStreetAddress(loc.address);
@@ -397,8 +393,6 @@ export default function CreateReportScreen() {
           console.log(`📏 Computed distance while confirming: ${dist.toFixed(3)} km. Fallback: ${isFallback}`);
 
           if (isFallback) {
-            // If OSM only found a broad match (e.g. ward/street center), DON'T move the pin
-            // but update the text. This preserves the user's manual pin precision.
             setStreetAddress(tempAddress);
             setErrors({ ...errors, street: undefined });
             showAlert(
@@ -420,7 +414,6 @@ export default function CreateReportScreen() {
             return;
           }
 
-          // Allowed: Exact match (isFallback = false) & within 2km
           setStreetAddress(tempAddress);
           setErrors({ ...errors, street: undefined });
           setLatitude(newLat);
@@ -447,7 +440,6 @@ export default function CreateReportScreen() {
     }
   };
 
-  // Derive options based on selections - fallback to mock if API fails
   const provinceOptions = provinces.length > 0
     ? provinces.map(p => ({ label: p.name, value: p.code }))
     : LOCATION_DATA.provinces as any;
@@ -545,7 +537,7 @@ export default function CreateReportScreen() {
         setImages([...images, ...newImages]);
       }
     } catch (error) {
-      Alert.alert(t("common.error"), t("createReport.imageUploadError"));
+      showAlert(t("common.error"), t("createReport.imageUploadError"));
     }
   };
 
@@ -554,7 +546,7 @@ export default function CreateReportScreen() {
   };
 
   const showImageOptions = () => {
-    Alert.alert(t("createReport.addPhotoSource"), t("createReport.chooseSource"), [
+    showAlert(t("createReport.addPhotoSource"), t("createReport.chooseSource"), [
       {
         text: t("createReport.takePhoto"),
         onPress: () => handlePickImage(true),
@@ -572,14 +564,11 @@ export default function CreateReportScreen() {
 
   const handleSubmit = async () => {
     if (!validate()) return;
-
     setLoading(true);
-
     try {
-      // Construct full address first so we can geocode it accurately
-      const selectedProvince = provinceOptions.find((p: { label: string, value: string }) => p.value === provinceCode)?.label;
-      const selectedDistrict = districtOptions.find((d: { label: string, value: string }) => d.value === districtCode)?.label;
-      const selectedWard = wardOptions.find((w: { label: string, value: string }) => w.value === wardCode)?.label;
+      const selectedProvince = provinceOptions.find((p: any) => p.value === provinceCode)?.label;
+      const selectedDistrict = districtOptions.find((d: any) => d.value === districtCode)?.label;
+      const selectedWard = wardOptions.find((w: any) => w.value === wardCode)?.label;
 
       const fullAddress = [
         streetAddress,
@@ -590,28 +579,24 @@ export default function CreateReportScreen() {
 
       const reportData: any = {
         address: fullAddress || streetAddress,
-        latitude: latitude,
-        longitude: longitude,
-        provinceCode: provinceCode || "",
-        districtCode: districtCode || "",
-        wardCode: wardCode || "",
-        description: description,
-        wasteItems: wasteItems.map((item) => ({
+        latitude,
+        longitude,
+        provinceCode,
+        districtCode,
+        wardCode,
+        description,
+        wasteItems: wasteItems.map(item => ({
           wasteType: item.wasteType,
           weightKg: item.weightKg,
         })),
         files: images,
       };
 
-      console.log('🚀 Sending Report Data:', JSON.stringify(reportData, null, 2));
       const response = await wasteService.createReport(reportData);
-      console.log('📥 Server Response:', JSON.stringify(response, null, 2));
-
       if (response.success) {
-        // Assuming response.data contains the created report object with an id
         const newReportId = response.data?.id;
-
-        Alert.alert(
+        if (newReportId) await saveKnownReportId(Number(newReportId)); // lưu để history hiển thị khi PENDING
+        showAlert(
           t("common.success"),
           t("createReport.submitSuccess"),
           [
@@ -619,10 +604,7 @@ export default function CreateReportScreen() {
               text: t("createReport.viewDetail"),
               onPress: () => {
                 if (newReportId) {
-                  router.replace({
-                    pathname: "/report-detail",
-                    params: { id: newReportId }
-                  });
+                  router.replace({ pathname: "/report-detail", params: { id: newReportId } });
                 } else {
                   router.replace("/(citizen)/history");
                 }
@@ -634,17 +616,16 @@ export default function CreateReportScreen() {
             },
           ]
         );
-
         setWasteItems([]);
         setDescription("");
         setImages([]);
         setErrors({});
       } else {
-        Alert.alert(t("common.error"), response.error || t("createReport.submitError"));
+        showAlert(t("common.error"), response.error || t("createReport.submitError"));
       }
     } catch (error) {
       console.error("Submit report error:", error);
-      Alert.alert(t("common.error"), t("createReport.submitError"));
+      showAlert(t("common.error"), t("createReport.submitError"));
     } finally {
       setLoading(false);
     }
@@ -982,15 +963,7 @@ export default function CreateReportScreen() {
         </View>
       </Modal>
 
-      {/* Custom Global Alert */}
-      <CustomAlert
-        visible={alertConfig.visible}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        type={alertConfig.type}
-        buttons={alertConfig.buttons}
-        onClose={() => setAlertConfig({ ...alertConfig, visible: false })}
-      />
+
     </ScrollView>
   );
 }

@@ -1,4 +1,5 @@
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { WASTE_TYPES } from "@/data/mockData";
 import { EnterpriseProfile, enterpriseService } from "@/services/enterprise.service";
@@ -8,7 +9,6 @@ import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Platform,
   RefreshControl,
   ScrollView,
@@ -20,6 +20,7 @@ import {
 
 export default function EnterpriseProfileScreen() {
   const { user, logout } = useAuth();
+  const { showAlert } = useAlert();
   const [profile, setProfile] = useState<EnterpriseProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -37,7 +38,7 @@ export default function EnterpriseProfileScreen() {
       }
     } catch (error) {
       console.error('Error loading profile:', error);
-      Alert.alert('Lỗi', 'Không thể tải thông tin doanh nghiệp');
+      showAlert('Lỗi', 'Không thể tải thông tin doanh nghiệp');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -66,7 +67,7 @@ export default function EnterpriseProfileScreen() {
     if (Platform.OS === "web") {
       await doLogout();
     } else {
-      Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất?", [
+      showAlert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất?", [
         { text: "Hủy", style: "cancel" },
         { text: "Đăng xuất", style: "destructive", onPress: doLogout },
       ]);

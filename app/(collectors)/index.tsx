@@ -1,6 +1,7 @@
 import type { ToastType } from "@/components/common";
 import { Button, Card, Toast } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { collectorService } from "@/services/collector.service";
 import { CollectorProfile, CollectorStatus } from "@/types/collector";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,7 +10,6 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   RefreshControl,
   ScrollView,
@@ -21,6 +21,7 @@ import {
 
 export default function CollectorDashboard() {
   const router = useRouter();
+  const { showAlert } = useAlert();
   const [refreshing, setRefreshing] = useState(false);
   const [profile, setProfile] = useState<CollectorProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,7 +75,7 @@ export default function CollectorDashboard() {
       const dayVN = translateDay(todayKey);
 
       if (!todaySchedule || !todaySchedule.active) {
-        Alert.alert("Ngoài lịch làm việc", `Hôm nay (${dayVN}) không phải ngày làm việc của bạn. Bạn không thể bật trạng thái hoạt động.`);
+        showAlert("Ngoài lịch làm việc", `Hôm nay (${dayVN}) không phải ngày làm việc của bạn. Bạn không thể bật trạng thái hoạt động.`);
         return;
       }
 
@@ -82,13 +83,13 @@ export default function CollectorDashboard() {
       const [eH, eM] = todaySchedule.end.split(":").map(Number);
       const nowMin = now.getHours() * 60 + now.getMinutes();
       if (nowMin < sH * 60 + sM || nowMin >= eH * 60 + eM) {
-        Alert.alert("Ngoài giờ làm việc", `Giờ làm việc hôm nay (${dayVN}) là ${todaySchedule.start} - ${todaySchedule.end}.\nBạn không thể bật trạng thái hoạt động lúc này.`);
+        showAlert("Ngoài giờ làm việc", `Giờ làm việc hôm nay (${dayVN}) là ${todaySchedule.start} - ${todaySchedule.end}.\nBạn không thể bật trạng thái hoạt động lúc này.`);
         return;
       }
 
       confirmToggleShift(true);
     } else {
-      Alert.alert(
+      showAlert(
         "Tắt hoạt động",
         "Bạn có chắc muốn tắt trạng thái hoạt động?",
         [

@@ -92,7 +92,9 @@
         "noReports": "Không có báo cáo nào",
         "noReportsAll": "Bạn chưa tạo báo cáo nào",
         "noReportsPending": "Không có báo cáo đang xử lý",
-        "noReportsCompleted": "Không có báo cáo hoàn thành"
+        "noReportsCompleted": "Không có báo cáo hoàn thành",
+        "cancelled": "Đã hủy",
+        "noReportsCancelled": "Không có báo cáo đã hủy"
     },
     "createReport": {
         "title": "Tạo báo cáo rác",

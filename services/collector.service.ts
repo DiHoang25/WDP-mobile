@@ -113,7 +113,7 @@ export const collectorService = {
   /**
    * Lấy chi tiết một Đơn hàng (theo ID mới) - Fetch trực tiếp từ server
    */
-  async getTaskById(taskId: number): Promise<CollectorTaskItem> {
+  async getTaskById(taskId: number): Promise<CollectorTaskItem | null> {
     console.log(`🔍 [getTaskById] Searching for taskId: ${taskId}`);
     try {
       const response = await apiClient.get<CollectorTaskItem>(`/collectors/tasks/${taskId}`);
@@ -143,6 +143,7 @@ export const collectorService = {
       console.log(`✅ [getTaskById] Found in pendingTasks list`);
     }
 
+
     if (task) return task as CollectorTaskItem;
 
     // Tìm trong lịch sử
@@ -155,8 +156,8 @@ export const collectorService = {
       return historyTask as unknown as CollectorTaskItem;
     }
 
-    console.error(`❌ [getTaskById] Task NOT FOUND anywhere: ${taskId}`);
-    throw new Error("Không tìm thấy Đơn hàng");
+    console.warn(`❌ [getTaskById] Task NOT FOUND anywhere: ${taskId}`);
+    return null;
   },
 
   /**

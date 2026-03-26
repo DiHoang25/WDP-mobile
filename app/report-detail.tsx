@@ -1,5 +1,6 @@
 import { Card, Header, Loading, Toast, ToastType } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { citizenService } from "@/services/citizen.service";
 import { wasteService } from "@/services/waste.service";
@@ -13,7 +14,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Image,
   Platform,
   ScrollView,
@@ -22,11 +22,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { saveCancelledReportId } from "../utils/cancelledReports";
 import { extractMediaUrls } from "../utils/media";
 
 export default function ReportDetailScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const { showAlert } = useAlert();
   const {
     id,
     content: notificationContent,
@@ -122,6 +124,8 @@ export default function ReportDetailScreen() {
     };
   }, [report?.status, report?.id, hasShownArrivedToast]);
 
+  const CANCELLED_STATUSES = ["CANCELLED", "REJECTED", "FAILED", "FAILED_NO_RESPONSE", "FAILED_CITIZEN_NOT_HOME"];
+
   const fetchReportDetail = async (reportId: string) => {
     try {
       setLoading(true);
@@ -129,6 +133,10 @@ export default function ReportDetailScreen() {
       const response = await wasteService.getReportById(Number(reportId));
       if (response.success && response.data) {
         setReport(response.data);
+        // Tự động lưu ID nếu đơn bị hủy (phục vụ hiển thị trong lịch sử)
+        if (CANCELLED_STATUSES.includes(response.data.status?.toUpperCase())) {
+          await saveCancelledReportId(Number(reportId));
+        }
       } else {
         setError(true);
       }
@@ -139,6 +147,7 @@ export default function ReportDetailScreen() {
       setLoading(false);
     }
   };
+
 
   useEffect(() => {
     if (report?.status?.toUpperCase() === "COMPLETED" && report?.id) {
@@ -251,7 +260,7 @@ export default function ReportDetailScreen() {
   const handleCancel = async () => {
     if (!report) return;
 
-    Alert.alert(
+    showAlert(
       "Xác nhận hủy",
       "Bạn có chắc chắn muốn hủy báo cáo này không?",
       [
@@ -267,13 +276,14 @@ export default function ReportDetailScreen() {
                 "Người dùng hủy qua ứng dụng",
               );
               if (response.success) {
-                Alert.alert("Thành công", "Báo cáo của bạn đã được hủy.");
+                await saveCancelledReportId(Number(report.id));  // lưu ID để hiển thị trong lịch sử
+                showAlert("Thành công", "Báo cáo của bạn đã được hủy.");
                 fetchReportDetail(report.id); // Tải lại dữ liệu
               } else {
-                Alert.alert("Lỗi", response.error || "Không thể hủy báo cáo.");
+                showAlert("Lỗi", response.error || "Không thể hủy báo cáo.");
               }
             } catch (error) {
-              Alert.alert("Lỗi", "Đã xảy ra lỗi khi kết nối hệ hệ thống.");
+              showAlert("Lỗi", "Đã xảy ra lỗi khi kết nối hệ hệ thống.");
             } finally {
               setSubmitting(false);
             }
@@ -294,7 +304,7 @@ export default function ReportDetailScreen() {
       const res = await citizenService.confirmPresence(Number(report.id));
       if (res.success) {
         if (Platform.OS !== "web") {
-          Alert.alert(
+          showAlert(
             "Thành công",
             "Bạn đã xác nhận đang có mặt. Shipper sẽ tiến hành thu gom ngay.",
           );
@@ -304,7 +314,7 @@ export default function ReportDetailScreen() {
         fetchReportDetail(report.id);
       } else {
         if (Platform.OS !== "web") {
-          Alert.alert("Lỗi", res.error || "Không thể xác nhận có mặt.");
+          showAlert("Lỗi", res.error || "Không thể xác nhận có mặt.");
         } else {
           console.error("❌ [ConfirmPresence] Error (Web):", res.error);
         }
@@ -332,7 +342,7 @@ export default function ReportDetailScreen() {
         const res = await citizenService.reportAbsent(Number(report.id));
         if (res.success) {
           if (Platform.OS !== "web") {
-            Alert.alert(
+            showAlert(
               "Thông báo",
               "Bạn đã báo vắng mặt. Đơn hàng sẽ được cập nhật.",
             );
@@ -342,7 +352,7 @@ export default function ReportDetailScreen() {
           fetchReportDetail(report.id);
         } else {
           if (Platform.OS !== "web") {
-            Alert.alert("Lỗi", res.error || "Không thể báo vắng mặt.");
+            showAlert("Lỗi", res.error || "Không thể báo vắng mặt.");
           } else {
             console.error("❌ [ReportAbsent] Error (Web):", res.error);
           }
@@ -361,7 +371,7 @@ export default function ReportDetailScreen() {
       await executeReportAbsent();
     } else {
       console.log("📱 Showing Alert.alert for absence confirmation...");
-      Alert.alert(
+      showAlert(
         "Xác nhận vắng mặt",
         "Bạn chắc chắn muốn báo vắng mặt? Shipper sẽ không thể thu gom rác của bạn trong đơn này.",
         [
@@ -474,7 +484,7 @@ export default function ReportDetailScreen() {
               </Text>
               {status?.toUpperCase() === "COMPLETED" && earnedPoints !== null && (
                 <Text style={styles.pointsEarnedText}>
-                  +{earnedPoints} EcoPoints
+                  +{earnedPoints} Điểm
                 </Text>
               )}
             </View>

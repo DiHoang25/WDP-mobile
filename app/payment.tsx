@@ -1,11 +1,11 @@
 import { Button, Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { businessService } from "@/services/business.service";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    Alert,
     Clipboard,
     Image,
     ScrollView,
@@ -17,6 +17,7 @@ import {
 
 export default function PaymentScreen() {
     const params = useLocalSearchParams();
+    const { showAlert } = useAlert();
     const referenceCodeParam = params.referenceCode as string || "PAY-UNKNOWN";
     const amountParam = parseFloat(params.amount as string || "0");
     const planNameParam = params.planName as string || "Gói đăng ký";
@@ -125,13 +126,13 @@ export default function PaymentScreen() {
         try {
             const response = await businessService.testPaymentSuccess(paymentData.referenceCode);
             if (response.success) {
-                Alert.alert("Thông báo", "Đã gửi yêu cầu giả lập thanh toán thành công. Vui lòng đợi trong giây lát.");
+                showAlert("Thông báo", "Đã gửi yêu cầu giả lập thanh toán thành công. Vui lòng đợi trong giây lát.");
                 checkPaymentStatus();
             } else {
-                Alert.alert("Lỗi", response.error || "Không thể thực hiện test");
+                showAlert("Lỗi", response.error || "Không thể thực hiện test");
             }
         } catch (error) {
-            Alert.alert("Lỗi", "Đã có lỗi xảy ra");
+            showAlert("Lỗi", "Đã có lỗi xảy ra");
         } finally {
             setCheckingStatus(false);
         }
@@ -139,7 +140,7 @@ export default function PaymentScreen() {
 
     const handleRenewPayment = async () => {
         if (!planId) {
-            Alert.alert("Lỗi", "Không tìm thấy thông tin gói dịch vụ nhen!");
+            showAlert("Lỗi", "Không tìm thấy thông tin gói dịch vụ nhen!");
             return;
         }
 
@@ -167,11 +168,11 @@ export default function PaymentScreen() {
                 setIsExpired(false);
                 setStatus("PENDING");
             } else {
-                Alert.alert("Lỗi", response.message || "Không thể tạo mã mới nhen!");
+                showAlert("Lỗi", response.message || "Không thể tạo mã mới nhen!");
             }
         } catch (error) {
             console.error("[Payment] Renew error:", error);
-            Alert.alert("Lỗi", "Đã có lỗi xảy ra nhenn!");
+            showAlert("Lỗi", "Đã có lỗi xảy ra nhenn!");
         } finally {
             setLoading(false);
         }
@@ -179,7 +180,7 @@ export default function PaymentScreen() {
 
     const copyToClipboard = (text: string, label: string) => {
         Clipboard.setString(text);
-        Alert.alert("Thông báo", `Đã sao chép ${label}`);
+        showAlert("Thông báo", `Đã sao chép ${label}`);
     };
 
     if (status === "PAID") {

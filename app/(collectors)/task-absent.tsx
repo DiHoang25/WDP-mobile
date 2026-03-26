@@ -1,12 +1,12 @@
 import type { ToastType } from "@/components/common";
 import { Button, Card, Toast } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { collectorService } from "@/services/collector.service";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +16,7 @@ import {
 export default function TaskAbsentScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { showAlert } = useAlert();
 
   const canReport = true;
   const [submitting, setSubmitting] = useState(false);
@@ -29,11 +30,11 @@ export default function TaskAbsentScreen() {
 
   const handleConfirm = () => {
     if (!canReport) {
-      Alert.alert("Lỗi", "Chức năng này chỉ khả dụng sau 20 phút kể từ khi bạn check-in");
+      showAlert("Lỗi", "Chức năng này chỉ khả dụng sau 20 phút kể từ khi bạn check-in");
       return;
     }
 
-    Alert.alert(
+    showAlert(
       "Xác nhận",
       "Bạn có chắc chắn muốn báo Công dân vắng mặt? Hành động này không thể hoàn tác.",
       [

@@ -1,13 +1,13 @@
 import type { ToastType } from "@/components/common";
 import { Button, Card, Toast } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { collectorService } from "@/services/collector.service";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -20,6 +20,7 @@ import {
 export default function TaskReportIssueScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { showAlert } = useAlert();
 
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<string[]>([]);
@@ -50,16 +51,16 @@ export default function TaskReportIssueScreen() {
 
   const handleSubmit = () => {
     if (description.trim().length < 5) {
-      Alert.alert("Lỗi", "Vui lòng nhập mô tả sự cố (tối thiểu 5 ký tự)");
+      showAlert("Lỗi", "Vui lòng nhập mô tả sự cố (tối thiểu 5 ký tự)");
       return;
     }
 
     if (images.length === 0) {
-      Alert.alert("Lỗi", "Vui lòng chụp ít nhất 1 ảnh bằng chứng");
+      showAlert("Lỗi", "Vui lòng chụp ít nhất 1 ảnh bằng chứng");
       return;
     }
 
-    Alert.alert(
+    showAlert(
       "Xác nhận",
       "Gửi báo cáo sự cố? Công dân sẽ bị trừ 50 điểm uy tín.",
       [

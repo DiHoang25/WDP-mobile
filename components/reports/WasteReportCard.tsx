@@ -114,11 +114,13 @@ export default function WasteReportCard({
         <Badge
           label={statusText}
           color={
-            status?.toLowerCase() === "completed"
+            status?.toLowerCase() === "completed" || status?.toLowerCase() === "collected"
               ? "success"
-              : status?.toLowerCase() === "pending"
+              : ["pending", "accepted", "assigned", "on_the_way", "arrived", "collector_pending"].includes(status?.toLowerCase() || "")
                 ? "warning"
-                : "info"
+                : ["failed", "rejected", "cancelled", "failed_no_response", "failed_citizen_not_home"].includes(status?.toLowerCase() || "")
+                  ? "error"
+                  : "info"
           }
           size="small"
         />
@@ -173,7 +175,7 @@ export default function WasteReportCard({
         {(points !== undefined && points !== null) && (
           <View style={styles.pointsBadge}>
             <Ionicons name="star" size={12} color={AppColors.warning} />
-            <Text style={styles.pointsText}>+{points} EcoPoints</Text>
+            <Text style={styles.pointsText}>+{points} Điểm </Text>
           </View>
         )}
       </View>

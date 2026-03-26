@@ -59,8 +59,9 @@ export const wasteService = {
      * Get report history
      * GET /api/v1/citizen/reports
      */
-    async getHistory(): Promise<ApiResponse<any>> {
-        return apiClient.get<any>('/citizen/reports');
+    async getHistory(status?: string): Promise<ApiResponse<any>> {
+        const query = status ? `?status=${status}` : '';
+        return apiClient.get<any>(`/citizen/reports${query}`);
     },
 
     /**

@@ -32,6 +32,23 @@ const getComplaintStatusLabel = (status: ComplaintItem["status"]) => {
   }
 };
 
+const getComplaintTypeLabel = (type?: string) => {
+  switch (type) {
+    case "ATTITUDE":
+      return "Thái độ phục vụ";
+    case "WEIGHT_MISMATCH":
+      return "Khối lượng không khớp";
+    case "UNAUTHORIZED_FEE":
+      return "Phí không hợp lệ";
+    case "NO_SHOW":
+      return "Không đến thu gom";
+    case "OTHER":
+      return "Khác";
+    default:
+      return type || "Khiếu nại";
+  }
+};
+
 const getComplaintStatusColor = (status: ComplaintItem["status"]) => {
   switch (status) {
     case "OPEN":
@@ -187,34 +204,41 @@ export default function ComplaintHistoryScreen() {
                 }
               >
                 <View style={styles.cardHeader}>
-                  <View style={styles.reportRefContainer}>
-                    <Ionicons
-                      name="document-text-outline"
-                      size={16}
-                      color={AppColors.primary}
-                    />
-                    <View>
-                      <Text style={styles.reportRefText}>
-                        Báo cáo #{item.reportId}
+                  <View style={styles.headerLeft}>
+                    <View style={styles.reportBadge}>
+                      <Ionicons
+                        name="receipt-outline"
+                        size={14}
+                        color={AppColors.primary}
+                      />
+                      <Text style={styles.reportIdText}>#{item.reportId}</Text>
+                    </View>
+                    <View style={styles.typeBadge}>
+                      <Text style={styles.typeText}>
+                        {getComplaintTypeLabel(item.type)}
                       </Text>
-                      {item.reportInfo?.address && (
-                        <Text style={styles.addressText} numberOfLines={1}>
-                          {item.reportInfo.address}
-                        </Text>
-                      )}
                     </View>
                   </View>
                   <View
                     style={[
-                      styles.statusBadge,
-                      { backgroundColor: `${statusColor}20` },
+                      styles.statusIndicator,
+                      { backgroundColor: statusColor },
                     ]}
-                  >
-                    <Text style={[styles.statusText, { color: statusColor }]}>
-                      {statusLabel}
+                  />
+                </View>
+
+                {item.reportInfo?.address && (
+                  <View style={styles.addressContainer}>
+                    <Ionicons
+                      name="location-outline"
+                      size={14}
+                      color={AppColors.gray[400]}
+                    />
+                    <Text style={styles.addressText} numberOfLines={1}>
+                      {item.reportInfo.address}
                     </Text>
                   </View>
-                </View>
+                )}
 
                 <Text style={styles.contentText} numberOfLines={3}>
                   {item.content}
@@ -232,28 +256,32 @@ export default function ComplaintHistoryScreen() {
                     </Text>
                   </View>
 
-                  <View style={styles.metaItem}>
-                    <Ionicons
-                      name="images-outline"
-                      size={14}
-                      color={AppColors.gray[500]}
-                    />
-                    <Text style={styles.metaText}>
-                      {item.evidenceImages?.length || 0} ảnh
-                    </Text>
-                  </View>
+                  {item.evidenceImages?.length > 0 && (
+                    <View style={styles.metaItem}>
+                      <Ionicons
+                        name="images-outline"
+                        size={14}
+                        color={AppColors.gray[400]}
+                      />
+                      <Text style={styles.metaText}>
+                        {item.evidenceImages?.length} ảnh
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
                 {!!item.adminResponse && (
-                  <View style={styles.responseBox}>
+                  <View style={[styles.responseBox, { borderColor: statusColor + "40" }]}>
                     <View style={styles.responseHeader}>
-                      <Ionicons
-                        name="chatbox-ellipses-outline"
-                        size={15}
-                        color={AppColors.primary}
-                      />
-                      <Text style={styles.responseTitle}>
-                        Phản hồi từ hệ thống
+                      <View style={[styles.responseIcon, { backgroundColor: statusColor + "15" }]}>
+                        <Ionicons
+                          name="chatbox-ellipses"
+                          size={14}
+                          color={statusColor}
+                        />
+                      </View>
+                      <Text style={[styles.responseTitle, { color: statusColor }]}>
+                        Phản hồi: {statusLabel}
                       </Text>
                     </View>
                     <Text style={styles.responseText}>
@@ -299,12 +327,17 @@ const styles = StyleSheet.create({
   summaryCard: {
     flexDirection: "row",
     backgroundColor: AppColors.white,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 6,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     borderWidth: 1,
-    borderColor: AppColors.gray[200],
-    marginBottom: 4,
+    borderColor: AppColors.gray[100],
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   summaryItem: {
     flex: 1,
@@ -327,31 +360,69 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: AppColors.white,
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
     borderWidth: 1,
-    borderColor: AppColors.gray[200],
+    borderColor: AppColors.gray[100],
   },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 8,
   },
-  reportRefContainer: {
+  headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
   },
-  reportRefText: {
-    fontSize: 14,
+  reportBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: AppColors.primary + "10",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  reportIdText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: AppColors.primary,
+  },
+  typeBadge: {
+    backgroundColor: AppColors.gray[100],
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  typeText: {
+    fontSize: 11,
     fontWeight: "700",
-    color: AppColors.textPrimary,
+    color: AppColors.textSecondary,
+    textTransform: "uppercase",
+  },
+  statusIndicator: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  addressContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 12,
   },
   addressText: {
-    fontSize: 11,
-    color: AppColors.textSecondary,
-    marginTop: 2,
+    fontSize: 12,
+    color: AppColors.gray[500],
+    flex: 1,
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -363,18 +434,17 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   contentText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
     color: AppColors.textPrimary,
-    marginBottom: 10,
+    fontWeight: "500",
+    marginBottom: 12,
   },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    borderTopColor: AppColors.gray[100],
-    paddingTop: 10,
+    gap: 16,
+    marginBottom: 12,
   },
   metaItem: {
     flexDirection: "row",
@@ -383,30 +453,37 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 12,
-    color: AppColors.textSecondary,
+    color: AppColors.gray[400],
   },
   responseBox: {
-    marginTop: 10,
-    borderRadius: 10,
-    padding: 10,
-    backgroundColor: AppColors.primary + "10",
+    marginTop: 4,
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: AppColors.gray[50] + "80",
     borderWidth: 1,
-    borderColor: AppColors.primary + "30",
+    borderStyle: "dashed",
   },
   responseHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 4,
+    gap: 8,
+    marginBottom: 8,
+  },
+  responseIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   responseTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: AppColors.primary,
+    fontSize: 13,
+    fontWeight: "800",
   },
   responseText: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 20,
     color: AppColors.textPrimary,
+    fontStyle: "italic",
   },
 });

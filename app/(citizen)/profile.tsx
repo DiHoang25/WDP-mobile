@@ -1,25 +1,26 @@
 import { Button, Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    Alert,
-    Image,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function ProfileScreen() {
   const { user, logout, refreshProfile } = useAuth();
   const { t, language, setLanguage } = useLanguage();
+  const { showAlert } = useAlert();
   const [showLanguageModal, setShowLanguageModal] = useState(false);
 
   useFocusEffect(
@@ -41,7 +42,7 @@ export default function ProfileScreen() {
     if (Platform.OS === "web") {
       await doLogout();
     } else {
-      Alert.alert(t("profile.logout"), t("profile.logoutConfirm"), [
+      showAlert(t("profile.logout"), t("profile.logoutConfirm"), [
         { text: t("common.cancel"), style: "cancel" },
         { text: t("profile.logout"), style: "destructive", onPress: doLogout },
       ]);
@@ -51,18 +52,18 @@ export default function ProfileScreen() {
   const menuItems = [
     ...(user?.roleId === 1
       ? [
-          {
-            icon: "business",
-            title: t("profile.menu.registerEnterprise"),
-            subtitle: t("profile.menu.registerEnterpriseSubtitle"),
-            onPress: () =>
-              router.push({
-                pathname: "/(citizen)/register-enterprise-form",
-                params: { source: "profile" },
-              } as any),
-            highlight: true,
-          },
-        ]
+        {
+          icon: "business",
+          title: t("profile.menu.registerEnterprise"),
+          subtitle: t("profile.menu.registerEnterpriseSubtitle"),
+          onPress: () =>
+            router.push({
+              pathname: "/(citizen)/register-enterprise-form",
+              params: { source: "profile" },
+            } as any),
+          highlight: true,
+        },
+      ]
       : []),
     {
       icon: "document-text",
@@ -113,13 +114,13 @@ export default function ProfileScreen() {
       icon: "help-circle",
       title: t("profile.menu.help"),
       subtitle: t("profile.menu.helpSubtitle"),
-      onPress: () => Alert.alert(t("common.notice"), t("common.featureInDev")),
+      onPress: () => showAlert(t("common.notice"), t("common.featureInDev")),
     },
     {
       icon: "document",
       title: t("profile.menu.terms"),
       subtitle: t("profile.menu.termsSubtitle"),
-      onPress: () => Alert.alert(t("common.notice"), t("common.featureInDev")),
+      onPress: () => showAlert(t("common.notice"), t("common.featureInDev")),
     },
   ];
 

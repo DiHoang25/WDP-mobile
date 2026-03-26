@@ -1,5 +1,6 @@
-import { Button, GroupedServiceAreaPicker, Header, Input, MapLocationPicker, MultiSelectPicker, WasteTypeMultiSelector } from "@/components/common";
+import { Button, GroupedServiceAreaPicker, Header, Input, MapLocationPicker, MultiSelectPicker, Picker, WasteTypeMultiSelector } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { District, locationService, Province, Ward } from "@/services/location.service";
 import { WasteType } from '@/types';
@@ -8,7 +9,6 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -22,6 +22,7 @@ import {
 
 export default function RegisterEnterpriseFormScreen() {
   const { t } = useLanguage();
+  const { showAlert } = useAlert();
   const params = useLocalSearchParams<{ source?: string }>();
   const source = Array.isArray(params.source) ? params.source[0] : params.source;
   const backFallbackRoute =
@@ -65,103 +66,156 @@ export default function RegisterEnterpriseFormScreen() {
   const [tempAddress, setTempAddress] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const [isFieldAutoFilled, setIsFieldAutoFilled] = useState({ province: false, district: false, ward: false });
+  const lastRequestId = React.useRef(0);
+
   // Helper to normalize and compare Vietnamese location names
   const normalizeLocationName = (name: string): string => {
     if (!name) return "";
     return name
       .toLowerCase()
-      .replace(/^(tỉnh|thành phố|thành phồ|quận|huyện|thị xã|phường|xã|thị trấn|p\.|q\.)\s*/gi, "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d")
+      .replace(/^(tinh|thanh pho|thanh pho|quan|huyen|thi xa|phuong|xa|thi tran|p\.|q\.)\s*/gi, "")
       .replace(/\s+/g, " ")
       .trim();
   };
 
   // Auto-fill address elements when map location is selected
   const handleMapLocationSelect = async (loc: any) => {
+    const requestId = ++lastRequestId.current;
+    setLoading(true);
+
+    // Initial reset
+    setAddressProvinceId("");
+    setAddressDistrictId("");
+    setAddressWardId("");
+    setAddressDistricts([]);
+    setAddressWards([]);
+    setIsFieldAutoFilled({ province: false, district: false, ward: false });
+
     setMapLocation(loc);
 
     if (loc.rawAddress) {
       const raw = loc.rawAddress;
 
       // 1. Fill detailed address (street level only)
-      if (raw.house_number || raw.road || raw.name || raw.street) {
-        let detailedAddress = "";
+      let detailedAddress = loc.address || "";
+      detailedAddress = detailedAddress
+        .replace(/,?\s*Vi[eệ]t\s*Nam\s*/gi, '')
+        .replace(/,?\s*\d{5,6}\s*/g, '')
+        .trim();
 
-        // Add house number if available
-        if (raw.house_number) detailedAddress = raw.house_number;
-
-        // Add road/street
-        const streetPart = raw.road || raw.street || raw.name;
-        if (streetPart) {
-          detailedAddress = detailedAddress ? `${detailedAddress} ${streetPart}` : streetPart;
-        }
-
-        // Add any other specific markers like building name
-        if (raw.name && raw.name !== raw.road && raw.name !== raw.street && raw.name !== raw.house_number) {
-          detailedAddress = detailedAddress ? `${detailedAddress}, ${raw.name}` : raw.name;
-        }
-
-        if (detailedAddress) setAddress(detailedAddress);
+      if (detailedAddress && detailedAddress !== "Đang xác định..." && detailedAddress !== "Đang xác định địa chỉ...") {
+        setAddress(detailedAddress);
       }
 
-      // 2. Try to match Province
-      const provinceName = raw.region || raw.city || "";
-      const normProvince = normalizeLocationName(provinceName);
+      // 2. Province/District/Ward Identification
+      try {
+        let provincesData = provinces;
+        if (provincesData.length === 0) {
+          const res = await locationService.getProvinces();
+          if (res.success && res.data) {
+            setProvinces(res.data);
+            provincesData = res.data;
+          }
+        }
 
-      if (normProvince && provinces.length > 0) {
-        const matchedProvince = provinces.find(p => {
-          const pNorm = normalizeLocationName(p.name);
-          return normProvince.includes(pNorm) || pNorm.includes(normProvince);
-        });
+        if (requestId !== lastRequestId.current) return;
+
+        // SPECIAL CORRECTION: Handle Thu Duc / HCM 
+        const rawJson = JSON.stringify(raw).toLowerCase();
+        const hasThuDuc = rawJson.includes("thu duc") || (loc.address && loc.address.toLowerCase().includes("thu duc"));
+        const hasHCM = rawJson.includes("ho chi minh") || rawJson.includes("hcm") ||
+          (loc.address && (loc.address.toLowerCase().includes("ho chi minh") || loc.address.toLowerCase().includes("hcm")));
+
+        let searchProvince = raw.province || raw.region || (hasHCM ? "Thành phố Hồ Chí Minh" : "");
+        let searchDistrict = raw.district || raw.osm_city_district || raw.osm_town || raw.city || "";
+        let searchWard = raw.ward || raw.osm_suburb || raw.suburb || "";
+
+        if (hasThuDuc) {
+          searchProvince = "Thành phố Hồ Chí Minh";
+          searchDistrict = "Thành phố Thủ Đức";
+        }
+
+        // A. MATCH PROVINCE (79 for HCMC)
+        let matchedProvince = null;
+        let normProvince = normalizeLocationName(searchProvince);
+
+        if (normProvince && provincesData.length > 0) {
+          matchedProvince = provincesData.find((p: any) => normalizeLocationName(p.name) === normProvince);
+        }
 
         if (matchedProvince) {
           setAddressProvinceId(matchedProvince.code);
+          setIsFieldAutoFilled(prev => ({ ...prev, province: true }));
 
-          // 3. Load and match District
+          // B. MATCH DISTRICT
           const distRes = await locationService.getDistricts(matchedProvince.code);
-          if (distRes.success && distRes.data) {
+          if (distRes.success && distRes.data && requestId === lastRequestId.current) {
             setAddressDistricts(distRes.data);
-            const districtName = raw.district || raw.city_district || raw.suburb || "";
-            const normDistrict = normalizeLocationName(districtName);
 
-            const matchedDistrict = distRes.data.find(d => {
-              const dNorm = normalizeLocationName(d.name);
-              return normDistrict.includes(dNorm) || dNorm.includes(normDistrict);
-            });
+            const districtCandidates = [
+              searchDistrict,
+              raw.osm_city_district,
+              hasThuDuc ? "Thành phố Thủ Đức" : "",
+              raw.osm_town,
+              raw.city,
+              raw.name,
+            ].filter(c => !!c && normalizeLocationName(c) !== normProvince);
+
+            let matchedDistrict = null;
+            for (const cand of districtCandidates) {
+              const normCand = normalizeLocationName(cand);
+              matchedDistrict = distRes.data.find((d: any) => normalizeLocationName(d.name) === normCand);
+              if (matchedDistrict) break;
+            }
 
             if (matchedDistrict) {
               setAddressDistrictId(matchedDistrict.code);
+              setIsFieldAutoFilled(prev => ({ ...prev, district: true }));
 
-              // 4. Load and match Ward
+              // C. MATCH WARD
               const wardRes = await locationService.getWards(matchedDistrict.code);
-              if (wardRes.success && wardRes.data) {
+              if (wardRes.success && wardRes.data && requestId === lastRequestId.current) {
                 setAddressWards(wardRes.data);
 
                 const wardCandidates = [
-                  raw.ward,
+                  searchWard,
+                  raw.osm_suburb,
                   raw.suburb,
-                  raw.subdistrict,
-                  raw.neighbourhood,
-                  raw.quarter,
-                  raw.hamlet,
-                  raw.village
-                ].filter(Boolean);
+                  raw.street,
+                  raw.name
+                ].filter(c => !!c && normalizeLocationName(c) !== normalizeLocationName(matchedDistrict?.name || ""));
 
                 let matchedWard = null;
-                for (const candidate of wardCandidates) {
-                  const normCandidate = normalizeLocationName(candidate);
-                  matchedWard = wardRes.data.find(w => {
+                for (const cand of wardCandidates) {
+                  const normCand = normalizeLocationName(cand);
+                  matchedWard = wardRes.data.find((w: any) => {
                     const wNorm = normalizeLocationName(w.name);
-                    return normCandidate.includes(wNorm) || wNorm.includes(normCandidate);
+                    return wNorm.includes(normCand) || normCand.includes(wNorm);
                   });
                   if (matchedWard) break;
                 }
 
-                if (matchedWard) setAddressWardId(matchedWard.code);
+                if (matchedWard) {
+                  setAddressWardId(matchedWard.code);
+                  setIsFieldAutoFilled(prev => ({ ...prev, ward: true }));
+                }
               }
             }
           }
         }
+      } catch (err) {
+        console.error("Auto-match location error:", err);
       }
+    } else if (loc.address && loc.address !== "Đang xác định...") {
+      setAddress(loc.address);
+    }
+
+    if (requestId === lastRequestId.current) {
+      setLoading(false);
     }
   };
 
@@ -201,7 +255,7 @@ export default function RegisterEnterpriseFormScreen() {
           console.log(`📏 Computed distance while confirming: ${dist.toFixed(3)} km. Fallback: ${isFallback}`);
 
           if (isFallback) {
-            Alert.alert(
+            showAlert(
               "Địa chỉ không cụ thể",
               "Hệ thống chỉ tìm thấy khu vực (Phường) của địa chỉ này mà không thấy số nhà/tên đường cụ thể. Vui lòng ghim trực tiếp trên bản đồ để đảm bảo chính xác nhất.",
               [
@@ -210,7 +264,7 @@ export default function RegisterEnterpriseFormScreen() {
                   text: "Dùng tạm vị trí này",
                   onPress: () => {
                     if (dist > 2.0) {
-                      Alert.alert("Lỗi", "Vị trí khu vực này quá xa điểm đã ghim (>2km). Vui lòng ghim lại.");
+                      showAlert("Lỗi", "Vị trí khu vực này quá xa điểm đã ghim (>2km). Vui lòng ghim lại.");
                       return;
                     }
                     setAddress(tempAddress);
@@ -228,7 +282,7 @@ export default function RegisterEnterpriseFormScreen() {
 
           if (dist > 2.0) {
             setLoading(false);
-            Alert.alert(
+            showAlert(
               "Vị trí không hợp lệ",
               `Địa chỉ bạn nhập cách vị trí đã ghim ${dist.toFixed(1)}km (vượt quá giới hạn 2km). Vui lòng nhập địa chỉ gần vị trí đã ghim hơn.`
             );
@@ -244,9 +298,9 @@ export default function RegisterEnterpriseFormScreen() {
             address: fullAddressToGeocode
           });
 
-          Alert.alert("Xác nhận địa chỉ", "Đã cập nhật chi tiết địa chỉ và ghim lại bản đồ.");
+          showAlert("Xác nhận địa chỉ", "Đã cập nhật chi tiết địa chỉ và ghim lại bản đồ.");
         } else {
-          Alert.alert(
+          showAlert(
             "Không thể xác minh",
             "Hệ thống không thể xác định vị trí của địa chỉ này để kiểm tra khoảng cách. Vui lòng nhập rõ ràng hơn."
           );
@@ -399,11 +453,15 @@ export default function RegisterEnterpriseFormScreen() {
       return;
     }
 
-    // Save state and navigate to plans selection
     // Build full address from selections
     const selectedProvince = provinces.find(p => p.code === addressProvinceId);
     const selectedDistrict = addressDistricts.find(d => d.code === addressDistrictId);
     const selectedWard = addressWards.find(w => w.code === addressWardId);
+
+    if (!selectedProvince || !selectedDistrict || !selectedWard) {
+      setErrors({ ...newErrors, mapLocation: "Vui lòng chọn đầy đủ Tỉnh/Huyện/Phường" });
+      return;
+    }
 
     const fullAddress = [
       address, // detailed address
@@ -511,19 +569,67 @@ export default function RegisterEnterpriseFormScreen() {
 
           {mapLocation && (
             <View style={styles.addressDisplayCard}>
-              <View style={styles.addressRow}>
-                <Ionicons name="location" size={20} color={AppColors.primary} />
-                <View style={styles.addressInfo}>
-                  <Text style={styles.addressLabel}>{t("registerEnterprise.areaDetected")}</Text>
-                  <Text style={styles.fullAddressText}>
-                    {[
-                      addressWards.find(w => w.code === addressWardId)?.name,
-                      addressDistricts.find(d => d.code === addressDistrictId)?.name,
-                      provinces.find(p => p.code === addressProvinceId)?.name
-                    ].filter(Boolean).join(", ") || t("registerEnterprise.detectingArea")}
-                  </Text>
+              <Text style={styles.addressLabel}>{t("registerEnterprise.areaDetected")}</Text>
+
+              <View style={styles.addressPickersRow}>
+                <View style={{ flex: 1 }}>
+                  <Picker
+                    label="Tỉnh/Thành phố"
+                    options={provinces.map(p => ({ label: p.name, value: p.code }))}
+                    selectedValue={addressProvinceId}
+                    onValueChange={(val) => {
+                      setAddressProvinceId(val);
+                      setIsFieldAutoFilled(prev => ({ ...prev, province: false, district: false, ward: false }));
+                    }}
+                    disabled={isFieldAutoFilled.province}
+                    placeholder="Chọn Tỉnh/TP"
+                  />
+                  {isFieldAutoFilled.province && (
+                    <View style={styles.autoFilledBadge}>
+                      <Ionicons name="checkmark-circle" size={12} color={AppColors.success} />
+                      <Text style={styles.autoFilledText}>Đã tự ghim</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Picker
+                    label="Quận/Huyện"
+                    options={addressDistricts.map(d => ({ label: d.name, value: d.code }))}
+                    selectedValue={addressDistrictId}
+                    onValueChange={(val) => {
+                      setAddressDistrictId(val);
+                      setIsFieldAutoFilled(prev => ({ ...prev, district: false, ward: false }));
+                    }}
+                    disabled={isFieldAutoFilled.district || !addressProvinceId}
+                    placeholder="Chọn Quận/Huyện"
+                  />
+                  {isFieldAutoFilled.district && (
+                    <View style={styles.autoFilledBadge}>
+                      <Ionicons name="checkmark-circle" size={12} color={AppColors.success} />
+                      <Text style={styles.autoFilledText}>Đã tự ghim</Text>
+                    </View>
+                  )}
                 </View>
               </View>
+
+              <Picker
+                label="Phường/Xã"
+                options={addressWards.map(w => ({ label: w.name, value: w.code }))}
+                selectedValue={addressWardId}
+                onValueChange={(val) => {
+                  setAddressWardId(val);
+                  setIsFieldAutoFilled(prev => ({ ...prev, ward: false }));
+                }}
+                disabled={isFieldAutoFilled.ward || !addressDistrictId}
+                placeholder="Chọn Phường/Xã"
+              />
+              {isFieldAutoFilled.ward && (
+                <View style={styles.autoFilledBadge}>
+                  <Ionicons name="checkmark-circle" size={12} color={AppColors.success} />
+                  <Text style={styles.autoFilledText}>Đã tự ghim</Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -677,13 +783,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: AppColors.primary + "30",
   },
-  addressRow: {
+  addressPickersRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  addressInfo: {
-    marginLeft: 12,
-    flex: 1,
+    gap: 12,
   },
   addressLabel: {
     fontSize: 12,
@@ -691,10 +793,17 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     fontWeight: "600",
   },
-  fullAddressText: {
-    fontSize: 15,
-    color: AppColors.textPrimary,
-    lineHeight: 22,
+  autoFilledBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: -8,
+    marginBottom: 8,
+    alignSelf: "flex-end",
+  },
+  autoFilledText: {
+    fontSize: 10,
+    color: AppColors.success,
     fontWeight: "600",
   },
   warningText: {

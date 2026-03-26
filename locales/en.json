@@ -92,7 +92,9 @@
         "noReports": "No reports found",
         "noReportsAll": "You haven't created any reports",
         "noReportsPending": "No reports currently processing",
-        "noReportsCompleted": "No completed reports"
+        "noReportsCompleted": "No completed reports",
+        "cancelled": "Cancelled",
+        "noReportsCancelled": "No cancelled reports"
     },
     "createReport": {
         "title": "Create waste report",

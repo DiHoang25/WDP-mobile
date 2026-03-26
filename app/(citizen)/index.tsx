@@ -27,7 +27,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 const { width } = Dimensions.get("window");
 
 export default function CitizenHomeScreen() {
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, refreshPoints } = useAuth();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -62,6 +62,7 @@ export default function CitizenHomeScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshProfile();
+      refreshPoints();
       checkUnreadNotifications();
       fetchReports();
       checkPendingEnterpriseSubscription();

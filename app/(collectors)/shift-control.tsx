@@ -1,12 +1,12 @@
 import { Button, Card } from "@/components/common";
 import MapView, { Circle, Marker } from "@/components/common/MockMapView";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { CollectorStatus } from "@/types/collector";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +16,7 @@ import {
 
 export default function ShiftControlScreen() {
   const router = useRouter();
+  const { showAlert } = useAlert();
   const [status, setStatus] = useState<CollectorStatus>("AVAILABLE");
   const [location, setLocation] = useState({
     latitude: 10.7769,
@@ -36,11 +37,11 @@ export default function ShiftControlScreen() {
 
   const handleStartShift = () => {
     if (!permissionGranted) {
-      Alert.alert("Lỗi", "Bạn cần cấp quyền GPS để bắt đầu ca làm");
+      showAlert("Lỗi", "Bạn cần cấp quyền GPS để bắt đầu ca làm");
       return;
     }
 
-    Alert.alert("Thành công", "Đã bắt đầu ca làm việc. Bạn sẽ nhận Đơn hàng mới!", [
+    showAlert("Thành công", "Đã bắt đầu ca làm việc. Bạn sẽ nhận Đơn hàng mới!", [
       {
         text: "OK",
         onPress: () => router.back(),

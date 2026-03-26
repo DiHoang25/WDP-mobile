@@ -1,12 +1,12 @@
 import { Button, Header, Loading } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { businessService } from "@/services/business.service";
 import { SubscriptionPlan } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +16,7 @@ import {
 
 export default function RegisterEnterprisePlansScreen() {
   const params = useLocalSearchParams();
+  const { showAlert } = useAlert();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +49,7 @@ export default function RegisterEnterprisePlansScreen() {
 
   const handleRegister = async () => {
     if (!selectedPlanId) {
-      Alert.alert("Thông báo", "Vui lòng chọn một gói đăng ký");
+      showAlert("Thông báo", "Vui lòng chọn một gói đăng ký");
       return;
     }
 
@@ -98,10 +99,10 @@ export default function RegisterEnterprisePlansScreen() {
           }
         } as any);
       } else {
-        Alert.alert("Lỗi", response.error || "Đăng ký không thành công");
+        showAlert("Lỗi", response.error || "Đăng ký không thành công");
       }
     } catch (error) {
-      Alert.alert("Lỗi", "Đã có lỗi xảy ra. Vui lòng thử lại.");
+      showAlert("Lỗi", "Đã có lỗi xảy ra. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }

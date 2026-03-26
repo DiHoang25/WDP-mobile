@@ -1,11 +1,11 @@
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { locationService } from "@/services/location.service";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     Linking,
     Modal,
     Platform,
@@ -127,6 +127,80 @@ export const MapLocationPicker = ({
     onLocationSelect,
     error,
 }: MapLocationPickerProps): React.ReactElement => {
+    const { showAlert } = useAlert();
+    const [toast, setToast] = useState<{ visible: boolean; message: string; type: 'success' | 'error' }>({
+        visible: false, message: "", type: "success",
+    });
+
+    const consolidateAddress = (item: any) => {
+        const addr = item.address || {};
+        const rawAddress: any = {
+            house_number: addr.house_number || "",
+            road: addr.road || "",
+            province: addr.state || addr.province || "",
+            district: addr.city_district || addr.district || addr.county || addr.town || addr.city || "",
+            ward: addr.subdistrict || addr.quarter || addr.suburb || addr.village || addr.hamlet || addr.neighbourhood || "",
+            city: addr.city || addr.town || addr.municipality || "",
+            street: addr.road || addr.street || "",
+            region: addr.state || addr.province || addr.city || "",
+            name: addr.road || addr.city_district || addr.suburb || addr.name || "",
+            country: "Vietnam",
+            // Extra fields for robust matching in CreateReport
+            osm_city: addr.city || "",
+            osm_town: addr.town || "",
+            osm_suburb: addr.suburb || "",
+            osm_city_district: addr.city_district || "",
+        };
+
+        // Align fields for Ho Chi Minh City / Thu Duc / General Provinces (Historical stability)
+        const isHCM = [rawAddress.province, rawAddress.city, rawAddress.region, addr.state_district].some(v =>
+            v && (v.toLowerCase().includes("ho chi minh") || v.toLowerCase().includes("hcm"))
+        );
+        const normalizeStr = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
+        const isThuDuc = [rawAddress.district, rawAddress.city, rawAddress.name, addr.suburb].some(v =>
+            v && normalizeStr(v).includes("thu duc")
+        );
+
+        if (isHCM || isThuDuc) {
+            rawAddress.province = "Thành phố Hồ Chí Minh";
+            if (isThuDuc) {
+                rawAddress.district = "Thành phố Thủ Đức";
+            }
+        }
+
+        if (!rawAddress.province) {
+            rawAddress.province = addr.city || addr.town || addr.region || "";
+        }
+
+        if (rawAddress.district === rawAddress.province || !rawAddress.district) {
+            rawAddress.district = addr.city_district || addr.town || addr.suburb || addr.quarter || "";
+        }
+
+        // LAST RESORT: Parse display_name if fields are still messy
+        if (rawAddress.district === rawAddress.province || !rawAddress.district) {
+            const displayName = item.display_name || "";
+            const parts = displayName.split(",").map((p: string) => p.trim());
+            const provinceNorm = rawAddress.province.toLowerCase();
+            const districtPart = parts.find((p: string) => {
+                const pn = p.toLowerCase();
+                return (pn.includes("quận") || pn.includes("huyện") || pn.includes("thành phố") || pn.includes("thị xã"))
+                    && !pn.includes(provinceNorm) && !provinceNorm.includes(pn);
+            });
+            if (districtPart) rawAddress.district = districtPart;
+        }
+
+        if (!rawAddress.ward) {
+            rawAddress.ward = addr.suburb || addr.neighbourhood || addr.village || addr.hamlet || "";
+            if (!rawAddress.ward) {
+                const displayName = item.display_name || "";
+                const parts = displayName.split(",").map((p: string) => p.trim());
+                const wardPart = parts.find((p: string) => p.toLowerCase().includes("phường") || p.toLowerCase().includes("xã"));
+                if (wardPart) rawAddress.ward = wardPart;
+            }
+        }
+
+        return rawAddress;
+    };
     const [location, setLocation] = useState<{
         latitude: number;
         longitude: number;
@@ -184,33 +258,75 @@ export const MapLocationPicker = ({
         init();
     }, []);
 
+    // Auto-update parent when location is pinned (moveend) with debounce
+    // This ensures local pickers in CreateReport update immediately after pinning
+    useEffect(() => {
+        if (!isStale) return;
+
+        const timer = setTimeout(async () => {
+            console.log("⏱️ Map idle, auto-fetching address for pickers...");
+            try {
+                await reverseGeocode(location.latitude, location.longitude, true);
+            } catch (err) {
+                console.error("Auto-fetch error:", err);
+            }
+        }, 1500);
+
+        return () => clearTimeout(timer);
+    }, [location.latitude, location.longitude, isStale]);
+
     const reverseGeocode = async (latitude: number, longitude: number, notifyParent = false) => {
         try {
-            console.log("🔍 Native Geocoding for:", latitude, longitude);
-            const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+            // 1. Try Nominatim (OSM) first for consistency with Search
+            console.log("🔍 Nominatim Reverse Geocoding for:", latitude, longitude);
+            try {
+                const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1&extratags=1&zoom=18`;
+                const response = await fetch(url, {
+                    headers: { "User-Agent": "ECONNET-App/1.0" },
+                });
 
-            if (!results || results.length === 0) {
-                throw new Error("No native geocode results");
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.address) {
+                        const rawAddress = consolidateAddress(data);
+                        const formattedAddress = data.display_name || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
+                        setAddress(formattedAddress);
+                        setCurrentRawAddress(rawAddress);
+                        setIsStale(false);
+
+                        if (notifyParent) {
+                            onLocationSelect({
+                                latitude, longitude,
+                                address: formattedAddress,
+                                rawAddress,
+                            });
+                        }
+                        return { address: formattedAddress, rawAddress };
+                    }
+                }
+            } catch (err) {
+                console.warn("Nominatim reverse geocode failed, falling back to Native:", err);
             }
 
+            // 2. Fallback to Native Geocoder (Google/Apple)
+            console.log("🔍 Fallback: Native Geocoding for:", latitude, longitude);
+            const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+            if (!results || results.length === 0) throw new Error("No geocode results found");
+
             const addr = results[0];
-            // Normalize native geocoder format to our internal rawAddress structure
-            const rawAddress = {
-                house_number: addr.streetNumber || "",
-                road: addr.street || "",
-                city: addr.subregion || addr.city || "",
-                province: addr.region || "",
-                district: addr.subregion || addr.city || "",
-                ward: addr.district || addr.street || "",
-                street: addr.street || "",
-                region: addr.region || "",
-                name: addr.name || addr.street || "",
-                country: addr.country || "Vietnam",
-                osm_city: addr.city || "",
-                osm_town: addr.city || "",
-                osm_suburb: addr.district || "",
-                osm_city_district: addr.subregion || "",
-            };
+            const rawAddress = consolidateAddress({
+                address: {
+                    house_number: addr.streetNumber,
+                    road: addr.street,
+                    state: addr.region,
+                    city: addr.city,
+                    city_district: addr.subregion,
+                    suburb: addr.district,
+                    country: addr.country,
+                },
+                display_name: [addr.name, addr.street, addr.district, addr.city, addr.region].filter(Boolean).join(", ")
+            });
 
             const formattedAddress = [
                 addr.name,
@@ -227,15 +343,14 @@ export const MapLocationPicker = ({
 
             if (notifyParent) {
                 onLocationSelect({
-                    latitude,
-                    longitude,
+                    latitude, longitude,
                     address: formattedAddress,
                     rawAddress,
                 });
             }
             return { address: formattedAddress, rawAddress };
         } catch (error) {
-            console.error("Error reverse geocoding (Native falling back to manual):", error);
+            console.error("All Geocoding methods failed:", error);
             const fallback = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
             setAddress(fallback);
             setIsStale(false);
@@ -310,23 +425,7 @@ export const MapLocationPicker = ({
             wardCandidate = addr.suburb || addr.neighbourhood || "";
         }
 
-        const rawAddress = {
-            house_number: addr.house_number || "",
-            road: addr.road || "",
-            city: addr.city || addr.town || addr.municipality || "",
-            province: addr.state || addr.province || "",
-            district: addr.city_district || addr.district || addr.county || "",
-            ward: addr.subdistrict || addr.quarter || addr.suburb || addr.village || addr.hamlet || addr.neighbourhood || "",
-            street: addr.road || addr.street || "",
-            region: addr.state || addr.province || addr.city || "",
-            name: addr.road || addr.city_district || addr.suburb || addr.name || "",
-            country: "Vietnam",
-            // Extra fields for robust matching in CreateReport
-            osm_city: addr.city || "",
-            osm_town: addr.town || "",
-            osm_suburb: addr.suburb || "",
-            osm_city_district: addr.city_district || "",
-        };
+        const rawAddress = consolidateAddress(item);
 
         const formattedAddress = item.display_name;
         setAddress(formattedAddress);
@@ -355,7 +454,7 @@ export const MapLocationPicker = ({
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== "granted") {
                 setLoading(false);
-                Alert.alert(
+                showAlert(
                     "Cần quyền truy cập vị trí",
                     "Ứng dụng cần quyền truy cập vị trí để hiển thị vị trí của bạn trên bản đồ. Bạn có muốn mở Cài đặt?",
                     [
@@ -387,7 +486,7 @@ export const MapLocationPicker = ({
             webViewRef.current?.injectJavaScript(script);
             setIsStale(true); // Tag as stale so confirm button knows it needs to fetch
         } catch (error) {
-            Alert.alert("Lỗi", "Không thể lấy vị trí hiện tại");
+            showAlert("Lỗi", "Không thể lấy vị trí hiện tại");
         } finally {
             setLoading(false);
         }
@@ -588,7 +687,7 @@ export const MapLocationPicker = ({
                             style={[styles.confirmButton, (validating || isEditingAddress) && { opacity: 0.7 }]}
                             onPress={async () => {
                                 if (isEditingAddress) {
-                                    Alert.alert("Thông báo", "Vui lòng lưu địa chỉ trước khi xác nhận");
+                                    showAlert("Thông báo", "Vui lòng lưu địa chỉ trước khi xác nhận");
                                     return;
                                 }
 
@@ -625,7 +724,7 @@ export const MapLocationPicker = ({
 
                                         if (dist > 2.0) {
                                             setValidating(false);
-                                            Alert.alert(
+                                            showAlert(
                                                 "Vị trí không hợp lệ",
                                                 `Địa chỉ bạn nhập cách vị trí trên bản đồ ${dist.toFixed(1)}km (vượt quá giới hạn 2km). Vui lòng nhập địa chỉ gần vị trí đã ghim hơn.`
                                             );
@@ -658,7 +757,7 @@ export const MapLocationPicker = ({
 
                                     } else {
                                         setValidating(false);
-                                        Alert.alert(
+                                        showAlert(
                                             "Không thể xác minh",
                                             "Hệ thống không thể xác định vị trí của địa chỉ này để kiểm tra khoảng cách. Vui lòng nhập rõ ràng hơn."
                                         );

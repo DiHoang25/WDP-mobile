@@ -1,5 +1,6 @@
 import { Button, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { profileService } from "@/services/profile.service";
@@ -7,21 +8,21 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ChangePasswordScreen() {
   const { logout } = useAuth();
   const { t } = useLanguage();
+  const { showAlert } = useAlert();
   const [loading, setLoading] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -35,22 +36,22 @@ export default function ChangePasswordScreen() {
   const handleChangePassword = async () => {
     // Validations
     if (!currentPassword || !newPassword || !confirmPassword) {
-      Alert.alert(t("common.error"), t("changePassword.fillAll"));
+      showAlert(t("common.error"), t("changePassword.fillAll"));
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert(t("common.error"), t("changePassword.mismatch"));
+      showAlert(t("common.error"), t("changePassword.mismatch"));
       return;
     }
 
     if (newPassword.length < 6) {
-      Alert.alert(t("common.error"), t("changePassword.tooShort"));
+      showAlert(t("common.error"), t("changePassword.tooShort"));
       return;
     }
 
     if (currentPassword === newPassword) {
-      Alert.alert(t("common.error"), t("changePassword.mismatch"));
+      showAlert(t("common.error"), t("changePassword.mismatch"));
       return;
     }
 
@@ -62,9 +63,9 @@ export default function ChangePasswordScreen() {
       });
 
       if (response.error) {
-        Alert.alert(t("common.error"), response.error || t("common.error"));
+        showAlert(t("common.error"), response.error || t("common.error"));
       } else {
-        Alert.alert(t("common.success"), t("changePassword.success"), [
+        showAlert(t("common.success"), t("changePassword.success"), [
           {
             text: "OK",
             onPress: async () => {
@@ -76,7 +77,7 @@ export default function ChangePasswordScreen() {
       }
     } catch (error) {
       console.error("Change password error:", error);
-      Alert.alert(t("common.error"), t("common.error"));
+      showAlert(t("common.error"), t("common.error"));
     } finally {
       setLoading(false);
     }

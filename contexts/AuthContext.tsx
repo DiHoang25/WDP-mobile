@@ -15,6 +15,7 @@ interface AuthContextType {
   register: (userData: Partial<User>) => Promise<boolean>;
   updateUser: (user: User) => Promise<void>;
   refreshProfile: () => Promise<void>;
+  refreshPoints: () => Promise<void>;
   pendingPayment: { referenceCode: string; amount: number } | null;
 }
 
@@ -210,6 +211,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshPoints = async () => {
+    try {
+      const { citizenService } = await import("@/services/citizen.service");
+      const response = await citizenService.getMyPoints();
+      if (response.success && response.data) {
+        const points = response.data.points;
+        setUser((prev) => {
+          if (!prev) return null;
+          return { ...prev, points };
+        });
+        const storedUser = await storage.getUser();
+        if (storedUser) {
+          await storage.saveUser({ ...storedUser, points });
+        }
+      }
+    } catch (error) {
+      console.error("Refresh points error:", error);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -221,6 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         register,
         updateUser,
         refreshProfile,
+        refreshPoints,
         pendingPayment,
       }}
     >

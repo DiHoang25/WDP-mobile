@@ -1,5 +1,6 @@
 import { Button, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { profileService } from "@/services/profile.service";
@@ -8,22 +9,22 @@ import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ProfileEditScreen() {
   const { user, updateUser } = useAuth();
   const { t } = useLanguage();
+  const { showAlert } = useAlert();
   const [loading, setLoading] = useState(false);
 
   const [fullName, setFullName] = useState(user?.name || "");
@@ -67,18 +68,18 @@ export default function ProfileEditScreen() {
         setAvatar(result.assets[0]);
       }
     } catch (error) {
-      Alert.alert(t("common.error"), t("profileEdit.imageError"));
+      showAlert(t("common.error"), t("profileEdit.imageError"));
     }
   };
 
   const handleSave = async () => {
     console.log("handleSave START");
     if (!fullName.trim()) {
-      Alert.alert(t("common.error"), t("profileEdit.nameRequired"));
+      showAlert(t("common.error"), t("profileEdit.nameRequired"));
       return;
     }
     if (!phone.trim()) {
-      Alert.alert(t("common.error"), t("profileEdit.phoneRequired"));
+      showAlert(t("common.error"), t("profileEdit.phoneRequired"));
       return;
     }
 
@@ -89,23 +90,23 @@ export default function ProfileEditScreen() {
         phone,
         avatar: avatar
           ? {
-              uri: avatar.uri,
-              name: avatar.fileName || "avatar.jpg",
-              type: avatar.mimeType || "image/jpeg",
-            }
+            uri: avatar.uri,
+            name: avatar.fileName || "avatar.jpg",
+            type: avatar.mimeType || "image/jpeg",
+          }
           : undefined,
       });
 
       if (response.error) {
         console.log("UPDATE ERROR:", response.error);
-        Alert.alert(
+        showAlert(
           t("common.error"),
           response.error || t("profileEdit.saveError"),
         );
       } else if (response.data) {
         await updateUser(response.data as any);
 
-        Alert.alert(t("common.success"), t("profileEdit.saveSuccess"), [
+        showAlert(t("common.success"), t("profileEdit.saveSuccess"), [
           {
             text: "OK",
             onPress: () => {
@@ -116,7 +117,7 @@ export default function ProfileEditScreen() {
       }
     } catch (error) {
       console.error("Update profile error:", error);
-      Alert.alert(t("common.error"), t("profileEdit.updateError"));
+      showAlert(t("common.error"), t("profileEdit.updateError"));
     } finally {
       setLoading(false);
     }

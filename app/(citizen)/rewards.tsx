@@ -1,5 +1,6 @@
 import { Button, Card, Header } from "@/components/common";
 import { AppColors } from "@/constants/theme";
+import { useAlert } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
@@ -14,7 +15,6 @@ import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ImageSourcePropType,
   Modal,
@@ -22,7 +22,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 
 type TabType = "gifts" | "history";
@@ -100,7 +100,9 @@ function buildVoucherView(transaction: PointTransaction): VoucherView | null {
   if (!gift) return null;
 
   const prefix = GIFT_TYPE_PREFIX[gift.type] || "OT";
-  const imageSource = GIFT_TYPE_IMAGE[gift.type] || GIFT_TYPE_IMAGE.OTHER;
+  const imageSource = gift.imageUrl
+    ? ({ uri: gift.imageUrl } as ImageSourcePropType)
+    : GIFT_TYPE_IMAGE[gift.type] || GIFT_TYPE_IMAGE.OTHER;
   const code = `${prefix}-${fakeToken(`${transaction.id}-MAIN`, 4)}-${fakeToken(`${transaction.id}-TAIL`, 4)}`;
   const redeemCode = `RV-${fakeToken(`${transaction.id}-REDEEM`, 6)}`;
 
@@ -123,9 +125,32 @@ function buildVoucherView(transaction: PointTransaction): VoucherView | null {
   };
 }
 
+const Barcode = ({ code }: { code: string }) => {
+  return (
+    <View style={styles.barcodeContainer}>
+      <View style={styles.barcodeLines}>
+        {[...Array(45)].map((_, i) => (
+          <View
+            key={i}
+            style={[
+              styles.barcodeLine,
+              {
+                width: i % 5 === 0 ? 3 : i % 3 === 0 ? 2 : 1,
+                marginLeft: i % 7 === 0 ? 2 : 1,
+              },
+            ]}
+          />
+        ))}
+      </View>
+      <Text style={styles.barcodeBottomText}>{code}</Text>
+    </View>
+  );
+};
+
 export default function RewardsScreen() {
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, refreshPoints } = useAuth();
   const { t } = useLanguage();
+  const { showAlert } = useAlert();
   const params = useLocalSearchParams<{
     source?: string;
     initialTab?: TabType;
@@ -146,9 +171,9 @@ export default function RewardsScreen() {
       : "gifts";
   const initialFilter: HistoryFilter =
     initialFilterParam === "all" ||
-    initialFilterParam === "earn" ||
-    initialFilterParam === "spend" ||
-    initialFilterParam === "compensation"
+      initialFilterParam === "earn" ||
+      initialFilterParam === "spend" ||
+      initialFilterParam === "compensation"
       ? initialFilterParam
       : "all";
   const backFallbackRoute =
@@ -164,7 +189,6 @@ export default function RewardsScreen() {
   const [selectedVoucher, setSelectedVoucher] = useState<VoucherView | null>(
     null,
   );
-  const [currentPoints, setCurrentPoints] = useState<number>(0);
 
   useEffect(() => {
     fetchInitialData();
@@ -173,6 +197,7 @@ export default function RewardsScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshProfile();
+      refreshPoints();
       fetchInitialData();
     }, []),
   );
@@ -186,7 +211,7 @@ export default function RewardsScreen() {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      await Promise.all([fetchGifts(), fetchPoints()]);
+      await fetchGifts();
     } catch (error) {
       console.error("Fetch initial data error:", error);
     } finally {
@@ -200,7 +225,7 @@ export default function RewardsScreen() {
       if (response.success && response.data) {
         setGifts(response.data);
       } else {
-        Alert.alert(
+        showAlert(
           "Lỗi",
           response.error || "Không thể tải danh sách quà tặng",
         );
@@ -210,16 +235,6 @@ export default function RewardsScreen() {
     }
   };
 
-  const fetchPoints = async () => {
-    try {
-      const response = await citizenService.getMyPoints();
-      if (response.success && response.data) {
-        setCurrentPoints(response.data.points);
-      }
-    } catch (error) {
-      console.error("Fetch points error:", error);
-    }
-  };
 
   const fetchRedemptions = async () => {
     try {
@@ -232,7 +247,7 @@ export default function RewardsScreen() {
       if (response.success && response.data) {
         setRedemptions(response.data);
       } else {
-        Alert.alert("Lỗi", response.error || "Không thể tải lịch sử giao dịch");
+        showAlert("Lỗi", response.error || "Không thể tải lịch sử giao dịch");
       }
     } catch (error) {
       console.error("Fetch redemptions error:", error);
@@ -240,15 +255,16 @@ export default function RewardsScreen() {
   };
 
   const handleRedeem = async (gift: Gift) => {
-    if (currentPoints < gift.requiredPoints) {
-      Alert.alert(
+    const points = user?.points || 0;
+    if (points < gift.requiredPoints) {
+      showAlert(
         "Không đủ điểm",
-        `Bạn cần ${gift.requiredPoints - currentPoints} điểm nữa để đổi quà này.`,
+        `Bạn cần ${gift.requiredPoints - points} điểm nữa để đổi quà này.`,
       );
       return;
     }
 
-    Alert.alert(
+    showAlert(
       "Xác nhận đổi quà",
       `Đổi ${gift.requiredPoints} điểm lấy ${gift.name}?`,
       [
@@ -263,27 +279,27 @@ export default function RewardsScreen() {
               });
 
               if (response.success) {
-                Alert.alert(
+                showAlert(
                   "Thành công!",
                   response.message ||
-                    "Đã đổi quà thành công. Vui lòng kiểm tra lịch sử.",
+                  "Đã đổi quà thành công. Vui lòng kiểm tra lịch sử.",
                   [
                     {
                       text: "OK",
                       onPress: () => {
                         // Refresh data
                         fetchGifts();
-                        fetchPoints();
+                        refreshPoints();
                       },
                     },
                   ],
                 );
               } else {
-                Alert.alert("Lỗi", response.error || "Không thể đổi quà");
+                showAlert("Lỗi", response.error || "Không thể đổi quà");
               }
             } catch (error) {
               console.error("Redeem gift error:", error);
-              Alert.alert("Lỗi", "Không thể đổi quà");
+              showAlert("Lỗi", "Không thể đổi quà");
             } finally {
               setSubmitting(false);
             }
@@ -330,7 +346,7 @@ export default function RewardsScreen() {
             <Text style={styles.pointsLabel}>{t("rewards.yourPoints")}</Text>
             <View style={styles.pointsValueContainer}>
               <Ionicons name="star" size={24} color={AppColors.warning} />
-              <Text style={styles.pointsValue}> {currentPoints}</Text>
+              <Text style={styles.pointsValue}> {user?.points || 0}</Text>
             </View>
           </View>
         </Card>
@@ -472,7 +488,7 @@ export default function RewardsScreen() {
               style={[
                 styles.filterButtonText,
                 historyFilter === "compensation" &&
-                  styles.filterButtonTextActive,
+                styles.filterButtonTextActive,
               ]}
             >
               Bồi thường
@@ -507,7 +523,7 @@ export default function RewardsScreen() {
                     style={[
                       styles.filterButtonText,
                       giftTypeFilter === typeKey &&
-                        styles.filterButtonTextActive,
+                      styles.filterButtonTextActive,
                     ]}
                   >
                     {GIFT_TYPE_LABEL[typeKey]}
@@ -528,21 +544,18 @@ export default function RewardsScreen() {
             </View>
           ) : (
             displayedGifts.map((gift) => {
-              const canAfford = currentPoints >= gift.requiredPoints;
+              const canAfford = (user?.points || 0) >= gift.requiredPoints;
               const isOutOfStock = gift.stock <= 0;
 
               return (
                 <Card key={gift.id} variant="elevated" style={styles.giftCard}>
                   <View style={styles.giftImageContainer}>
                     {gift.imageUrl ? (
-                      <View style={styles.giftImage}>
-                        {/* Could add Image component here */}
-                        <Ionicons
-                          name="gift"
-                          size={32}
-                          color={AppColors.primary}
-                        />
-                      </View>
+                      <Image
+                        source={{ uri: gift.imageUrl }}
+                        style={styles.giftImage}
+                        resizeMode="cover"
+                      />
                     ) : (
                       <View
                         style={[
@@ -588,14 +601,14 @@ export default function RewardsScreen() {
                         title={
                           isOutOfStock
                             ? "Hết hàng"
-                            : canAfford
+                            : (user?.points || 0) >= gift.requiredPoints
                               ? "Đổi ngay"
                               : "Chưa đủ điểm"
                         }
                         onPress={() => handleRedeem(gift)}
-                        disabled={!canAfford || isOutOfStock || submitting}
+                        disabled={!((user?.points || 0) >= gift.requiredPoints) || isOutOfStock || submitting}
                         variant={
-                          canAfford && !isOutOfStock ? "primary" : "outline"
+                          (user?.points || 0) >= gift.requiredPoints && !isOutOfStock ? "primary" : "outline"
                         }
                         size="small"
                       />
@@ -648,8 +661,8 @@ export default function RewardsScreen() {
                 ? transaction.description || "Cộng điểm từ báo cáo"
                 : isSpend
                   ? transaction.breakdown?.gift?.name ||
-                    transaction.gift?.name ||
-                    "Đổi quà"
+                  transaction.gift?.name ||
+                  "Đổi quà"
                   : transaction.description || "Bồi thường khiếu nại";
 
               return (
@@ -666,10 +679,27 @@ export default function RewardsScreen() {
                       <View
                         style={[
                           styles.historyIconContainer,
-                          { backgroundColor: iconColor + "20" },
+                          {
+                            backgroundColor:
+                              isSpend && voucher
+                                ? "transparent"
+                                : iconColor + "20",
+                          },
                         ]}
                       >
-                        <Ionicons name={iconName} size={24} color={iconColor} />
+                        {isSpend && voucher ? (
+                          <Image
+                            source={voucher.imageSource}
+                            style={styles.historyGiftImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <Ionicons
+                            name={iconName}
+                            size={24}
+                            color={iconColor}
+                          />
+                        )}
                       </View>
                       <View style={styles.historyInfo}>
                         <Text style={styles.historyTitle}>{title}</Text>
@@ -796,6 +826,9 @@ export default function RewardsScreen() {
                     -{selectedVoucher.usedPoints} điểm
                   </Text>
                 </View>
+
+                {/* Fake Barcode for Realism */}
+                <Barcode code={selectedVoucher.code} />
 
                 <Text
                   style={[
@@ -1028,6 +1061,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: AppColors.textSecondary,
   },
+  historyGiftImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
   historyDescription: {
     marginTop: 8,
     paddingTop: 8,
@@ -1127,4 +1165,30 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
   },
+  barcodeContainer: {
+    marginTop: 20,
+    alignItems: "center",
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: AppColors.gray[200],
+  },
+  barcodeLines: {
+    flexDirection: "row",
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  barcodeLine: {
+    height: "100%",
+    backgroundColor: AppColors.textPrimary,
+  },
+  barcodeBottomText: {
+    marginTop: 8,
+    fontSize: 10,
+    letterSpacing: 4,
+    color: AppColors.textSecondary,
+    fontWeight: "600",
+  },
 });
+
+
