@@ -4,7 +4,7 @@ import { citizenService, ComplaintItem } from "@/services/citizen.service";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
-import { Image, ScrollView, StyleSheet, Text, View, RefreshControl } from "react-native";
+import { Image, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 
 const getComplaintStatusLabel = (status: ComplaintItem["status"]) => {
   switch (status) {
@@ -54,7 +54,11 @@ const getComplaintTypeLabel = (
 };
 
 export default function ComplaintDetailScreen() {
-  const params = useLocalSearchParams<{ complaintId?: string }>();
+  const params = useLocalSearchParams<{
+    complaintId?: string;
+    source?: string;
+    reportId?: string;
+  }>();
 
   const complaintId = useMemo(() => {
     const raw = Array.isArray(params.complaintId)
@@ -173,7 +177,11 @@ export default function ComplaintDetailScreen() {
         title="Chi tiết khiếu nại"
         subtitle={`Mã #${complaint.id}`}
         showBack={true}
-        backFallbackRoute="/(citizen)/complaint-history"
+        backFallbackRoute={
+          params.source === "report-detail"
+            ? `/report-detail?id=${params.reportId}`
+            : "/(citizen)/complaint-history"
+        }
       />
 
       <ScrollView

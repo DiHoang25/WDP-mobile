@@ -143,9 +143,18 @@ export default function CreateComplaintScreen() {
         title="Gửi khiếu nại"
         subtitle={`Báo cáo #${reportId || "-"}`}
         showBack={true}
+        backFallbackRoute={
+          params.source === "report-detail"
+            ? `/report-detail?id=${reportId}`
+            : "/(citizen)/history"
+        }
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <Card variant="elevated" style={styles.card}>
           <Text style={styles.label}>Nội dung khiếu nại</Text>
           {alreadyComplained && (
@@ -315,5 +324,8 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     marginTop: 2,
+  },
+  scrollContent: {
+    paddingBottom: 60,
   },
 });

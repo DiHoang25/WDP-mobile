@@ -55,7 +55,7 @@ export default function HistoryScreen() {
     try {
       const [reportsRes, pointsRes] = await Promise.all([
         wasteService.getHistory(),
-        citizenService.getMyRedemptions("EARN")
+        citizenService.getMyRedemptions()
       ]);
 
       // Helper: extract list from API response
@@ -104,7 +104,10 @@ export default function HistoryScreen() {
       const pointsMap: Record<string | number, number> = {};
       if (pointsRes.success && Array.isArray(pointsRes.data)) {
         pointsRes.data.forEach((tx: any) => {
-          if (tx.reportId) pointsMap[tx.reportId] = tx.amount;
+          if (tx.reportId) {
+            const rid = tx.reportId;
+            pointsMap[rid] = (pointsMap[rid] || 0) + tx.amount;
+          }
         });
       }
 

@@ -59,7 +59,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     };
 
     const displayTitle = isIncident ? "Báo cáo sự cố" : title;
-    const displayContent = isIncident ? "Báo cáo của bạn đã bị đánh dấu sự cố, vui lòng vô phần Lịch sử khiếu nại để theo dõi thêm" : content;
+    const displayContent = isIncident ? "Báo cáo của bạn đã được xử lý. Cảm ơn bạn đã phản hồi để hệ thống tốt hơn!" : content;
 
     const formatTime = (dateString: string) => {
         const date = new Date(dateString);

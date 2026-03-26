@@ -80,14 +80,14 @@ export default function RegisterScreen() {
     userData.points = 0;
 
     setLoading(true);
-    const success = await register(userData);
+    const response = await register(userData);
     setLoading(false);
 
-    if (success) {
+    if (response.success) {
       alert("Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.");
       router.replace("/login");
     } else {
-      setError("Đăng ký thất bại. Vui lòng thử lại");
+      setError(response.error || "Đăng ký thất bại. Vui lòng thử lại");
     }
   };
 

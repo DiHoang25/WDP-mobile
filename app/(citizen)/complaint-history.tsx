@@ -219,12 +219,17 @@ export default function ComplaintHistoryScreen() {
                       </Text>
                     </View>
                   </View>
-                  <View
-                    style={[
-                      styles.statusIndicator,
-                      { backgroundColor: statusColor },
-                    ]}
-                  />
+                  <View style={styles.statusWrapper}>
+                    <View
+                      style={[
+                        styles.statusIndicator,
+                        { backgroundColor: statusColor },
+                      ]}
+                    />
+                    <Text style={[styles.statusLabel, { color: statusColor }]}>
+                      {statusLabel}
+                    </Text>
+                  </View>
                 </View>
 
                 {item.reportInfo?.address && (
@@ -409,9 +414,18 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   statusIndicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  statusLabel: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   addressContainer: {
     flexDirection: "row",
@@ -423,15 +437,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: AppColors.gray[500],
     flex: 1,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "700",
   },
   contentText: {
     fontSize: 15,

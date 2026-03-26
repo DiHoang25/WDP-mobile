@@ -10,9 +10,9 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
-  register: (userData: Partial<User>) => Promise<boolean>;
+  register: (userData: Partial<User> & { password?: string }) => Promise<{ success: boolean; error?: string }>;
   updateUser: (user: User) => Promise<void>;
   refreshProfile: () => Promise<void>;
   refreshPoints: () => Promise<void>;
@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return normalized;
   };
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       const response = await authService.login(email, password);
       if (response.success && response.data) {
@@ -112,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!accessToken) {
           console.error("Missing accessToken in response", data);
-          return false;
+          return { success: false, error: "Lỗi hệ thống: Không tìm thấy token" };
         }
 
         const normalizedUser = normalizeUser(response.data);
@@ -134,14 +134,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await checkSubscriptionStatus();
         }
 
-        return true;
+        return { success: true };
       }
 
       console.error("Login failed:", response.error);
-      return false;
-    } catch (error) {
+      return { success: false, error: response.error };
+    } catch (error: any) {
       console.error("Login error:", error);
-      return false;
+      return { success: false, error: error.message || "Lỗi kết nối server" };
     }
   };
 
@@ -163,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (userData: Partial<User> & { password?: string }): Promise<boolean> => {
+  const register = async (userData: Partial<User> & { password?: string }): Promise<{ success: boolean; error?: string }> => {
     try {
       const signupData: any = {
         email: userData.email || "",
@@ -181,14 +181,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.success) {
         // Registration successful. According to user requirement, 
         // we don't log in automatically anymore.
-        return true;
+        return { success: true };
       }
 
       console.error("Registration failed:", response.error);
-      return false;
-    } catch (error) {
+      return { success: false, error: response.error };
+    } catch (error: any) {
       console.error("Registration error:", error);
-      return false;
+      return { success: false, error: error.message || "Lỗi kết nối server" };
     }
   };
 

@@ -54,6 +54,7 @@ export default function ReportDetailScreen() {
     type: "success",
   });
   const [hasComplaintForReport, setHasComplaintForReport] = useState(false);
+  const [complaintIdForReport, setComplaintIdForReport] = useState<number | null>(null);
   const [earnedPoints, setEarnedPoints] = useState<number | null>(null);
   const complaintCheckRequestRef = useRef(0);
 
@@ -150,16 +151,17 @@ export default function ReportDetailScreen() {
 
 
   useEffect(() => {
-    if (report?.status?.toUpperCase() === "COMPLETED" && report?.id) {
+    if (report?.id) {
       const fetchPoints = async () => {
         try {
-          const res = await citizenService.getMyRedemptions("EARN");
+          const res = await citizenService.getMyRedemptions();
           if (res.success && res.data) {
-            const reportTransaction = res.data.find(
+            const reportTransactions = res.data.filter(
               (t) => Number(t.reportId) === Number(report.id),
             );
-            if (reportTransaction) {
-              setEarnedPoints(reportTransaction.amount);
+            if (reportTransactions.length > 0) {
+              const total = reportTransactions.reduce((sum, t) => sum + t.amount, 0);
+              setEarnedPoints(total);
             }
           }
         } catch (err) {
@@ -168,7 +170,7 @@ export default function ReportDetailScreen() {
       };
       fetchPoints();
     }
-  }, [report?.status, report?.id]);
+  }, [report?.id]);
 
   const fetchLocationNames = async () => {
     if (!report) return;
@@ -219,8 +221,7 @@ export default function ReportDetailScreen() {
     status?.toUpperCase() === "PENDING" || status?.toUpperCase() === "ACCEPTED";
   const canComplain =
     user?.roleId === 1 &&
-    (status?.toUpperCase() === "COMPLETED" ||
-      status?.toUpperCase() === "CANCELLED");
+    status?.toUpperCase() === "COMPLETED";
 
   const checkComplaintForCurrentReport = useCallback(async () => {
     const requestId = ++complaintCheckRequestRef.current;
@@ -239,12 +240,19 @@ export default function ReportDetailScreen() {
       }
 
       if (response.success && response.data) {
-        const existed = response.data.some(
+        const found = response.data.find(
           (item) => Number(item.reportId) === Number(currentReportId),
         );
-        setHasComplaintForReport(existed);
+        if (found) {
+          setHasComplaintForReport(true);
+          setComplaintIdForReport(found.id);
+        } else {
+          setHasComplaintForReport(false);
+          setComplaintIdForReport(null);
+        }
       } else {
         setHasComplaintForReport(false);
+        setComplaintIdForReport(null);
       }
     } catch (error) {
       if (requestId === complaintCheckRequestRef.current) {
@@ -482,7 +490,7 @@ export default function ReportDetailScreen() {
               >
                 {getStatusText(status!)}
               </Text>
-              {status?.toUpperCase() === "COMPLETED" && earnedPoints !== null && (
+              {earnedPoints !== null && earnedPoints > 0 && (
                 <Text style={styles.pointsEarnedText}>
                   +{earnedPoints} Điểm
                 </Text>
@@ -1062,10 +1070,21 @@ export default function ReportDetailScreen() {
               <TouchableOpacity
                 style={[
                   styles.complaintButton,
-                  hasComplaintForReport && styles.complaintButtonDisabled,
+                  hasComplaintForReport && styles.complaintButtonView,
                 ]}
                 onPress={() => {
-                  if (hasComplaintForReport) return;
+                  if (hasComplaintForReport && complaintIdForReport) {
+                    router.push({
+                      pathname: "/(citizen)/complaint-detail",
+                      params: {
+                        complaintId: String(complaintIdForReport),
+                        source: "report-detail",
+                        reportId: String(currentReportId || ""),
+                      },
+                    } as any);
+                    return;
+                  }
+
                   router.push({
                     pathname: "/(citizen)/complain",
                     params: {
@@ -1074,16 +1093,15 @@ export default function ReportDetailScreen() {
                     },
                   } as any);
                 }}
-                disabled={hasComplaintForReport}
               >
                 <Text
                   style={[
                     styles.complaintButtonText,
-                    hasComplaintForReport && styles.complaintButtonTextDisabled,
+                    hasComplaintForReport && styles.complaintButtonTextActive,
                   ]}
                 >
                   {hasComplaintForReport
-                    ? "Đã gửi khiếu nại"
+                    ? "Xem chi tiết khiếu nại"
                     : "Khiếu nại báo cáo"}
                 </Text>
               </TouchableOpacity>
@@ -1358,6 +1376,14 @@ const styles = StyleSheet.create({
   },
   complaintButtonTextDisabled: {
     color: AppColors.gray[700],
+  },
+  complaintButtonView: {
+    backgroundColor: AppColors.white,
+    borderWidth: 1.5,
+    borderColor: AppColors.error,
+  },
+  complaintButtonTextActive: {
+    color: AppColors.error,
   },
   trackingButton: {
     backgroundColor: AppColors.primary,

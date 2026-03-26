@@ -31,16 +31,13 @@ export default function LoginScreen() {
     }
 
     setLoading(true);
-    const success = await login(email, password);
-    console.log(success)
+    const response = await login(email, password);
     setLoading(false);
 
-    if (success) {
-      console.log("redirect")
+    if (response.success) {
       router.replace("/");
     } else {
-
-      setError("Email hoặc mật khẩu không đúng");
+      setError(response.error || "Email hoặc mật khẩu không đúng");
     }
   };
 

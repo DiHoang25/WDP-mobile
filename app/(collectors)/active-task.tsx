@@ -867,10 +867,10 @@ export default function ActiveTaskScreen() {
 
       console.log(`[active-task] Distance to target: ${dist.toFixed(3)} km`);
 
-      if (dist > 0.5) { // 500m = 0.5km
+      if (dist > 0.3) { // 300m = 0.3km
         showAlert(
           "Chưa đến nơi",
-          `Bạn đang cách điểm thu gom ${(dist * 1000).toFixed(0)}m. Vui lòng di chuyển đến gần hơn (dưới 500m) để xác nhận.`
+          `Bạn đang cách điểm thu gom ${(dist * 1000).toFixed(0)}m. Vui lòng di chuyển đến gần hơn (dưới 300m) để xác nhận.`
         );
         return;
       }
