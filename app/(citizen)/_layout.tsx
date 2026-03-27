@@ -134,6 +134,12 @@ export default function CitizenLayout() {
           href: null, // Hide from tab bar
         }}
       />
+      <Tabs.Screen
+        name="reward-detail"
+        options={{
+          href: null, // Hide from tab bar
+        }}
+      />
     </Tabs>
   );
 }
