@@ -76,6 +76,28 @@ function fakeToken(seedInput: string, length: number) {
   return output;
 }
 
+const Barcode = ({ code }: { code: string }) => {
+  return (
+    <View style={styles.barcodeContainer}>
+      <View style={styles.barcodeLines}>
+        {[...Array(45)].map((_, i) => (
+          <View
+            key={i}
+            style={[
+              styles.barcodeLine,
+              {
+                width: i % 5 === 0 ? 3 : i % 3 === 0 ? 2 : 1,
+                marginLeft: i % 7 === 0 ? 2 : 1,
+              },
+            ]}
+          />
+        ))}
+      </View>
+      <Text style={styles.barcodeBottomText}>{code}</Text>
+    </View>
+  );
+};
+
 function buildVoucherView(transaction: PointTransaction): VoucherView | null {
   if (transaction.type !== "SPEND") return null;
 
@@ -307,6 +329,9 @@ export default function VoucherWalletScreen() {
                   </Text>
                 </View>
 
+                {/* Fake Barcode for Realism */}
+                <Barcode code={selectedVoucher.code} />
+
                 <Text
                   style={[
                     styles.modalStatus,
@@ -494,5 +519,29 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 13,
     fontWeight: "700",
+  },
+  barcodeContainer: {
+    marginTop: 20,
+    alignItems: "center",
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: AppColors.gray[200],
+  },
+  barcodeLines: {
+    flexDirection: "row",
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  barcodeLine: {
+    height: "100%",
+    backgroundColor: AppColors.textPrimary,
+  },
+  barcodeBottomText: {
+    marginTop: 8,
+    fontSize: 10,
+    letterSpacing: 4,
+    color: AppColors.textSecondary,
+    fontWeight: "600",
   },
 });
