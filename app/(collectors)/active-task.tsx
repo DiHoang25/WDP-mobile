@@ -1371,9 +1371,9 @@ export default function ActiveTaskScreen() {
           )}
 
           {phase === "ARRIVED" && (
-            <>
+            <View style={{ flexDirection: "row", gap: 10 }}>
               <TouchableOpacity
-                style={[styles.primaryAction, { backgroundColor: AppColors.success }]}
+                style={[styles.primaryAction, { backgroundColor: AppColors.success, flex: 2.2 }]}
                 onPress={handleCompleteTask}
                 disabled={updating}
               >
@@ -1381,61 +1381,23 @@ export default function ActiveTaskScreen() {
                   <ActivityIndicator color={AppColors.white} />
                 ) : (
                   <>
-                    <Ionicons name="checkmark-done-circle" size={22} color={AppColors.white} />
+                    <Ionicons name="checkmark-done-circle" size={24} color={AppColors.white} />
                     <Text style={styles.primaryActionText}>Hoàn thành đơn</Text>
                   </>
                 )}
               </TouchableOpacity>
 
-              <View style={styles.secondaryActions}>
-                {/* Absent report button hidden as requested */}
-                {/* {citizenPresence !== "CONFIRMED" && (
-                  <TouchableOpacity
-                    style={[
-                      styles.secondaryBtn,
-                      (!isExpired || updating) && { opacity: 0.6 }
-                    ]}
-                    onPress={() => {
-                      if (!isExpired) {
-                        showAlert(
-                          "Chưa đủ thời gian chờ",
-                          `Vui lòng chờ thêm ${formatRemainingTime(remainingSeconds)} trước khi có thể báo vắng khách.`
-                        );
-                        return;
-                      }
-                      setReportType("ABSENT");
-                      setReportModalVisible(true);
-                    }}
-                    disabled={updating || !isExpired}
-                  >
-                    <Ionicons
-                      name="person-remove"
-                      size={18}
-                      color={isExpired ? AppColors.warning : AppColors.gray[400]}
-                    />
-                    <View style={{ marginLeft: 8 }}>
-                      <Text style={[
-                        styles.secondaryBtnText,
-                        { color: isExpired ? AppColors.warning : AppColors.gray[500] }
-                      ]}>
-                        Báo vắng khách
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                )} */}
-
-                <TouchableOpacity
-                  style={styles.secondaryBtn}
-                  onPress={() => {
-                    setReportType("ISSUE");
-                    setReportModalVisible(true);
-                  }}
-                >
-                  <Ionicons name="warning" size={18} color={AppColors.error} />
-                  <Text style={[styles.secondaryBtnText, { color: AppColors.error }]}>Báo cáo sự cố</Text>
-                </TouchableOpacity>
-              </View>
-            </>
+              <TouchableOpacity
+                style={[styles.secondaryBtn, { flex: 1, paddingVertical: 16 }]}
+                onPress={() => {
+                  setReportType("ISSUE");
+                  setReportModalVisible(true);
+                }}
+              >
+                <Ionicons name="warning" size={20} color={AppColors.error} />
+                <Text style={[styles.secondaryBtnText, { color: AppColors.error }]}>Báo sự cố</Text>
+              </TouchableOpacity>
+            </View>
           )}
 
           {phase === "COMPLETED" && (
