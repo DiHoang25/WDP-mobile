@@ -6,15 +6,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
-    Image,
-    ImageSourcePropType,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  ImageSourcePropType,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 type VoucherView = {
@@ -87,9 +87,11 @@ function buildVoucherView(transaction: PointTransaction): VoucherView | null {
   if (!gift) return null;
 
   const prefix = GIFT_TYPE_PREFIX[gift.type] || "OT";
+  const imageSource = gift.imageUrl
+    ? ({ uri: gift.imageUrl } as ImageSourcePropType)
+    : GIFT_TYPE_IMAGE[gift.type] || GIFT_TYPE_IMAGE.OTHER;
   const code = `${prefix}-${fakeToken(`${transaction.id}-MAIN`, 4)}-${fakeToken(`${transaction.id}-TAIL`, 4)}`;
   const redeemCode = `RV-${fakeToken(`${transaction.id}-REDEEM`, 6)}`;
-  const imageSource = GIFT_TYPE_IMAGE[gift.type] || GIFT_TYPE_IMAGE.OTHER;
 
   const created = new Date(transaction.createdAt).getTime();
   const daysSinceCreated = (Date.now() - created) / (1000 * 60 * 60 * 24);
