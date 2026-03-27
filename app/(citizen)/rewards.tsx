@@ -11,7 +11,7 @@ import {
   PointTransactionType,
 } from "@/services/citizen.service";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -156,6 +156,7 @@ export default function RewardsScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const { t } = useLanguage();
   const { showAlert } = useAlert();
+  const router = useRouter();
   const params = useLocalSearchParams<{
     source?: string;
     initialTab?: TabType;
@@ -673,10 +674,22 @@ export default function RewardsScreen() {
               return (
                 <TouchableOpacity
                   key={transaction.id}
-                  activeOpacity={isSpend ? 0.9 : 1}
-                  disabled={!isSpend || !voucher}
+                  activeOpacity={isSpend || isEarn ? 0.9 : 1}
+                  disabled={!isSpend && !isEarn}
                   onPress={() => {
-                    if (voucher) setSelectedVoucher(voucher);
+                    if (isSpend && voucher) {
+                      setSelectedVoucher(voucher);
+                      return;
+                    }
+
+                    if (isEarn) {
+                      router.push(
+                        {
+                          pathname: "/(citizen)/reward-detail" as any,
+                          params: { transaction: JSON.stringify(transaction) },
+                        } as any,
+                      );
+                    }
                   }}
                 >
                   <Card variant="elevated" style={styles.historyCard}>
@@ -734,27 +747,6 @@ export default function RewardsScreen() {
                         <Text style={styles.historyPointsLabel}>điểm</Text>
                       </View>
                     </View>
-
-                    {isEarn &&
-                      transaction.breakdown?.source === "REPORT" &&
-                      transaction.breakdown.items &&
-                      transaction.breakdown.items.length > 0 && (
-                        <View style={styles.breakdownContainer}>
-                          <Text style={styles.breakdownTitle}>
-                            Chi tiết cộng điểm
-                          </Text>
-                          {transaction.breakdown.items.map((item, index) => (
-                            <Text
-                              key={`${transaction.id}-${index}`}
-                              style={styles.breakdownLine}
-                            >
-                              {item.wasteType}:{" "}
-                              {Number(item.weightKg).toFixed(2)}kg {"->"} +
-                              {item.pointsEarned} điểm
-                            </Text>
-                          ))}
-                        </View>
-                      )}
 
                     {transaction.description && !isEarn && (
                       <Text style={styles.historyDescription}>
