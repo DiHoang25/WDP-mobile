@@ -45,8 +45,6 @@ const getComplaintTypeLabel = (
       return "Sai lệch cân nặng";
     case "UNAUTHORIZED_FEE":
       return "Thu phí không hợp lệ";
-    case "NO_SHOW":
-      return "Không đến thu gom";
     case "OTHER":
     default:
       return "Khác";

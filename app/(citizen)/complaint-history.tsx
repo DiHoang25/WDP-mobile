@@ -40,8 +40,6 @@ const getComplaintTypeLabel = (type?: string) => {
       return "Khối lượng không khớp";
     case "UNAUTHORIZED_FEE":
       return "Phí không hợp lệ";
-    case "NO_SHOW":
-      return "Không đến thu gom";
     case "OTHER":
       return "Khác";
     default:
