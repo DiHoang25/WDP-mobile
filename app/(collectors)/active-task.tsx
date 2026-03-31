@@ -28,7 +28,7 @@ import {
 } from "react-native";
 import { WebView } from "react-native-webview";
 
-type ActivePhase = "ACCEPTED" | "ON_THE_WAY" | "ARRIVED" | "COMPLETED";
+type ActivePhase = "ACCEPTED" | "ON_THE_WAY" | "ARRIVED" | "COMPLETED" | "CANCELLED";
 
 // Dev-only flag: enable fake GPS route simulation for testing
 const USE_FAKE_LOCATION = __DEV__;
@@ -808,12 +808,21 @@ export default function ActiveTaskScreen() {
             // 1. Handle Cancellation (Priority)
             if (currentStatus === "CANCELLED" || res.status === "CANCELLED") {
               console.log("❌ [Poll] Order was CANCELLED!");
+              setTask(res); // Update UI immediately
+              setPhase("CANCELLED" as any); // Force phase update to show "Đã hủy"
               showToast("Đơn hàng đã bị hủy bởi Công dân.", "error");
+
               // Clear any other timers
               if (pollingRef.current) clearInterval(pollingRef.current);
               if (interval) clearInterval(interval);
-              setTimeout(() => router.replace("/(collectors)" as any), 2000);
-              return;
+
+              const timer = setTimeout(() => {
+                if (phaseRef.current === "CANCELLED") {
+                  router.replace("/(collectors)/history?tab=CANCELLED" as any);
+                }
+              }, 1500);
+
+              return () => clearTimeout(timer);
             }
 
             // 2. Handle Presence Confirmation (Only in ARRIVED phase)
@@ -978,7 +987,7 @@ export default function ActiveTaskScreen() {
         setPhase("COMPLETED");
         isStoppingPolling.current = true;
         if (pollingRef.current) clearInterval(pollingRef.current);
-        setTimeout(() => router.replace("/(collectors)" as any), 2000);
+        setTimeout(() => router.replace("/(collectors)/history?tab=COMPLETED" as any), 2000);
       } else {
         showToast(res.message || "Lỗi khi hoàn tất", "error");
       }
@@ -1085,6 +1094,10 @@ export default function ActiveTaskScreen() {
         return { icon: "location" as const, color: AppColors.primary, label: "Đã đến nơi", bg: AppColors.primary + "15" };
       case "COMPLETED":
         return { icon: "checkmark-done-circle" as const, color: AppColors.success, label: "Hoàn thành", bg: AppColors.success + "15" };
+      case "CANCELLED":
+        return { icon: "close-circle" as const, color: AppColors.error, label: "Đã hủy", bg: AppColors.error + "15" };
+      default:
+        return { icon: "help-circle" as const, color: AppColors.gray[400], label: "N/A", bg: AppColors.gray[100] };
     }
   };
 

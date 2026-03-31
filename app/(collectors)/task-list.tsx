@@ -70,6 +70,10 @@ export default function TaskListScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchTasks();
+
+      // Poll for updates every 15s while focused
+      const interval = setInterval(fetchTasks, 15000);
+      return () => clearInterval(interval);
     }, [fetchTasks, refreshKey])
   );
 
@@ -166,9 +170,24 @@ export default function TaskListScreen() {
     );
   }
 
-  const displayTasks = tasks.filter(t =>
-    ["PENDING_COLLECTOR", "COLLECTOR_PENDING", "ACCEPTED", "ON_THE_WAY", "ARRIVED", "COLLECTED", "EXPIRED"].includes(t.status)
-  );
+  const displayTasks = tasks.filter((t) => {
+    const taskStatus = (t.status || "").toUpperCase();
+    const reportStatus = (t.report?.status || "").toUpperCase();
+
+    // If either task or report is cancelled or completed, don't show in active list
+    if (taskStatus === "CANCELLED" || reportStatus === "CANCELLED" ||
+      taskStatus === "COMPLETED" || reportStatus === "COMPLETED") return false;
+
+    return [
+      "PENDING_COLLECTOR",
+      "COLLECTOR_PENDING",
+      "ACCEPTED",
+      "ON_THE_WAY",
+      "ARRIVED",
+      "COLLECTED",
+      "EXPIRED",
+    ].includes(taskStatus);
+  });
 
   return (
     <View style={styles.container}>

@@ -17,7 +17,7 @@ export default function LogoHeader({ appName, tagline }: LogoHeaderProps) {
       <View style={styles.logoContainer}>
         <View style={styles.logoCircle}>
           <Image
-            source={require("@/assets/images/logowebrac.png")}
+            source={require("@/assets/images/logo.jpg")}
             style={styles.logoImage}
           />
         </View>
@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
     width: 124,
     height: 124,
     borderRadius: 62,
-    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 20,
@@ -52,11 +52,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.5)",
   },
   logoImage: {
-    width: 98,
-    height: 98,
-    resizeMode: "contain",
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    resizeMode: "cover",
   },
   appName: {
     fontSize: 40,
