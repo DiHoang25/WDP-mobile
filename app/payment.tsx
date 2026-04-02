@@ -193,7 +193,7 @@ export default function PaymentScreen() {
                     </View>
                     <Text style={styles.successTitle}>Đăng ký thành công!</Text>
                     <Text style={styles.successSubtitle}>
-                        Cảm ơn bạn đã tin dùng ECONNET. Thanh toán đã được ghi nhận và yêu cầu đang chờ quản trị viên phê duyệt.
+                        Cảm ơn bạn đã tin dùng ECoNet. Bạn đã trở thành doanh nghiệp, vui lòng truy cập vô web ECoNet để có thể bắt đầu nhận đơn.
                     </Text>
 
                     <Card variant="outlined" style={styles.successDetailCard}>
