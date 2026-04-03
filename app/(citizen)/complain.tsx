@@ -172,7 +172,6 @@ export default function CreateComplaintScreen() {
               { label: "Thái độ phục vụ", value: "ATTITUDE" },
               { label: "Khối lượng rác không khớp", value: "WEIGHT_MISMATCH" },
               { label: "Thu phí không hợp lệ", value: "UNAUTHORIZED_FEE" },
-              { label: "Collector không đến", value: "NO_SHOW" },
               { label: "Khác", value: "OTHER" },
             ]}
           />

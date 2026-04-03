@@ -58,7 +58,6 @@ export type ComplaintType =
   | "ATTITUDE"
   | "WEIGHT_MISMATCH"
   | "UNAUTHORIZED_FEE"
-  | "NO_SHOW"
   | "OTHER";
 
 export interface EarnBreakdownItem {

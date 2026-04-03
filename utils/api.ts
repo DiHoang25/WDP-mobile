@@ -190,12 +190,15 @@ class ApiClient {
                 return {
                     success: false,
                     error: formatErrorMessage(data.message || data.error || 'Request failed'),
+                    message: formatErrorMessage(data.message),
+                    data: data.data || data,
                 };
             }
 
             return {
-                success: true,
-                data: data,
+                success: data.success ?? true,
+                data: data.data !== undefined ? data.data : data,
+                message: data.message,
             };
         } catch (error: any) {
             return {

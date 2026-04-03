@@ -3,11 +3,11 @@ import { Card, EmptyState, Toast } from "@/components/common";
 import { AppColors } from "@/constants/theme";
 import { collectorService } from "@/services/collector.service";
 import { CollectorTaskItem } from "@/types/collector";
-import { getWasteTypeLabel } from "@/utils/helpers";
+import { getStatusText, getWasteTypeLabel } from "@/utils/helpers";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
@@ -25,7 +25,16 @@ type ProcessingFilter = typeof PROCESSING_STATUSES[number];
 
 export default function HistoryScreen() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabType>("ACCEPTED");
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const [activeTab, setActiveTab] = useState<TabType>((params.tab as TabType) || "ACCEPTED");
+
+  // Update tab if params change (e.g. redirected from home or detail)
+  useEffect(() => {
+    if (params.tab && ["ACCEPTED", "COMPLETED", "CANCELLED"].includes(params.tab)) {
+      setActiveTab(params.tab as TabType);
+    }
+  }, [params.tab]);
+
   const [processingFilter, setProcessingFilter] = useState<ProcessingFilter>("ALL");
   const [tasks, setTasks] = useState<CollectorTaskItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,11 +57,21 @@ export default function HistoryScreen() {
       } else {
         // CANCELLED: get completed tasks filtered by cancelled/rejected statuses
         const all = await collectorService.getCompletedTasks();
-        data = all.filter((t: any) =>
-          ["CANCELLED", "REJECTED", "FAILED", "FAILED_NO_RESPONSE", "FAILED_CITIZEN_NOT_HOME"].includes(
-            (t.status || "").toUpperCase()
-          )
-        );
+        data = all.filter((t: any) => {
+          const taskStatus = (t.status || "").toUpperCase();
+          const reportStatus = (t.report?.status || "").toUpperCase();
+          const terminalStatuses = [
+            "CANCELLED",
+            "REJECTED",
+            "FAILED",
+            "FAILED_NO_RESPONSE",
+            "FAILED_CITIZEN_NOT_HOME",
+          ];
+          return (
+            terminalStatuses.includes(taskStatus) ||
+            reportStatus === "CANCELLED"
+          );
+        });
       }
       setTasks(data);
     } catch (error) {
@@ -67,7 +86,17 @@ export default function HistoryScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchTasks();
-    }, [fetchTasks])
+
+      // Poll only when looking at active/accepted tasks
+      let interval: any;
+      if (activeTab === "ACCEPTED") {
+        interval = setInterval(fetchTasks, 15000);
+      }
+
+      return () => {
+        if (interval) clearInterval(interval);
+      };
+    }, [fetchTasks, activeTab])
   );
 
   const onRefresh = () => {
@@ -91,25 +120,49 @@ export default function HistoryScreen() {
   };
 
   const getStatusLabel = (status: string) => {
+    const label = getStatusText(status);
     switch (status?.toUpperCase()) {
-      case "ACCEPTED": return { label: "Đang xử lý", color: AppColors.info };
-      case "ON_THE_WAY": return { label: "Đang di chuyển", color: AppColors.primary };
-      case "ARRIVED": return { label: "Đã đến nơi", color: AppColors.secondary };
-      case "COLLECTING": return { label: "Đang thu gom", color: AppColors.warning };
-      case "COMPLETED": return { label: "Hoàn thành", color: AppColors.success };
-      case "REJECTED": return { label: "Bị từ chối", color: AppColors.error };
-      case "CANCELLED": return { label: "Đã hủy", color: AppColors.error };
-      case "FAILED": return { label: "Thất bại", color: AppColors.error };
-      case "FAILED_NO_RESPONSE": return { label: "Không phản hồi", color: AppColors.error };
-      case "FAILED_CITIZEN_NOT_HOME": return { label: "Vắng nhà", color: AppColors.error };
-      default: return { label: status, color: AppColors.gray[500] };
+      case "ACCEPTED":
+        return { label, color: AppColors.info };
+      case "ON_THE_WAY":
+        return { label, color: AppColors.primary };
+      case "ARRIVED":
+        return { label, color: AppColors.secondary };
+      case "COLLECTING":
+        return { label, color: AppColors.warning };
+      case "COMPLETED":
+        return { label, color: AppColors.success };
+      case "REJECTED":
+        return { label, color: AppColors.error };
+      case "CANCELLED":
+        return { label, color: AppColors.error };
+      case "FAILED":
+        return { label, color: AppColors.error };
+      case "FAILED_NO_RESPONSE":
+        return { label, color: AppColors.error };
+      case "FAILED_CITIZEN_NOT_HOME":
+        return { label, color: AppColors.error };
+      default:
+        return { label, color: AppColors.gray[500] };
     }
   };
 
-  // Filter tasks by selected processing status
-  const displayedTasks = (activeTab === "ACCEPTED" && processingFilter !== "ALL")
-    ? tasks.filter((t: any) => (t.status || "").toUpperCase() === processingFilter)
-    : tasks;
+  // Filter tasks by selected processing status AND ensure they are not cancelled
+  const displayedTasks = tasks.filter((t: any) => {
+    const taskStatus = (t.status || "").toUpperCase();
+    const reportStatus = (t.report?.status || "").toUpperCase();
+
+    // If report is cancelled or completed, it shouldn't show in ACCEPTED tab
+    const terminalStatuses = ["CANCELLED", "COMPLETED", "REJECTED", "FAILED"];
+    if (activeTab === "ACCEPTED" && (terminalStatuses.includes(taskStatus) || reportStatus === "CANCELLED" || reportStatus === "COMPLETED")) {
+      return false;
+    }
+
+    if (activeTab === "ACCEPTED" && processingFilter !== "ALL") {
+      return taskStatus === processingFilter;
+    }
+    return true;
+  });
 
   const getProcessingFilterLabel = (f: ProcessingFilter) => {
     switch (f) {

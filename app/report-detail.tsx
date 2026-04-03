@@ -218,7 +218,13 @@ export default function ReportDetailScreen() {
   // Use reported data or fallbacks
   const status = report?.status;
   const canCancel =
-    status?.toUpperCase() === "PENDING" || status?.toUpperCase() === "ACCEPTED";
+    [
+      "PENDING",
+      "ACCEPTED",
+      "ASSIGNED",
+      "ENTERPRISE_RESERVED",
+      "COLLECTOR_PENDING",
+    ].includes(status?.toUpperCase() || "");
   const canComplain =
     user?.roleId === 1 &&
     status?.toUpperCase() === "COMPLETED";

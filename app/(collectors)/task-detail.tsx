@@ -147,7 +147,46 @@ export default function TaskDetailScreen() {
 
   useEffect(() => {
     fetchTask();
-  }, [fetchTask]);
+
+    // Poll for status updates (specifically to detect cancellation)
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const isHistoryItem = !!initialData;
+
+    if (!isHistoryItem && (id || paramReportId)) {
+      const poll = async () => {
+        try {
+          const searchId = id || paramReportId;
+          if (!searchId) return;
+
+          const res = await collectorService.getTaskById(Number(searchId));
+          if (res) {
+            const reportStatus = (res.report?.status || res.status || "").toUpperCase();
+            if (reportStatus === "CANCELLED") {
+              console.log("❌ [Poll] Order was CANCELLED by citizen");
+              setTask(res); // Update UI immediately to show "Đã hủy"
+              showToast("Đơn hàng đã bị hủy bởi Công dân.", "error");
+              if (interval) clearInterval(interval);
+              const timer = setTimeout(() => {
+                router.replace("/(collectors)" as any);
+              }, 1500);
+              // Clean up if component unmounts before redirection
+              return () => clearTimeout(timer);
+            } else if (res.status !== task?.status) {
+              setTask(res);
+            }
+          }
+        } catch (error) {
+          console.error("[Poll] Error fetching status update:", error);
+        }
+      };
+
+      interval = setInterval(poll, 10000); // Check every 10s for detail view
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [fetchTask, id, paramReportId, initialData, task?.status]);
 
   const handleRespond = (accept: boolean) => {
     showAlert(
