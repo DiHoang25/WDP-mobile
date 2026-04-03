@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "ECoNet",
-    "slug": "ECoNet",
+    "name": "Greenpoint",
+    "slug": "Greenpoint",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo.jpg",
-    "scheme": "ECoNet",
+    "scheme": "Greenpoint",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "package": "com.truongduyyyy.ECONet",
+      "package": "com.truongduyyyy.greenpoint",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/icon-foreground.png",

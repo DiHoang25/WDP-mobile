@@ -51,7 +51,7 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         <LogoHeader
-          appName="ECoNet"
+          appName="Greenpoint"
           tagline="Bảo vệ môi trường - Thu gom rác thông minh"
         />
 

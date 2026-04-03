@@ -297,7 +297,7 @@ export default function ComplaintDetailScreen() {
                       )}
                     </View>
                     <View style={styles.actorMeta}>
-                      <Text style={styles.actorLabel}>Tài xế thực hiện</Text>
+                      <Text style={styles.actorLabel}>Người thu gom thực hiện</Text>
                       <Text style={styles.actorName} numberOfLines={1}>{complaint.reportInfo.collectorName}</Text>
                     </View>
                   </View>

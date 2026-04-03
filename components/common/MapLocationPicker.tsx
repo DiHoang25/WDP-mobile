@@ -39,6 +39,15 @@ const DEFAULT_LOCATION = {
     longitude: 105.8542,
 };
 
+const VIETNAM_MAINLAND_BOUNDS = {
+    south: 8.18,
+    north: 23.5,
+    west: 102.14,
+    east: 109.5,
+};
+
+const VIETNAM_MIN_ZOOM = 6;
+
 const getMapHtml = (lat: number, lng: number, interactive = true) => `
     <!DOCTYPE html>
     <html>
@@ -70,6 +79,18 @@ const getMapHtml = (lat: number, lng: number, interactive = true) => `
           <img src="https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png" style="width: 25px; height: 41px;" />
         </div>
         <script>
+                    function clampToVietnamMainland(lat, lng) {
+                        var clampedLat = Math.min(${VIETNAM_MAINLAND_BOUNDS.north}, Math.max(${VIETNAM_MAINLAND_BOUNDS.south}, lat));
+                        var clampedLng = Math.min(${VIETNAM_MAINLAND_BOUNDS.east}, Math.max(${VIETNAM_MAINLAND_BOUNDS.west}, lng));
+                        return { lat: clampedLat, lng: clampedLng };
+                    }
+
+                    var initialCenter = clampToVietnamMainland(${lat}, ${lng});
+                    var vnMainlandBounds = L.latLngBounds(
+                        [${VIETNAM_MAINLAND_BOUNDS.south}, ${VIETNAM_MAINLAND_BOUNDS.west}],
+                        [${VIETNAM_MAINLAND_BOUNDS.north}, ${VIETNAM_MAINLAND_BOUNDS.east}]
+                    );
+
           var map = L.map('map', {
             zoomControl: false,
             attributionControl: false,
@@ -77,6 +98,9 @@ const getMapHtml = (lat: number, lng: number, interactive = true) => `
             touchZoom: ${interactive},
             doubleClickZoom: ${interactive},
             scrollWheelZoom: ${interactive},
+                        minZoom: ${VIETNAM_MIN_ZOOM},
+                        maxBounds: vnMainlandBounds,
+                        maxBoundsViscosity: 1.0,
             zoomAnimation: true,
             fadeAnimation: true,
             markerZoomAnimation: true,
@@ -86,7 +110,9 @@ const getMapHtml = (lat: number, lng: number, interactive = true) => `
             easeLinearity: 0.1,
             preferCanvas: true,
             tap: false // Recommended for Mobile
-          }).setView([${lat}, ${lng}], 16);
+                    }).setView([initialCenter.lat, initialCenter.lng], 16);
+
+                    map.setMaxBounds(vnMainlandBounds);
           
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
               maxZoom: 19,
@@ -102,15 +128,20 @@ const getMapHtml = (lat: number, lng: number, interactive = true) => `
           map.on('moveend', function() {
             document.body.classList.remove('map-moving');
             var center = map.getCenter();
+                        var clamped = clampToVietnamMainland(center.lat, center.lng);
+                        if (clamped.lat !== center.lat || clamped.lng !== center.lng) {
+                            map.panTo([clamped.lat, clamped.lng], { animate: false });
+                        }
             window.ReactNativeWebView.postMessage(JSON.stringify({
-              latitude: center.lat,
-              longitude: center.lng
+                            latitude: clamped.lat,
+                            longitude: clamped.lng
             }));
           });
           ` : ''}
 
           window.updatePosition = function(lat, lng) {
-            map.flyTo([lat, lng], map.getZoom(), {
+                        var clamped = clampToVietnamMainland(lat, lng);
+                        map.flyTo([clamped.lat, clamped.lng], Math.max(map.getZoom(), ${VIETNAM_MIN_ZOOM}), {
                 animate: true,
                 duration: 0.8,
                 easeLinearity: 0.25

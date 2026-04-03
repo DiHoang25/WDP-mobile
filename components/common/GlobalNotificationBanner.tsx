@@ -48,7 +48,7 @@ const GlobalNotificationBanner: React.FC<GlobalNotificationBannerProps> = ({
         return notification.meta?.enterprise?.name ||
             notification.meta?.enterpriseName ||
             notification.meta?.senderName ||
-            "ECONET";
+            "Greenpoint";
     };
 
     return (

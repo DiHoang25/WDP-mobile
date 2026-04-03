@@ -35,6 +35,15 @@ const USE_FAKE_LOCATION = __DEV__;
 // Easy place to tweak fake GPS duration (in minutes)
 const FAKE_ROUTE_DURATION_MINUTES = 1;
 
+const VIETNAM_MAINLAND_LEAFLET_BOUNDS = {
+  south: 8.18,
+  north: 23.5,
+  west: 102.14,
+  east: 109.5,
+};
+
+const VIETNAM_MAINLAND_MIN_ZOOM = 6;
+
 const getRoutingMapHtml = (
   userLat: number,
   userLng: number,
@@ -114,10 +123,26 @@ const getRoutingMapHtml = (
         <div id="map"></div>
         <div id="locate-btn" class="locate-btn"><span>📍</span></div>
         <script>
+          function clampToVietnamMainland(lat, lng) {
+            var clampedLat = Math.min(${VIETNAM_MAINLAND_LEAFLET_BOUNDS.north}, Math.max(${VIETNAM_MAINLAND_LEAFLET_BOUNDS.south}, lat));
+            var clampedLng = Math.min(${VIETNAM_MAINLAND_LEAFLET_BOUNDS.east}, Math.max(${VIETNAM_MAINLAND_LEAFLET_BOUNDS.west}, lng));
+            return { lat: clampedLat, lng: clampedLng };
+          }
+
+          var vnMainlandBounds = L.latLngBounds(
+            [${VIETNAM_MAINLAND_LEAFLET_BOUNDS.south}, ${VIETNAM_MAINLAND_LEAFLET_BOUNDS.west}],
+            [${VIETNAM_MAINLAND_LEAFLET_BOUNDS.north}, ${VIETNAM_MAINLAND_LEAFLET_BOUNDS.east}]
+          );
+
           var map = L.map('map', {
             zoomControl: false,
             attributionControl: false,
+            minZoom: ${VIETNAM_MAINLAND_MIN_ZOOM},
+            maxBounds: vnMainlandBounds,
+            maxBoundsViscosity: 1.0,
           });
+
+          map.setMaxBounds(vnMainlandBounds);
           
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
@@ -204,15 +229,26 @@ const getRoutingMapHtml = (
           }
 
           if (savedState && savedState.lat && savedState.lng && savedState.zoom) {
-            map.setView([savedState.lat, savedState.lng], savedState.zoom);
+            var clampedSaved = clampToVietnamMainland(savedState.lat, savedState.lng);
+            map.setView([clampedSaved.lat, clampedSaved.lng], Math.max(savedState.zoom, ${VIETNAM_MAINLAND_MIN_ZOOM}));
           } else {
             map.fitBounds(bounds, {padding: [40, 40]});
+            if (map.getZoom() < ${VIETNAM_MAINLAND_MIN_ZOOM}) {
+              map.setZoom(${VIETNAM_MAINLAND_MIN_ZOOM});
+            }
           }
 
           map.on('moveend zoomend', function() {
             try {
+              if (map.getZoom() < ${VIETNAM_MAINLAND_MIN_ZOOM}) {
+                map.setZoom(${VIETNAM_MAINLAND_MIN_ZOOM});
+              }
               var c = map.getCenter();
-              var s = { lat: c.lat, lng: c.lng, zoom: map.getZoom() };
+              var clampedCenter = clampToVietnamMainland(c.lat, c.lng);
+              if (clampedCenter.lat !== c.lat || clampedCenter.lng !== c.lng) {
+                map.panTo([clampedCenter.lat, clampedCenter.lng], { animate: false });
+              }
+              var s = { lat: clampedCenter.lat, lng: clampedCenter.lng, zoom: map.getZoom() };
               localStorage.setItem('collector_nav_state', JSON.stringify(s));
             } catch (e) {
               // ignore

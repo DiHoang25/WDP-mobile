@@ -635,7 +635,7 @@ export default function ReportDetailScreen() {
             {String(displayContent).toLowerCase().includes("sự cố") && (
               <View style={styles.incidentNotice}>
                 <Text style={styles.incidentNoticeText}>
-                  Tài xế đã ghi nhận một sự cố trong quá trình thu gom. Nếu bạn
+                  Người thu gom đã ghi nhận một sự cố trong quá trình thu gom. Nếu bạn
                   thấy thông tin này không chính xác, hãy sử dụng chức năng
                   Khiếu nại.
                 </Text>
