@@ -30,8 +30,8 @@
             "reports": "Đang xử lý",
             "collected": "Đã thu gom"
         },
-        "createReport": "Tạo báo cáo rác",
-        "createReportSubtitle": "Báo cáo vị trí rác thải ngay",
+        "createReport": "Đặt lịch thu gom",
+        "createReportSubtitle": "",
         "features": "Chức năng",
         "recentReports": "Báo cáo gần đây",
         "noReports": "Chưa có báo cáo nào",
@@ -84,7 +84,7 @@
         "english": "English"
     },
     "history": {
-        "title": "Lịch sử báo cáo",
+        "title": "Lịch sử ",
         "totalReports": "Tổng cộng: {{count}} báo cáo",
         "pending": "Đang xử lý",
         "completed": "Hoàn thành",
@@ -97,8 +97,8 @@
         "noReportsCancelled": "Không có báo cáo đã hủy"
     },
     "createReport": {
-        "title": "Tạo báo cáo rác",
-        "subtitle": "Có thể thêm nhiều loại rác vào một báo cáo",
+        "title": "Đặt lịch thu gom",
+        "subtitle": "",
         "pickupAddress": "Địa chỉ lấy rác",
         "selectLocation": "Chọn vị trí chính xác trên bản đồ",
         "gettingLocation": "Đang lấy vị trí hiện tại...",

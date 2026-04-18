@@ -30,7 +30,7 @@
             "reports": "In progress",
             "collected": "Collected"
         },
-        "createReport": "Create waste report",
+        "createReport": "Schedule waste collection",
         "createReportSubtitle": "Report waste locations now",
         "features": "Features",
         "recentReports": "Recent reports",
@@ -97,7 +97,7 @@
         "noReportsCancelled": "No cancelled reports"
     },
     "createReport": {
-        "title": "Create waste report",
+        "title": "Schedule waste collection",
         "subtitle": "You can add multiple waste types to one report",
         "pickupAddress": "Pickup address",
         "selectLocation": "Select exact location on map",

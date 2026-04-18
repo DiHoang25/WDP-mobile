@@ -12,13 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -34,12 +28,7 @@ import {
 } from "react-native";
 import { WebView } from "react-native-webview";
 
-type ActivePhase =
-  | "ACCEPTED"
-  | "ON_THE_WAY"
-  | "ARRIVED"
-  | "COMPLETED"
-  | "CANCELLED";
+type ActivePhase = "ACCEPTED" | "ON_THE_WAY" | "ARRIVED" | "COMPLETED" | "CANCELLED";
 
 // Build-time flag for fake GPS route simulation
 const USE_FAKE_LOCATION = __DEV__ || config.enableFakeCollectorLocation;
@@ -363,9 +352,7 @@ export default function ActiveTaskScreen() {
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportType, setReportType] = useState<"ABSENT" | "ISSUE">("ABSENT");
   const [disputeReason, setDisputeReason] = useState("");
-  const [citizenPresence, setCitizenPresence] = useState<
-    "PENDING" | "CONFIRMED" | "ABSENT"
-  >("PENDING");
+  const [citizenPresence, setCitizenPresence] = useState<"PENDING" | "CONFIRMED" | "ABSENT">("PENDING");
   const [checkingPresence, setCheckingPresence] = useState(false);
 
   // Weights state for completion
@@ -374,12 +361,9 @@ export default function ActiveTaskScreen() {
     recyclable: "",
     hazardous: "",
   });
-  const [accuracyLevel, setAccuracyLevel] = useState<
-    "MATCH" | "MODERATE" | "HEAVY"
-  >("MATCH");
+  const [accuracyLevel, setAccuracyLevel] = useState<"MATCH" | "MODERATE" | "HEAVY">("MATCH");
   const [evidenceImages, setEvidenceImages] = useState<string[]>([]);
   const [reportImages, setReportImages] = useState<string[]>([]);
-  const [isPickingImage, setIsPickingImage] = useState(false);
 
   // Real-time clock for expiration check
   const [now, setNow] = useState(new Date());
@@ -393,13 +377,11 @@ export default function ActiveTaskScreen() {
 
   const isExpired = useMemo(() => {
     // If task is already accepted (ASSIGNED/ON_THE_WAY etc.), ignore the acceptance expiry
-    const isAccepted =
-      task?.status &&
-      !["PENDING_COLLECTOR", "COLLECTOR_PENDING"].includes(task.status);
+    const isAccepted = task?.status && !["PENDING_COLLECTOR", "COLLECTOR_PENDING"].includes(task.status);
 
     const expiredAt = isAccepted
       ? task?.report?.arrivalDeadline
-      : task?.expiredAt || task?.report?.arrivalDeadline;
+      : (task?.expiredAt || task?.report?.arrivalDeadline);
 
     if (!expiredAt) return false;
     const expDate = new Date(expiredAt);
@@ -407,38 +389,26 @@ export default function ActiveTaskScreen() {
   }, [now, task?.status, task?.expiredAt, task?.report?.arrivalDeadline]);
 
   useEffect(() => {
-    if (
-      isExpired &&
-      (task?.status === "PENDING_COLLECTOR" ||
-        task?.status === "COLLECTOR_PENDING")
-    ) {
+    if (isExpired && (task?.status === "PENDING_COLLECTOR" || task?.status === "COLLECTOR_PENDING")) {
       showAlert(
         "Đơn hàng hết hạn",
         "Đơn hàng này đã hết hạn xác nhận và được chuyển cho người khác.",
-        [{ text: "OK", onPress: () => router.replace("/(collectors)" as any) }],
+        [{ text: "OK", onPress: () => router.replace("/(collectors)" as any) }]
       );
     }
   }, [isExpired, task?.status]);
 
   const remainingSeconds = useMemo(() => {
-    const isAccepted =
-      task?.status &&
-      !["PENDING_COLLECTOR", "COLLECTOR_PENDING"].includes(task.status);
+    const isAccepted = task?.status && !["PENDING_COLLECTOR", "COLLECTOR_PENDING"].includes(task.status);
 
     const expiredAt = isAccepted
       ? task?.report?.arrivalDeadline
-      : task?.expiredAt || task?.report?.arrivalDeadline;
+      : (task?.expiredAt || task?.report?.arrivalDeadline);
 
     if (!expiredAt || isExpired) return 0;
     const diff = new Date(expiredAt).getTime() - now.getTime();
     return Math.max(0, Math.floor(diff / 1000));
-  }, [
-    now,
-    task?.status,
-    task?.expiredAt,
-    task?.report?.arrivalDeadline,
-    isExpired,
-  ]);
+  }, [now, task?.status, task?.expiredAt, task?.report?.arrivalDeadline, isExpired]);
 
   const formatRemainingTime = (totalSeconds: number) => {
     const hours = Math.floor(totalSeconds / 3600);
@@ -461,42 +431,27 @@ export default function ActiveTaskScreen() {
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
-  const [currentLocation, setCurrentLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isStoppingPolling = useRef(false);
 
   // Fake route simulation (DEV)
-  const fakeRouteRef = useRef<{ latitude: number; longitude: number }[] | null>(
-    null,
-  );
+  const fakeRouteRef = useRef<{ latitude: number; longitude: number }[] | null>(null);
   const fakeRouteIndexRef = useRef(0);
   const fakeRouteTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fakeRouteInitializedRef = useRef(false);
-  const fakeRouteStartingPointRef = useRef<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
+  const fakeRouteStartingPointRef = useRef<{ latitude: number; longitude: number } | null>(null);
 
   // WebView refs để inject JS mà không reload map
   const inlineMapRef = useRef<WebView>(null);
   const modalMapRef = useRef<WebView>(null);
-  const [initialCollectorPos, setInitialCollectorPos] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
+  const [initialCollectorPos, setInitialCollectorPos] = useState<
+    { latitude: number; longitude: number } | null
+  >(null);
   const [modalRoutingSource, setModalRoutingSource] = useState({ html: "" });
 
-  const [toast, setToast] = useState<{
-    visible: boolean;
-    message: string;
-    type: ToastType;
-  }>({
-    visible: false,
-    message: "",
-    type: "success",
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: ToastType }>({
+    visible: false, message: "", type: "success",
   });
 
   const showToast = (message: string, type: ToastType = "success") => {
@@ -519,10 +474,7 @@ export default function ActiveTaskScreen() {
       if (res.ok) {
         const data = await res.json();
         if (data.routes && data.routes.length > 0) {
-          const coords = data.routes[0].geometry.coordinates as [
-            number,
-            number,
-          ][];
+          const coords = data.routes[0].geometry.coordinates as [number, number][];
           return coords.map(([lng, lat]) => ({
             latitude: lat,
             longitude: lng,
@@ -546,10 +498,7 @@ export default function ActiveTaskScreen() {
         if (res.ok) {
           const data = await res.json();
           if (data.routes && data.routes.length > 0) {
-            const coords = data.routes[0].geometry.coordinates as [
-              number,
-              number,
-            ][];
+            const coords = data.routes[0].geometry.coordinates as [number, number][];
             return coords.map(([lng, lat]) => ({
               latitude: lat,
               longitude: lng,
@@ -574,10 +523,8 @@ export default function ActiveTaskScreen() {
     const linearSteps = Math.max(2, Math.round(durationMs / baseIntervalMs)); // at least 2 points
 
     // Start ~2km away from target (approx 0.02 degrees)
-    const startLat =
-      fakeRouteStartingPointRef.current?.latitude ?? reportLat + 0.02;
-    const startLng =
-      fakeRouteStartingPointRef.current?.longitude ?? reportLng - 0.02;
+    const startLat = fakeRouteStartingPointRef.current?.latitude ?? reportLat + 0.02;
+    const startLng = fakeRouteStartingPointRef.current?.longitude ?? reportLng - 0.02;
 
     let route: { latitude: number; longitude: number }[] = [];
     for (let i = 0; i < linearSteps; i++) {
@@ -662,20 +609,14 @@ export default function ActiveTaskScreen() {
       let data: CollectorTaskItem | null = null;
       if (!id || id === "NaN" || id === "undefined") {
         const acceptedTasks = await collectorService.getAcceptedTasks();
-        console.log(
-          `[active-task] No ID provided, fetched ${acceptedTasks?.length || 0} accepted tasks`,
-        );
+        console.log(`[active-task] No ID provided, fetched ${acceptedTasks?.length || 0} accepted tasks`);
         if (acceptedTasks && acceptedTasks.length > 0) {
           data = acceptedTasks[0];
-          console.log(
-            `[active-task] Using first accepted task: ID ${data.id}, status ${data.status}`,
-          );
+          console.log(`[active-task] Using first accepted task: ID ${data.id}, status ${data.status}`);
         }
       } else {
         data = await collectorService.getTaskById(Number(id));
-        console.log(
-          `[active-task] ID ${id} provided, fetched task status: ${data?.status}`,
-        );
+        console.log(`[active-task] ID ${id} provided, fetched task status: ${data?.status}`);
       }
 
       if (!data) {
@@ -686,21 +627,13 @@ export default function ActiveTaskScreen() {
       setTask(data);
       // Determine phase from task status or report status (prioritize report status for arrived/collecting)
       let currentStatus = data.status;
-      if (
-        data.report?.status === "ARRIVED" ||
-        data.report?.status === "COLLECTING"
-      ) {
+      if (data.report?.status === "ARRIVED" || data.report?.status === "COLLECTING") {
         currentStatus = data.report.status;
-      } else if (
-        data.status === "ON_THE_WAY" ||
-        data.report?.status === "ON_THE_WAY"
-      ) {
+      } else if (data.status === "ON_THE_WAY" || data.report?.status === "ON_THE_WAY") {
         currentStatus = "ON_THE_WAY";
       }
 
-      console.log(
-        `[active-task] Task fetched, evaluated status: ${currentStatus} (Task: ${data.status}, Report: ${data.report?.status})`,
-      );
+      console.log(`[active-task] Task fetched, evaluated status: ${currentStatus} (Task: ${data.status}, Report: ${data.report?.status})`);
       if (currentStatus === "ARRIVED" || currentStatus === "COLLECTING") {
         setPhase("ARRIVED");
         console.log(`[active-task] Phase set to ARRIVED`);
@@ -732,15 +665,14 @@ export default function ActiveTaskScreen() {
     }
   }, [currentLocation, initialCollectorPos]);
 
-  // Get current location
+  // Get current location  
   const getCurrentLocation = async () => {
     try {
       // In DEV with fake route enabled, use simulated coordinates instead of real GPS
       if (USE_FAKE_LOCATION && fakeRouteRef.current) {
         const idx = fakeRouteIndexRef.current;
         const point =
-          fakeRouteRef.current[idx] ??
-          fakeRouteRef.current[fakeRouteRef.current.length - 1];
+          fakeRouteRef.current[idx] ?? fakeRouteRef.current[fakeRouteRef.current.length - 1];
 
         if (point) {
           setCurrentLocation(point);
@@ -772,15 +704,8 @@ export default function ActiveTaskScreen() {
     try {
       const coords = await getCurrentLocation();
       if (coords) {
-        await collectorService.updateLocation(
-          coords.latitude,
-          coords.longitude,
-        );
-        console.log(
-          "📍 Location updated:",
-          coords.latitude.toFixed(5),
-          coords.longitude.toFixed(5),
-        );
+        await collectorService.updateLocation(coords.latitude, coords.longitude);
+        console.log("📍 Location updated:", coords.latitude.toFixed(5), coords.longitude.toFixed(5));
       }
     } catch (error) {
       console.error("Error sending location:", error);
@@ -846,14 +771,8 @@ export default function ActiveTaskScreen() {
   const routingSource = useMemo(() => {
     if (!report) return { html: "" };
 
-    const currentStartLat =
-      mapModalVisible && currentLocation
-        ? currentLocation.latitude
-        : (initialCollectorPos?.latitude ?? report.latitude);
-    const currentStartLng =
-      mapModalVisible && currentLocation
-        ? currentLocation.longitude
-        : (initialCollectorPos?.longitude ?? report.longitude);
+    const currentStartLat = (mapModalVisible && currentLocation) ? currentLocation.latitude : (initialCollectorPos?.latitude ?? report.latitude);
+    const currentStartLng = (mapModalVisible && currentLocation) ? currentLocation.longitude : (initialCollectorPos?.longitude ?? report.longitude);
 
     return {
       html: getRoutingMapHtml(
@@ -878,14 +797,8 @@ export default function ActiveTaskScreen() {
   // Update modalRoutingSource only when modal opens
   useEffect(() => {
     if (mapModalVisible && report) {
-      const startLat =
-        currentLocation?.latitude ??
-        initialCollectorPos?.latitude ??
-        report.latitude;
-      const startLng =
-        currentLocation?.longitude ??
-        initialCollectorPos?.longitude ??
-        report.longitude;
+      const startLat = currentLocation?.latitude ?? initialCollectorPos?.latitude ?? report.latitude;
+      const startLng = currentLocation?.longitude ?? initialCollectorPos?.longitude ?? report.longitude;
       setModalRoutingSource({
         html: getRoutingMapHtml(
           startLat,
@@ -926,9 +839,7 @@ export default function ActiveTaskScreen() {
             const updatedReportData = res.report;
             const currentStatus = updatedReportData.status?.toUpperCase();
 
-            console.log(
-              `📡 [Poll] Task status: ${res.status}, Report status: ${currentStatus}`,
-            );
+            console.log(`📡 [Poll] Task status: ${res.status}, Report status: ${currentStatus}`);
 
             // 1. Handle Cancellation (Priority)
             if (currentStatus === "CANCELLED" || res.status === "CANCELLED") {
@@ -955,14 +866,8 @@ export default function ActiveTaskScreen() {
               const citizenConfirmed = !!updatedReportData.citizenConfirmedAt;
               const citizenAbsented = !!updatedReportData.citizenAbsentAt;
 
-              const isConfirmed =
-                citizenConfirmed ||
-                currentStatus === "CONFIRMED_PRESENCE" ||
-                currentStatus === "COLLECTING";
-              const isAbsented =
-                citizenAbsented ||
-                currentStatus === "REPORTED_ABSENT" ||
-                currentStatus === "ABSENT";
+              const isConfirmed = citizenConfirmed || currentStatus === "CONFIRMED_PRESENCE" || currentStatus === "COLLECTING";
+              const isAbsented = citizenAbsented || currentStatus === "REPORTED_ABSENT" || currentStatus === "ABSENT";
 
               if (isConfirmed) {
                 console.log("✅ [Presence] Citizen confirmed presence!");
@@ -971,10 +876,7 @@ export default function ActiveTaskScreen() {
               } else if (isAbsented) {
                 console.log("❌ [Presence] Citizen reported absent!");
                 setCitizenPresence("ABSENT");
-                showToast(
-                  "Công dân báo vắng mặt. Đơn hàng sẽ kết thúc.",
-                  "info",
-                );
+                showToast("Công dân báo vắng mặt. Đơn hàng sẽ kết thúc.", "info");
                 setTimeout(() => router.replace("/(collectors)" as any), 2000);
               }
             }
@@ -1005,16 +907,15 @@ export default function ActiveTaskScreen() {
         currentLocation.latitude,
         currentLocation.longitude,
         report.latitude,
-        report.longitude,
+        report.longitude
       );
 
       console.log(`[active-task] Distance to target: ${dist.toFixed(3)} km`);
 
-      if (dist > 0.3) {
-        // 300m = 0.3km
+      if (dist > 0.3) { // 300m = 0.3km
         showAlert(
           "Chưa đến nơi",
-          `Bạn đang cách điểm thu gom ${(dist * 1000).toFixed(0)}m. Vui lòng di chuyển đến gần hơn (dưới 300m) để xác nhận.`,
+          `Bạn đang cách điểm thu gom ${(dist * 1000).toFixed(0)}m. Vui lòng di chuyển đến gần hơn (dưới 300m) để xác nhận.`
         );
         return;
       }
@@ -1037,13 +938,10 @@ export default function ActiveTaskScreen() {
                 res = await collectorService.checkinArrived(
                   task!.reportId,
                   currentLocation!.latitude,
-                  currentLocation!.longitude,
+                  currentLocation!.longitude
                 );
               } else {
-                res = await collectorService.updateTaskStatus(
-                  task!.id,
-                  newStatus,
-                );
+                res = await collectorService.updateTaskStatus(task!.id, newStatus);
               }
 
               if (res.success) {
@@ -1058,17 +956,11 @@ export default function ActiveTaskScreen() {
                 } else if (newStatus === "COMPLETED") {
                   setPhase("COMPLETED");
                   if (pollingRef.current) clearInterval(pollingRef.current);
-                  setTimeout(
-                    () => router.replace("/(collectors)" as any),
-                    2000,
-                  );
+                  setTimeout(() => router.replace("/(collectors)" as any), 2000);
                 }
                 fetchTask();
               } else {
-                showToast(
-                  res.message || "Không thể cập nhật trạng thái",
-                  "error",
-                );
+                showToast(res.message || "Không thể cập nhật trạng thái", "error");
               }
             } catch (error) {
               console.error(`[active-task] Error:`, error);
@@ -1078,7 +970,7 @@ export default function ActiveTaskScreen() {
             }
           },
         },
-      ],
+      ]
     );
   };
 
@@ -1087,72 +979,24 @@ export default function ActiveTaskScreen() {
   };
 
   const handlePickImage = async (isReport: boolean) => {
-    if (isPickingImage) return;
-    setIsPickingImage(true);
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      showToast("Cần quyền truy cập thư viện ảnh", "error");
+      return;
+    }
 
-    try {
-      console.log(
-        "[collector-active-task] Starting library pick. target=",
-        isReport ? "report" : "evidence",
-      );
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
-      console.log("[collector-active-task] Permission result:", {
-        granted: permission.granted,
-        canAskAgain: permission.canAskAgain,
-        status: permission.status,
-      });
-      if (!permission.granted) {
-        if (!permission.canAskAgain) {
-          showAlert(
-            "Quyền thư viện ảnh đã bị chặn",
-            "Vui lòng mở Cài đặt để cấp lại quyền truy cập ảnh.",
-            [
-              { text: "Hủy", style: "cancel" },
-              {
-                text: "Mở Cài đặt",
-                onPress: () => {
-                  Linking.openSettings().catch(() => {
-                    showToast("Không thể mở Cài đặt", "error");
-                  });
-                },
-              },
-            ],
-          );
-        } else {
-          showToast("Cần quyền truy cập thư viện ảnh", "error");
-        }
-        return;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets[0].uri) {
+      if (isReport) {
+        setReportImages([...reportImages, result.assets[0].uri]);
+      } else {
+        setEvidenceImages([...evidenceImages, result.assets[0].uri]);
       }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: Platform.OS === "ios",
-        legacy: Platform.OS === "android",
-        quality: 0.8,
-      });
-      console.log(
-        "[collector-active-task] Picker result canceled:",
-        result.canceled,
-      );
-
-      if (!result.canceled && result.assets && result.assets[0].uri) {
-        console.log(
-          "[collector-active-task] Picked asset uri:",
-          result.assets[0].uri,
-        );
-        if (isReport) {
-          setReportImages((prev) => [...prev, result.assets[0].uri]);
-        } else {
-          setEvidenceImages((prev) => [...prev, result.assets[0].uri]);
-        }
-      }
-    } catch (error) {
-      console.error("Image picker error:", error);
-      showToast("Không thể mở thư viện ảnh", "error");
-    } finally {
-      console.log("[collector-active-task] Image pick finished");
-      setIsPickingImage(false);
     }
   };
 
@@ -1167,9 +1011,7 @@ export default function ActiveTaskScreen() {
       const res = await collectorService.completeTask({
         reportId: task!.reportId,
         weightOrganic: weights.organic ? parseFloat(weights.organic) : 0,
-        weightRecyclable: weights.recyclable
-          ? parseFloat(weights.recyclable)
-          : 0,
+        weightRecyclable: weights.recyclable ? parseFloat(weights.recyclable) : 0,
         weightHazardous: weights.hazardous ? parseFloat(weights.hazardous) : 0,
         accuracyBucket: accuracyLevel,
         files: evidenceImages,
@@ -1181,10 +1023,7 @@ export default function ActiveTaskScreen() {
         setPhase("COMPLETED");
         isStoppingPolling.current = true;
         if (pollingRef.current) clearInterval(pollingRef.current);
-        setTimeout(
-          () => router.replace("/(collectors)/history?tab=COMPLETED" as any),
-          2000,
-        );
+        setTimeout(() => router.replace("/(collectors)/history?tab=COMPLETED" as any), 2000);
       } else {
         showToast(res.message || "Lỗi khi hoàn tất", "error");
       }
@@ -1202,10 +1041,7 @@ export default function ActiveTaskScreen() {
       if (reportType === "ABSENT") {
         // Nếu công dân đã xác nhận đang có mặt thì không cho phép báo vắng mặt nữa
         if (citizenPresence === "CONFIRMED") {
-          showToast(
-            "Khách đã xác nhận có mặt, không thể báo vắng mặt.",
-            "error",
-          );
+          showToast("Khách đã xác nhận có mặt, không thể báo vắng mặt.", "error");
           setUpdating(false);
           return;
         }
@@ -1279,11 +1115,7 @@ export default function ActiveTaskScreen() {
       <View style={styles.loadingContainer}>
         <Ionicons name="alert-circle" size={48} color={AppColors.gray[400]} />
         <Text style={styles.errorText}>Không tìm thấy đơn hàng</Text>
-        <Button
-          title="Quay lại"
-          onPress={() => router.back()}
-          style={{ marginTop: 16 }}
-        />
+        <Button title="Quay lại" onPress={() => router.back()} style={{ marginTop: 16 }} />
       </View>
     );
   }
@@ -1291,47 +1123,17 @@ export default function ActiveTaskScreen() {
   const getPhaseInfo = () => {
     switch (phase) {
       case "ACCEPTED":
-        return {
-          icon: "document-text" as const,
-          color: AppColors.secondary,
-          label: "Đã nhận đơn",
-          bg: AppColors.secondary + "15",
-        };
+        return { icon: "document-text" as const, color: AppColors.secondary, label: "Đã nhận đơn", bg: AppColors.secondary + "15" };
       case "ON_THE_WAY":
-        return {
-          icon: "car" as const,
-          color: AppColors.info,
-          label: "Đang di chuyển đến",
-          bg: AppColors.info + "15",
-        };
+        return { icon: "car" as const, color: AppColors.info, label: "Đang di chuyển đến", bg: AppColors.info + "15" };
       case "ARRIVED":
-        return {
-          icon: "location" as const,
-          color: AppColors.primary,
-          label: "Đã đến nơi",
-          bg: AppColors.primary + "15",
-        };
+        return { icon: "location" as const, color: AppColors.primary, label: "Đã đến nơi", bg: AppColors.primary + "15" };
       case "COMPLETED":
-        return {
-          icon: "checkmark-done-circle" as const,
-          color: AppColors.success,
-          label: "Hoàn thành",
-          bg: AppColors.success + "15",
-        };
+        return { icon: "checkmark-done-circle" as const, color: AppColors.success, label: "Hoàn thành", bg: AppColors.success + "15" };
       case "CANCELLED":
-        return {
-          icon: "close-circle" as const,
-          color: AppColors.error,
-          label: "Đã hủy",
-          bg: AppColors.error + "15",
-        };
+        return { icon: "close-circle" as const, color: AppColors.error, label: "Đã hủy", bg: AppColors.error + "15" };
       default:
-        return {
-          icon: "help-circle" as const,
-          color: AppColors.gray[400],
-          label: "N/A",
-          bg: AppColors.gray[100],
-        };
+        return { icon: "help-circle" as const, color: AppColors.gray[400], label: "N/A", bg: AppColors.gray[100] };
     }
   };
 
@@ -1343,58 +1145,35 @@ export default function ActiveTaskScreen() {
         visible={toast.visible}
         message={toast.message}
         type={toast.type}
-        onHide={() => setToast((t) => ({ ...t, visible: false }))}
+        onHide={() => setToast(t => ({ ...t, visible: false }))}
       />
 
       {/* Status Banner */}
       <View style={[styles.statusBanner, { backgroundColor: phaseInfo.bg }]}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => router.replace("/(collectors)")}
-        >
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.replace("/(collectors)")}>
           <Ionicons name="arrow-back" size={24} color={AppColors.gray[700]} />
         </TouchableOpacity>
         <View style={styles.statusBannerContent}>
           <Ionicons name={phaseInfo.icon} size={24} color={phaseInfo.color} />
-          <Text style={[styles.statusBannerText, { color: phaseInfo.color }]}>
-            {phaseInfo.label}
-          </Text>
+          <Text style={[styles.statusBannerText, { color: phaseInfo.color }]}>{phaseInfo.label}</Text>
         </View>
         <View style={{ width: 40 }} />
       </View>
 
       {/* Expiry Timer Banner - ONLY show when pending collector acceptance */}
-      {!isExpired &&
-        task?.status &&
-        ["PENDING_COLLECTOR", "COLLECTOR_PENDING"].includes(task.status) &&
-        task?.expiredAt && (
-          <View
-            style={[
-              styles.timerBanner,
-              { backgroundColor: getTimeStatusColor(remainingSeconds) + "10" },
-            ]}
-          >
-            <Ionicons
-              name="timer-outline"
-              size={20}
-              color={getTimeStatusColor(remainingSeconds)}
-            />
-            <Text style={styles.timerLabel}>Thời gian còn lại:</Text>
-            <Text
-              style={[
-                styles.timerValue,
-                { color: getTimeStatusColor(remainingSeconds) },
-              ]}
-            >
-              {formatRemainingTime(remainingSeconds)}
-            </Text>
-          </View>
-        )}
+      {!isExpired && task?.status && ["PENDING_COLLECTOR", "COLLECTOR_PENDING"].includes(task.status) && task?.expiredAt && (
+        <View style={[styles.timerBanner, { backgroundColor: getTimeStatusColor(remainingSeconds) + "10" }]}>
+          <Ionicons name="timer-outline" size={20} color={getTimeStatusColor(remainingSeconds)} />
+          <Text style={styles.timerLabel}>
+            Thời gian còn lại:
+          </Text>
+          <Text style={[styles.timerValue, { color: getTimeStatusColor(remainingSeconds) }]}>
+            {formatRemainingTime(remainingSeconds)}
+          </Text>
+        </View>
+      )}
 
-      <ScrollView
-        style={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {phase === "ARRIVED" ? (
           <Card variant="elevated" style={styles.card}>
             <Text style={styles.cardTitle}>Xác nhận thông tin thu gom</Text>
@@ -1408,9 +1187,7 @@ export default function ActiveTaskScreen() {
                   keyboardType="numeric"
                   placeholder="0.0"
                   value={weights.organic}
-                  onChangeText={(text) =>
-                    setWeights({ ...weights, organic: text })
-                  }
+                  onChangeText={(text) => setWeights({ ...weights, organic: text })}
                 />
               </View>
               <View style={styles.weightItem}>
@@ -1420,9 +1197,7 @@ export default function ActiveTaskScreen() {
                   keyboardType="numeric"
                   placeholder="0.0"
                   value={weights.recyclable}
-                  onChangeText={(text) =>
-                    setWeights({ ...weights, recyclable: text })
-                  }
+                  onChangeText={(text) => setWeights({ ...weights, recyclable: text })}
                 />
               </View>
               <View style={styles.weightItem}>
@@ -1432,9 +1207,7 @@ export default function ActiveTaskScreen() {
                   keyboardType="numeric"
                   placeholder="0.0"
                   value={weights.hazardous}
-                  onChangeText={(text) =>
-                    setWeights({ ...weights, hazardous: text })
-                  }
+                  onChangeText={(text) => setWeights({ ...weights, hazardous: text })}
                 />
               </View>
             </View>
@@ -1456,23 +1229,14 @@ export default function ActiveTaskScreen() {
                       accuracyLevel === level && styles.accuracyChipTextActive,
                     ]}
                   >
-                    {level === "MATCH"
-                      ? "Đúng"
-                      : level === "MODERATE"
-                        ? "Sai số ít"
-                        : "Sai số nhiều"}
+                    {level === "MATCH" ? "Đúng" : level === "MODERATE" ? "Sai số ít" : "Sai số nhiều"}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={styles.inputLabel}>
-              Ảnh minh chứng (ít nhất 1 ảnh)
-            </Text>
-            <TouchableOpacity
-              style={styles.photoUploadBtn}
-              onPress={() => handlePickImage(false)}
-            >
+            <Text style={styles.inputLabel}>Ảnh minh chứng (ít nhất 1 ảnh)</Text>
+            <TouchableOpacity style={styles.photoUploadBtn} onPress={() => handlePickImage(false)}>
               <Ionicons name="camera" size={24} color={AppColors.primary} />
               <Text style={styles.photoUploadText}>Tải ảnh lên</Text>
             </TouchableOpacity>
@@ -1483,17 +1247,9 @@ export default function ActiveTaskScreen() {
                   <Image source={{ uri }} style={styles.imageThumb} />
                   <TouchableOpacity
                     style={styles.removeImageBtn}
-                    onPress={() =>
-                      setEvidenceImages(
-                        evidenceImages.filter((_, i) => i !== index),
-                      )
-                    }
+                    onPress={() => setEvidenceImages(evidenceImages.filter((_, i) => i !== index))}
                   >
-                    <Ionicons
-                      name="close-circle"
-                      size={20}
-                      color={AppColors.error}
-                    />
+                    <Ionicons name="close-circle" size={20} color={AppColors.error} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -1526,41 +1282,25 @@ export default function ActiveTaskScreen() {
                 {/* Location info */}
                 <View style={styles.routeInfo}>
                   <View style={styles.routePoint}>
-                    <View
-                      style={[
-                        styles.routeDot,
-                        { backgroundColor: AppColors.primary },
-                      ]}
-                    />
+                    <View style={[styles.routeDot, { backgroundColor: AppColors.primary }]} />
                     <Text style={styles.routeLabel}>Vị trí của bạn</Text>
                     <Text style={styles.routeCoords}>
-                      {currentLocation
-                        ? `${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)}`
-                        : "Đang lấy..."}
+                      {currentLocation ? `${currentLocation.latitude.toFixed(4)}, ${currentLocation.longitude.toFixed(4)}` : "Đang lấy..."}
                     </Text>
                   </View>
                   <View style={styles.routeLine} />
                   <View style={styles.routePoint}>
-                    <View
-                      style={[
-                        styles.routeDot,
-                        { backgroundColor: AppColors.error },
-                      ]}
-                    />
+                    <View style={[styles.routeDot, { backgroundColor: AppColors.error }]} />
                     <Text style={styles.routeLabel}>Điểm thu gom</Text>
                     {report && (
                       <Text style={styles.routeCoords}>
-                        {report.latitude.toFixed(4)},{" "}
-                        {report.longitude.toFixed(4)}
+                        {report.latitude.toFixed(4)}, {report.longitude.toFixed(4)}
                       </Text>
                     )}
                   </View>
                 </View>
 
-                <TouchableOpacity
-                  style={styles.openMapBtn}
-                  onPress={handleOpenMap}
-                >
+                <TouchableOpacity style={styles.openMapBtn} onPress={handleOpenMap}>
                   <Ionicons name="navigate" size={20} color={AppColors.white} />
                   <Text style={styles.openMapText}>Xem chỉ đường chi tiết</Text>
                 </TouchableOpacity>
@@ -1570,18 +1310,10 @@ export default function ActiveTaskScreen() {
             {/* Order Info */}
             <Card variant="elevated" style={styles.card}>
               <Text style={styles.cardTitle}>Thông tin đơn hàng</Text>
-              <InfoRow
-                icon="document-text"
-                label="Mã đơn"
-                value={`#${task.reportId}`}
-              />
+              <InfoRow icon="document-text" label="Mã đơn" value={`#${task.reportId}`} />
               {report && (
                 <>
-                  <InfoRow
-                    icon="location"
-                    label="Địa chỉ"
-                    value={report.address}
-                  />
+                  <InfoRow icon="location" label="Địa chỉ" value={report.address} />
                   <InfoRow
                     icon="chatbox"
                     label="Mô tả"
@@ -1598,13 +1330,9 @@ export default function ActiveTaskScreen() {
                 report.wasteItems.map((item, idx) => (
                   <View key={idx} style={styles.wasteItemRow}>
                     <View style={styles.wasteItemTag}>
-                      <Text style={styles.wasteItemType}>
-                        {getWasteTypeLabel(item.wasteType)}
-                      </Text>
+                      <Text style={styles.wasteItemType}>{getWasteTypeLabel(item.wasteType)}</Text>
                     </View>
-                    <Text style={styles.wasteItemWeight}>
-                      {item.weightKg.toFixed(1)} kg
-                    </Text>
+                    <Text style={styles.wasteItemWeight}>{item.weightKg.toFixed(1)} kg</Text>
                   </View>
                 ))}
             </Card>
@@ -1616,11 +1344,7 @@ export default function ActiveTaskScreen() {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={styles.imagesRow}>
                     {report.images.map((img) => (
-                      <Image
-                        key={img.id}
-                        source={{ uri: img.imageUrl }}
-                        style={styles.reportImage}
-                      />
+                      <Image key={img.id} source={{ uri: img.imageUrl }} style={styles.reportImage} />
                     ))}
                   </View>
                 </ScrollView>
@@ -1635,22 +1359,13 @@ export default function ActiveTaskScreen() {
                   <>
                     <View style={styles.customerAvatar}>
                       {citizen.avatar ? (
-                        <Image
-                          source={{ uri: citizen.avatar }}
-                          style={styles.avatarImage}
-                        />
+                        <Image source={{ uri: citizen.avatar }} style={styles.avatarImage} />
                       ) : (
-                        <Ionicons
-                          name="person"
-                          size={24}
-                          color={AppColors.white}
-                        />
+                        <Ionicons name="person" size={24} color={AppColors.white} />
                       )}
                     </View>
                     <View style={styles.customerInfo}>
-                      <Text style={styles.customerName}>
-                        {citizen.fullName}
-                      </Text>
+                      <Text style={styles.customerName}>{citizen.fullName}</Text>
                       <Text style={styles.customerPhone}>{citizen.phone}</Text>
                     </View>
                     <TouchableOpacity
@@ -1670,10 +1385,7 @@ export default function ActiveTaskScreen() {
         <View style={styles.actionSection}>
           {phase === "ACCEPTED" && (
             <TouchableOpacity
-              style={[
-                styles.primaryAction,
-                { backgroundColor: AppColors.info },
-              ]}
+              style={[styles.primaryAction, { backgroundColor: AppColors.info }]}
               onPress={() => handleUpdateStatus("ON_THE_WAY", "Đang di chuyển")}
               disabled={updating}
             >
@@ -1682,9 +1394,7 @@ export default function ActiveTaskScreen() {
               ) : (
                 <>
                   <Ionicons name="car" size={22} color={AppColors.white} />
-                  <Text style={styles.primaryActionText}>
-                    Bắt đầu di chuyển
-                  </Text>
+                  <Text style={styles.primaryActionText}>Bắt đầu di chuyển</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -1693,10 +1403,7 @@ export default function ActiveTaskScreen() {
           {phase === "ON_THE_WAY" && (
             <>
               <TouchableOpacity
-                style={[
-                  styles.primaryAction,
-                  { backgroundColor: AppColors.primary },
-                ]}
+                style={[styles.primaryAction, { backgroundColor: AppColors.primary }]}
                 onPress={() => handleUpdateStatus("ARRIVED", "Đã đến nơi")}
                 disabled={updating}
               >
@@ -1704,14 +1411,8 @@ export default function ActiveTaskScreen() {
                   <ActivityIndicator color={AppColors.white} />
                 ) : (
                   <>
-                    <Ionicons
-                      name="location"
-                      size={22}
-                      color={AppColors.white}
-                    />
-                    <Text style={styles.primaryActionText}>
-                      Xác nhận đã đến nơi
-                    </Text>
+                    <Ionicons name="location" size={22} color={AppColors.white} />
+                    <Text style={styles.primaryActionText}>Xác nhận đã đến nơi</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -1721,10 +1422,7 @@ export default function ActiveTaskScreen() {
           {phase === "ARRIVED" && (
             <View style={{ flexDirection: "row", gap: 10 }}>
               <TouchableOpacity
-                style={[
-                  styles.primaryAction,
-                  { backgroundColor: AppColors.success, flex: 2.2 },
-                ]}
+                style={[styles.primaryAction, { backgroundColor: AppColors.success, flex: 2.2 }]}
                 onPress={handleCompleteTask}
                 disabled={updating}
               >
@@ -1732,11 +1430,7 @@ export default function ActiveTaskScreen() {
                   <ActivityIndicator color={AppColors.white} />
                 ) : (
                   <>
-                    <Ionicons
-                      name="checkmark-done-circle"
-                      size={24}
-                      color={AppColors.white}
-                    />
+                    <Ionicons name="checkmark-done-circle" size={24} color={AppColors.white} />
                     <Text style={styles.primaryActionText}>Hoàn thành đơn</Text>
                   </>
                 )}
@@ -1750,26 +1444,16 @@ export default function ActiveTaskScreen() {
                 }}
               >
                 <Ionicons name="warning" size={20} color={AppColors.error} />
-                <Text
-                  style={[styles.secondaryBtnText, { color: AppColors.error }]}
-                >
-                  Báo sự cố
-                </Text>
+                <Text style={[styles.secondaryBtnText, { color: AppColors.error }]}>Báo sự cố</Text>
               </TouchableOpacity>
             </View>
           )}
 
           {phase === "COMPLETED" && (
             <View style={styles.completedBanner}>
-              <Ionicons
-                name="checkmark-done-circle"
-                size={48}
-                color={AppColors.success}
-              />
+              <Ionicons name="checkmark-done-circle" size={48} color={AppColors.success} />
               <Text style={styles.completedText}>Đơn hàng đã hoàn thành!</Text>
-              <Text style={styles.completedSubtext}>
-                Đang chuyển về trang chủ...
-              </Text>
+              <Text style={styles.completedSubtext}>Đang chuyển về trang chủ...</Text>
             </View>
           )}
         </View>
@@ -1787,9 +1471,7 @@ export default function ActiveTaskScreen() {
         <View style={styles.modalCenterOverlay}>
           <View style={[styles.modalBox, { width: "90%" }]}>
             <Text style={styles.modalTitle}>
-              {reportType === "ABSENT"
-                ? "Xác nhận vắng khách"
-                : "Báo cáo sự cố"}
+              {reportType === "ABSENT" ? "Xác nhận vắng khách" : "Báo cáo sự cố"}
             </Text>
 
             <Text style={styles.modalDescription}>
@@ -1809,14 +1491,9 @@ export default function ActiveTaskScreen() {
                   onChangeText={setDisputeReason}
                 />
 
-                <TouchableOpacity
-                  style={styles.photoUploadBtnSmall}
-                  onPress={() => handlePickImage(true)}
-                >
+                <TouchableOpacity style={styles.photoUploadBtnSmall} onPress={() => handlePickImage(true)}>
                   <Ionicons name="camera" size={20} color={AppColors.primary} />
-                  <Text style={styles.photoUploadTextSmall}>
-                    Thêm ảnh bằng chứng
-                  </Text>
+                  <Text style={styles.photoUploadTextSmall}>Thêm ảnh bằng chứng</Text>
                 </TouchableOpacity>
 
                 <View style={styles.evidenceImagesRow}>
@@ -1825,17 +1502,9 @@ export default function ActiveTaskScreen() {
                       <Image source={{ uri }} style={styles.imageThumbSmall} />
                       <TouchableOpacity
                         style={styles.removeImageBtn}
-                        onPress={() =>
-                          setReportImages(
-                            reportImages.filter((_, i) => i !== index),
-                          )
-                        }
+                        onPress={() => setReportImages(reportImages.filter((_, i) => i !== index))}
                       >
-                        <Ionicons
-                          name="close-circle"
-                          size={18}
-                          color={AppColors.error}
-                        />
+                        <Ionicons name="close-circle" size={18} color={AppColors.error} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -1844,22 +1513,11 @@ export default function ActiveTaskScreen() {
             )}
 
             <View style={styles.modalFooterActions}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => setReportModalVisible(false)}
-              >
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setReportModalVisible(false)}>
                 <Text style={styles.modalCancelText}>Hủy</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.modalConfirmBtn,
-                  {
-                    backgroundColor:
-                      reportType === "ABSENT"
-                        ? AppColors.warning
-                        : AppColors.error,
-                  },
-                ]}
+                style={[styles.modalConfirmBtn, { backgroundColor: reportType === "ABSENT" ? AppColors.warning : AppColors.error }]}
                 onPress={handleReport}
                 disabled={updating}
               >
@@ -1875,64 +1533,58 @@ export default function ActiveTaskScreen() {
       </Modal>
 
       {/* Fullscreen OSM navigation modal */}
-      {currentLocation && report && (
-        <Modal
-          visible={mapModalVisible}
-          animationType="slide"
-          onRequestClose={() => setMapModalVisible(false)}
-        >
-          <View style={{ flex: 1, backgroundColor: AppColors.background }}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-                backgroundColor: AppColors.white,
-                borderBottomWidth: 1,
-                borderBottomColor: AppColors.gray[200],
-              }}
-            >
-              <TouchableOpacity onPress={() => setMapModalVisible(false)}>
-                <Ionicons name="close" size={24} color={AppColors.gray[700]} />
-              </TouchableOpacity>
-              <Text
+      {
+        currentLocation && report && (
+          <Modal
+            visible={mapModalVisible}
+            animationType="slide"
+            onRequestClose={() => setMapModalVisible(false)}
+          >
+            <View style={{ flex: 1, backgroundColor: AppColors.background }}>
+              <View
                 style={{
-                  flex: 1,
-                  textAlign: "center",
-                  fontSize: 16,
-                  fontWeight: "700",
-                  color: AppColors.gray[800],
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  backgroundColor: AppColors.white,
+                  borderBottomWidth: 1,
+                  borderBottomColor: AppColors.gray[200],
                 }}
               >
-                Chi tiết đường đi
-              </Text>
-              <View style={{ width: 24 }} />
-            </View>
+                <TouchableOpacity onPress={() => setMapModalVisible(false)}>
+                  <Ionicons name="close" size={24} color={AppColors.gray[700]} />
+                </TouchableOpacity>
+                <Text
+                  style={{
+                    flex: 1,
+                    textAlign: "center",
+                    fontSize: 16,
+                    fontWeight: "700",
+                    color: AppColors.gray[800],
+                  }}
+                >
+                  Chi tiết đường đi
+                </Text>
+                <View style={{ width: 24 }} />
+              </View>
 
-            <WebView
-              originWhitelist={["*"]}
-              ref={modalMapRef}
-              source={modalRoutingSource}
-              style={{ flex: 1 }}
-              onLoadEnd={syncMapLocation}
-            />
-          </View>
-        </Modal>
-      )}
-    </View>
+              <WebView
+                originWhitelist={["*"]}
+                ref={modalMapRef}
+                source={modalRoutingSource}
+                style={{ flex: 1 }}
+                onLoadEnd={syncMapLocation}
+              />
+            </View>
+          </Modal>
+        )
+      }
+    </View >
   );
 }
 
-function InfoRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-}) {
+function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
     <View style={styles.infoRow}>
       <Ionicons name={icon as any} size={18} color={AppColors.primary} />
@@ -2007,7 +1659,7 @@ const styles = StyleSheet.create({
   timerValue: {
     fontSize: 16,
     fontWeight: "800",
-    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   scrollContent: {
     flex: 1,
