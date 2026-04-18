@@ -24,7 +24,9 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -46,6 +48,13 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ứng dụng cần quyền truy cập thư viện ảnh để tải ảnh báo cáo rác.",
+          "cameraPermission": "Ứng dụng cần quyền camera để chụp ảnh báo cáo rác."
+        }
+      ],
+      [
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Ứng dụng cần quyền truy cập vị trí để giúp bạn chọn địa chỉ chính xác."
@@ -59,11 +68,12 @@
     "extra": {
       "apiUrl": "https://crowdsourced-collection-recycling-platform-dnbye7h0d0c6gkaj.southeastasia-01.azurewebsites.net/api/v1",
       "mapboxDirectionsKey": "",
+      "enableFakeCollectorLocation": true,
       "router": {},
       "eas": {
-        "projectId": "466768b6-dcbc-4975-aab4-1369cc2dfa65"
+        "projectId": "2e17f5da-4de3-477e-a802-fb655abdd474"
       }
     },
-    "owner": "truongduyyyy"
+    "owner": "dihoang28"
   }
 }

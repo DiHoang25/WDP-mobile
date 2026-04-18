@@ -1,11 +1,23 @@
-import { Button, Card, Header, Input, MapLocationPicker, Picker } from "@/components/common";
+import {
+    Button,
+    Card,
+    Header,
+    Input,
+    MapLocationPicker,
+    Picker,
+} from "@/components/common";
 import { WasteTypeSelector } from "@/components/waste";
 import { AppColors } from "@/constants/theme";
 import { useAlert } from "@/contexts/AlertContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { LOCATION_DATA, WASTE_TYPES } from "@/data/mockData";
-import { District, locationService, Province, Ward } from "@/services/location.service";
+import {
+    District,
+    locationService,
+    Province,
+    Ward,
+} from "@/services/location.service";
 import { wasteService } from "@/services/waste.service";
 import { BackendWasteItem, WasteType } from "@/types";
 import { saveKnownReportId } from "@/utils/cancelledReports";
@@ -17,16 +29,25 @@ import * as Location from "expo-location";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    Linking,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
+
+type ReportImageAsset = {
+  uri: string;
+  name?: string;
+  mimeType?: string;
+};
 
 export default function CreateReportScreen() {
   const { user } = useAuth();
@@ -36,7 +57,8 @@ export default function CreateReportScreen() {
   const [currentType, setCurrentType] = useState<WasteType>("ORGANIC");
   const [currentWeight, setCurrentWeight] = useState("");
   const [description, setDescription] = useState("");
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<ReportImageAsset[]>([]);
+  const [isPickingImage, setIsPickingImage] = useState(false);
   const [errors, setErrors] = useState<{
     type?: string;
     weight?: string;
@@ -67,7 +89,7 @@ export default function CreateReportScreen() {
   const [isFieldAutoFilled, setIsFieldAutoFilled] = useState({
     province: false,
     district: false,
-    ward: false
+    ward: false,
   });
 
   const [isAddressLoading, setIsAddressLoading] = useState(false);
@@ -90,20 +112,20 @@ export default function CreateReportScreen() {
       [
         {
           text: t("createReport.locationYes"),
-          onPress: getCurrentLocation
+          onPress: getCurrentLocation,
         },
         {
           text: t("createReport.locationNo"),
-          style: "cancel"
-        }
-      ]
+          style: "cancel",
+        },
+      ],
     );
   };
 
   const getCurrentLocation = async () => {
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+      if (status !== "granted") {
         showAlert(t("common.error"), t("createReport.locationDenied"), "error");
         return;
       }
@@ -113,7 +135,10 @@ export default function CreateReportScreen() {
       // Fast path: try last known position first for instant UI response
       const lastKnown = await Location.getLastKnownPositionAsync();
       if (lastKnown) {
-        const coords = { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude };
+        const coords = {
+          latitude: lastKnown.coords.latitude,
+          longitude: lastKnown.coords.longitude,
+        };
         setLatitude(coords.latitude);
         setLongitude(coords.longitude);
         setMapLocation({ ...coords, address: "Đang xác định..." });
@@ -126,7 +151,7 @@ export default function CreateReportScreen() {
 
       const coords = {
         latitude: location.coords.latitude,
-        longitude: location.coords.longitude
+        longitude: location.coords.longitude,
       };
 
       // Pin immediately even without address
@@ -135,19 +160,21 @@ export default function CreateReportScreen() {
       setMapLocation({ ...coords, address: "Đang xác định địa chỉ..." });
 
       // Run reverse geocoding
-      console.log('📍 Getting address for coords:', coords);
+      console.log("📍 Getting address for coords:", coords);
       const results = await Location.reverseGeocodeAsync(coords);
       if (results && results.length > 0) {
         const res = results[0];
-        console.log('🌍 Reverse geocode result:', JSON.stringify(res, null, 2));
+        console.log("🌍 Reverse geocode result:", JSON.stringify(res, null, 2));
         const formattedAddress = [
           res.streetNumber,
           res.street || res.name,
           res.district,
           res.subregion,
           res.region,
-          res.country
-        ].filter(Boolean).join(", ");
+          res.country,
+        ]
+          .filter(Boolean)
+          .join(", ");
 
         const provinceCand = res.region || res.city || "";
         const districtCand = res.subregion || res.district || "";
@@ -159,20 +186,20 @@ export default function CreateReportScreen() {
           ward: wardCand,
           street: res.street || res.name || "",
           region: provinceCand,
-          name: res.name || ""
+          name: res.name || "",
         };
 
-        console.log('📞 Calling handleMapLocationSelect with coords:', coords);
+        console.log("📞 Calling handleMapLocationSelect with coords:", coords);
         handleMapLocationSelect({
           ...coords,
           address: formattedAddress,
-          rawAddress: normalized
+          rawAddress: normalized,
         });
       } else {
         // If reverse geocode fails, still keep the pin but show coordinates as address
         setMapLocation({
           ...coords,
-          address: `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`
+          address: `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`,
         });
       }
     } catch (error) {
@@ -192,7 +219,7 @@ export default function CreateReportScreen() {
       .replace(/đ/g, "d")
       .replace(
         /^(tinh|thanh pho|city|province|district|ward|quan|huyen|thi xa|phuong|xa|thi tran|p\.|q\.|tp\.|td\.|tphcm\.)\s*/gi,
-        ""
+        "",
       )
       .replace(/\s+/g, " ")
       .trim();
@@ -204,7 +231,12 @@ export default function CreateReportScreen() {
     setWardCode("");
     setDistricts([]);
     setWards([]);
-    setIsFieldAutoFilled(prev => ({ ...prev, province: false, district: false, ward: false })); // Reset autofill status if user manually changes
+    setIsFieldAutoFilled((prev) => ({
+      ...prev,
+      province: false,
+      district: false,
+      ward: false,
+    })); // Reset autofill status if user manually changes
     const res = await locationService.getDistricts(code);
     if (res.success && res.data) setDistricts(res.data);
   };
@@ -213,7 +245,7 @@ export default function CreateReportScreen() {
     setDistrictCode(code);
     setWardCode("");
     setWards([]);
-    setIsFieldAutoFilled(prev => ({ ...prev, district: false, ward: false })); // Reset autofill status if user manually changes
+    setIsFieldAutoFilled((prev) => ({ ...prev, district: false, ward: false })); // Reset autofill status if user manually changes
     const res = await locationService.getWards(code);
     if (res.success && res.data) setWards(res.data);
   };
@@ -238,17 +270,21 @@ export default function CreateReportScreen() {
       const raw = loc.rawAddress;
 
       // Update Detailed Address input immediately
-      console.log('🗺️ Full location object:', JSON.stringify(loc, null, 2));
-      console.log('📍 Raw address from map:', JSON.stringify(raw, null, 2));
+      console.log("🗺️ Full location object:", JSON.stringify(loc, null, 2));
+      console.log("📍 Raw address from map:", JSON.stringify(raw, null, 2));
 
       // 1. Fill street address with full formatted address (cleaned)
       let detailedAddress = loc.address || "";
       detailedAddress = detailedAddress
-        .replace(/,?\s*Vi[eệ]t\s*Nam\s*/gi, '')
-        .replace(/,?\s*\d{5,6}\s*/g, '')
+        .replace(/,?\s*Vi[eệ]t\s*Nam\s*/gi, "")
+        .replace(/,?\s*\d{5,6}\s*/g, "")
         .trim();
 
-      if (detailedAddress && detailedAddress !== "Đang xác định..." && detailedAddress !== "Đang xác định địa chỉ...") {
+      if (
+        detailedAddress &&
+        detailedAddress !== "Đang xác định..." &&
+        detailedAddress !== "Đang xác định địa chỉ..."
+      ) {
         setStreetAddress(detailedAddress);
         setTempAddress(detailedAddress);
       }
@@ -266,14 +302,26 @@ export default function CreateReportScreen() {
 
         if (requestId !== lastRequestId.current) return;
 
-        // SPECIAL CORRECTION: Handle Thu Duc shifting (Province -> District) 
+        // SPECIAL CORRECTION: Handle Thu Duc shifting (Province -> District)
         const rawJson = JSON.stringify(raw).toLowerCase();
-        const hasThuDuc = rawJson.includes("thu duc") || (loc.address && loc.address.toLowerCase().includes("thu duc"));
-        const hasHCM = rawJson.includes("ho chi minh") || rawJson.includes("hcm") ||
-          (loc.address && (loc.address.toLowerCase().includes("ho chi minh") || loc.address.toLowerCase().includes("hcm")));
+        const hasThuDuc =
+          rawJson.includes("thu duc") ||
+          (loc.address && loc.address.toLowerCase().includes("thu duc"));
+        const hasHCM =
+          rawJson.includes("ho chi minh") ||
+          rawJson.includes("hcm") ||
+          (loc.address &&
+            (loc.address.toLowerCase().includes("ho chi minh") ||
+              loc.address.toLowerCase().includes("hcm")));
 
-        let searchProvince = raw.province || raw.region || (hasHCM ? "Thành phố Hồ Chí Minh" : "");
-        let searchDistrict = raw.district || raw.osm_city_district || raw.osm_town || raw.city || "";
+        let searchProvince =
+          raw.province || raw.region || (hasHCM ? "Thành phố Hồ Chí Minh" : "");
+        let searchDistrict =
+          raw.district ||
+          raw.osm_city_district ||
+          raw.osm_town ||
+          raw.city ||
+          "";
         let searchWard = raw.ward || raw.osm_suburb || raw.suburb || "";
 
         if (hasThuDuc) {
@@ -286,16 +334,24 @@ export default function CreateReportScreen() {
         let normProvince = normalizeLocationName(searchProvince);
 
         if (normProvince && provincesData.length > 0) {
-          matchedProvince = provincesData.find((p: any) => normalizeLocationName(p.name) === normProvince);
+          matchedProvince = provincesData.find(
+            (p: any) => normalizeLocationName(p.name) === normProvince,
+          );
         }
 
         if (matchedProvince) {
           setProvinceCode(matchedProvince.code);
-          setIsFieldAutoFilled(prev => ({ ...prev, province: true }));
+          setIsFieldAutoFilled((prev) => ({ ...prev, province: true }));
 
           // B. MATCH DISTRICT
-          const distRes = await locationService.getDistricts(matchedProvince.code);
-          if (distRes.success && distRes.data && requestId === lastRequestId.current) {
+          const distRes = await locationService.getDistricts(
+            matchedProvince.code,
+          );
+          if (
+            distRes.success &&
+            distRes.data &&
+            requestId === lastRequestId.current
+          ) {
             setDistricts(distRes.data);
 
             const districtCandidates = [
@@ -305,22 +361,30 @@ export default function CreateReportScreen() {
               raw.osm_town,
               raw.city,
               raw.name,
-            ].filter(c => !!c && normalizeLocationName(c) !== normProvince);
+            ].filter((c) => !!c && normalizeLocationName(c) !== normProvince);
 
             let matchedDistrict = null;
             for (const cand of districtCandidates) {
               const normCand = normalizeLocationName(cand);
-              matchedDistrict = distRes.data.find((d: any) => normalizeLocationName(d.name) === normCand);
+              matchedDistrict = distRes.data.find(
+                (d: any) => normalizeLocationName(d.name) === normCand,
+              );
               if (matchedDistrict) break;
             }
 
             if (matchedDistrict) {
               setDistrictCode(matchedDistrict.code);
-              setIsFieldAutoFilled(prev => ({ ...prev, district: true }));
+              setIsFieldAutoFilled((prev) => ({ ...prev, district: true }));
 
               // C. MATCH WARD
-              const wardRes = await locationService.getWards(matchedDistrict.code);
-              if (wardRes.success && wardRes.data && requestId === lastRequestId.current) {
+              const wardRes = await locationService.getWards(
+                matchedDistrict.code,
+              );
+              if (
+                wardRes.success &&
+                wardRes.data &&
+                requestId === lastRequestId.current
+              ) {
                 setWards(wardRes.data);
 
                 const wardCandidates = [
@@ -328,8 +392,13 @@ export default function CreateReportScreen() {
                   raw.osm_suburb,
                   raw.suburb,
                   raw.street,
-                  raw.name
-                ].filter(c => !!c && normalizeLocationName(c) !== normalizeLocationName(matchedDistrict?.name || ""));
+                  raw.name,
+                ].filter(
+                  (c) =>
+                    !!c &&
+                    normalizeLocationName(c) !==
+                      normalizeLocationName(matchedDistrict?.name || ""),
+                );
 
                 let matchedWard = null;
                 for (const cand of wardCandidates) {
@@ -343,7 +412,7 @@ export default function CreateReportScreen() {
 
                 if (matchedWard) {
                   setWardCode(matchedWard.code);
-                  setIsFieldAutoFilled(prev => ({ ...prev, ward: true }));
+                  setIsFieldAutoFilled((prev) => ({ ...prev, ward: true }));
                 }
               }
             }
@@ -371,26 +440,45 @@ export default function CreateReportScreen() {
     if (mapLocation && tempAddress.trim()) {
       setLoading(true);
       try {
-        const selectedProvince = provinceOptions.find((p: any) => p.value === provinceCode)?.label;
-        const selectedDistrict = districtOptions.find((d: any) => d.value === districtCode)?.label;
-        const selectedWard = wardOptions.find((w: any) => w.value === wardCode)?.label;
+        const selectedProvince = provinceOptions.find(
+          (p: any) => p.value === provinceCode,
+        )?.label;
+        const selectedDistrict = districtOptions.find(
+          (d: any) => d.value === districtCode,
+        )?.label;
+        const selectedWard = wardOptions.find(
+          (w: any) => w.value === wardCode,
+        )?.label;
 
         const fullAddressToGeocode = [
           tempAddress,
           selectedWard,
           selectedDistrict,
-          selectedProvince
-        ].filter(Boolean).join(', ');
+          selectedProvince,
+        ]
+          .filter(Boolean)
+          .join(", ");
 
-        const geoResult = await locationService.geocodeAddress(fullAddressToGeocode, latitude, longitude);
+        const geoResult = await locationService.geocodeAddress(
+          fullAddressToGeocode,
+          latitude,
+          longitude,
+        );
 
         if (geoResult.success && geoResult.data) {
           const newLat = geoResult.data.latitude;
           const newLon = geoResult.data.longitude;
           const isFallback = geoResult.data.isFallback;
 
-          const dist = locationService.haversineDistance(latitude, longitude, newLat, newLon);
-          console.log(`📏 Computed distance while confirming: ${dist.toFixed(3)} km. Fallback: ${isFallback}`);
+          const dist = locationService.haversineDistance(
+            latitude,
+            longitude,
+            newLat,
+            newLon,
+          );
+          console.log(
+            `📏 Computed distance while confirming: ${dist.toFixed(3)} km. Fallback: ${isFallback}`,
+          );
 
           if (isFallback) {
             setStreetAddress(tempAddress);
@@ -399,7 +487,7 @@ export default function CreateReportScreen() {
               "Đã cập nhật địa chỉ",
               "Hệ thống đã ghi nhận địa chỉ chữ của bạn. Vì dữ liệu bản đồ chưa có số nhà cụ thể này, chúng tôi sẽ giữ nguyên vị trí ghim hiện tại của bạn. Vui lòng kiểm tra lại ghim đã đúng vị trí nhà chưa.",
               "warning",
-              [{ text: "Đã hiểu" }]
+              [{ text: "Đã hiểu" }],
             );
             return;
           }
@@ -409,7 +497,7 @@ export default function CreateReportScreen() {
             showAlert(
               "Vị trí không hợp lệ",
               `Địa chỉ bạn nhập cách vị trí đã ghim ${dist.toFixed(1)}km (vượt quá giới hạn 2km). Vui lòng nhập địa chỉ gần vị trí đã ghim hơn.`,
-              "error"
+              "error",
             );
             return;
           }
@@ -421,15 +509,19 @@ export default function CreateReportScreen() {
           setMapLocation({
             latitude: newLat,
             longitude: newLon,
-            address: fullAddressToGeocode
+            address: fullAddressToGeocode,
           });
 
-          showAlert("Xác nhận địa chỉ", "Đã cập nhật chi tiết địa chỉ và ghim lại bản đồ.", "success");
+          showAlert(
+            "Xác nhận địa chỉ",
+            "Đã cập nhật chi tiết địa chỉ và ghim lại bản đồ.",
+            "success",
+          );
         } else {
           showAlert(
             "Không thể xác minh",
             "Hệ thống không thể xác định vị trí của địa chỉ này để kiểm tra khoảng cách. Vui lòng nhập rõ ràng hơn.",
-            "error"
+            "error",
           );
         }
       } catch (error) {
@@ -440,27 +532,41 @@ export default function CreateReportScreen() {
     }
   };
 
-  const provinceOptions = provinces.length > 0
-    ? provinces.map(p => ({ label: p.name, value: p.code }))
-    : LOCATION_DATA.provinces as any;
+  const provinceOptions =
+    provinces.length > 0
+      ? provinces.map((p) => ({ label: p.name, value: p.code }))
+      : (LOCATION_DATA.provinces as any);
 
-  const districtOptions = districts.length > 0
-    ? districts.map(d => ({ label: d.name, value: d.code }))
-    : (provinceCode ? (LOCATION_DATA.districts[provinceCode] || []) : []) as any;
+  const districtOptions =
+    districts.length > 0
+      ? districts.map((d) => ({ label: d.name, value: d.code }))
+      : ((provinceCode
+          ? LOCATION_DATA.districts[provinceCode] || []
+          : []) as any);
 
-  const wardOptions = wards.length > 0
-    ? wards.map(w => ({ label: w.name, value: w.code }))
-    : (districtCode ? (LOCATION_DATA.wards[districtCode] || []) : []) as any;
+  const wardOptions =
+    wards.length > 0
+      ? wards.map((w) => ({ label: w.name, value: w.code }))
+      : ((districtCode ? LOCATION_DATA.wards[districtCode] || [] : []) as any);
 
   const addWasteItem = () => {
     const typeError = validateRequired(currentType, "Loại rác");
     const weightError = validateRequired(currentWeight, "Khối lượng");
 
-    if (typeError || weightError || isNaN(parseFloat(currentWeight)) || parseFloat(currentWeight) <= 0) {
+    if (
+      typeError ||
+      weightError ||
+      isNaN(parseFloat(currentWeight)) ||
+      parseFloat(currentWeight) <= 0
+    ) {
       setErrors({
         ...errors,
         type: typeError ?? undefined,
-        weight: weightError || (isNaN(parseFloat(currentWeight)) || parseFloat(currentWeight) <= 0 ? t("createReport.weightInvalid") : undefined)
+        weight:
+          weightError ||
+          (isNaN(parseFloat(currentWeight)) || parseFloat(currentWeight) <= 0
+            ? t("createReport.weightInvalid")
+            : undefined),
       });
       return;
     }
@@ -473,7 +579,12 @@ export default function CreateReportScreen() {
     setWasteItems([...wasteItems, newItem]);
     setCurrentType("ORGANIC");
     setCurrentWeight("");
-    setErrors({ ...errors, type: undefined, weight: undefined, items: undefined });
+    setErrors({
+      ...errors,
+      type: undefined,
+      weight: undefined,
+      items: undefined,
+    });
   };
 
   const removeWasteItem = (index: number) => {
@@ -488,7 +599,11 @@ export default function CreateReportScreen() {
 
     if (!mapLocation) {
       newErrors.map = t("createReport.locationMissing");
-      showAlert(t("createReport.locationTitle"), t("createReport.selectMapFirst"), "warning");
+      showAlert(
+        t("createReport.locationTitle"),
+        t("createReport.selectMapFirst"),
+        "warning",
+      );
     }
 
     if (!streetAddress.trim()) {
@@ -497,7 +612,11 @@ export default function CreateReportScreen() {
 
     if (!provinceCode || !districtCode || !wardCode) {
       newErrors.location = t("createReport.locationUnclear");
-      showAlert(t("createReport.locationUnclear"), t("createReport.locationUnclearMsg"), "warning");
+      showAlert(
+        t("createReport.locationUnclear"),
+        t("createReport.locationUnclearMsg"),
+        "warning",
+      );
     }
 
     setErrors({ ...errors, ...newErrors });
@@ -505,39 +624,108 @@ export default function CreateReportScreen() {
   };
 
   const handlePickImage = async (useCamera: boolean) => {
+    if (isPickingImage) return;
+
+    setIsPickingImage(true);
     try {
+      console.log(
+        "[report] Starting image pick. source=",
+        useCamera ? "camera" : "library",
+      );
       const permission = useCamera
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log("[report] Permission result:", {
+        granted: permission.granted,
+        canAskAgain: permission.canAskAgain,
+        status: permission.status,
+      });
 
       if (!permission.granted) {
-        showAlert(
-          "Quyền truy cập",
-          t("createReport.cameraPermission", { source: useCamera ? "camera" : "library" }),
-          "error"
-        );
+        const sourceLabel = useCamera ? "camera" : "thư viện ảnh";
+        if (!permission.canAskAgain) {
+          showAlert(
+            "Quyền truy cập",
+            `Bạn đã chặn quyền ${sourceLabel}. Vui lòng mở Cài đặt để cấp lại quyền và chọn ảnh.`,
+            [
+              { text: t("common.cancel"), style: "cancel" },
+              {
+                text: "Mở Cài đặt",
+                onPress: () => {
+                  Linking.openSettings().catch(() => {
+                    showAlert(
+                      t("common.error"),
+                      "Không thể mở Cài đặt trên thiết bị này.",
+                      "error",
+                    );
+                  });
+                },
+              },
+            ],
+          );
+        } else {
+          showAlert(
+            "Quyền truy cập",
+            t("createReport.cameraPermission", {
+              source: useCamera ? "camera" : "library",
+            }),
+            "error",
+          );
+        }
         return;
       }
 
       const pickerResult = useCamera
         ? await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: true,
-          aspect: [4, 3],
-          quality: 0.8,
-        })
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [4, 3],
+            quality: 0.8,
+          })
         : await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsMultipleSelection: true,
-          quality: 0.8,
-        });
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsMultipleSelection: true,
+            legacy: Platform.OS === "android",
+            quality: 0.8,
+          });
 
       if (!pickerResult.canceled) {
-        const newImages = pickerResult.assets.map((asset) => asset.uri);
-        setImages([...images, ...newImages]);
+        console.log(
+          "[report] Picker assets selected:",
+          pickerResult.assets.length,
+        );
+        const availableSlots = Math.max(0, 5 - images.length);
+        if (availableSlots === 0) {
+          showAlert(
+            "Đã đạt giới hạn",
+            "Bạn chỉ có thể tải lên tối đa 5 ảnh.",
+            "warning",
+          );
+          return;
+        }
+
+        const selectedAssets = pickerResult.assets.map((asset, index) => ({
+          uri: asset.uri,
+          name: asset.fileName || `report_${Date.now()}_${index}.jpg`,
+          mimeType: asset.mimeType || "image/jpeg",
+        }));
+        const acceptedAssets = selectedAssets.slice(0, availableSlots);
+        setImages((prev) => [...prev, ...acceptedAssets]);
+
+        if (selectedAssets.length > acceptedAssets.length) {
+          showAlert(
+            "Giới hạn ảnh",
+            "Chỉ thêm được tối đa 5 ảnh cho một báo cáo.",
+            "warning",
+          );
+        }
       }
     } catch (error) {
+      console.error("Image picker error:", error);
       showAlert(t("common.error"), t("createReport.imageUploadError"));
+    } finally {
+      console.log("[report] Image pick finished");
+      setIsPickingImage(false);
     }
   };
 
@@ -546,36 +734,56 @@ export default function CreateReportScreen() {
   };
 
   const showImageOptions = () => {
-    showAlert(t("createReport.addPhotoSource"), t("createReport.chooseSource"), [
-      {
-        text: t("createReport.takePhoto"),
-        onPress: () => handlePickImage(true),
-      },
-      {
-        text: t("createReport.chooseFromLibrary"),
-        onPress: () => handlePickImage(false),
-      },
-      {
-        text: t("common.cancel"),
-        style: "cancel",
-      },
-    ]);
+    Alert.alert(
+      t("createReport.addPhotoSource"),
+      t("createReport.chooseSource"),
+      [
+        {
+          text: t("createReport.takePhoto"),
+          onPress: () => {
+            setTimeout(() => {
+              handlePickImage(true);
+            }, 150);
+          },
+        },
+        {
+          text: t("createReport.chooseFromLibrary"),
+          onPress: () => {
+            setTimeout(() => {
+              handlePickImage(false);
+            }, 150);
+          },
+        },
+        {
+          text: t("common.cancel"),
+          style: "cancel",
+        },
+      ],
+    );
   };
 
   const handleSubmit = async () => {
     if (!validate()) return;
     setLoading(true);
     try {
-      const selectedProvince = provinceOptions.find((p: any) => p.value === provinceCode)?.label;
-      const selectedDistrict = districtOptions.find((d: any) => d.value === districtCode)?.label;
-      const selectedWard = wardOptions.find((w: any) => w.value === wardCode)?.label;
+      const selectedProvince = provinceOptions.find(
+        (p: any) => p.value === provinceCode,
+      )?.label;
+      const selectedDistrict = districtOptions.find(
+        (d: any) => d.value === districtCode,
+      )?.label;
+      const selectedWard = wardOptions.find(
+        (w: any) => w.value === wardCode,
+      )?.label;
 
       const fullAddress = [
         streetAddress,
         selectedWard,
         selectedDistrict,
-        selectedProvince
-      ].filter(Boolean).join(', ');
+        selectedProvince,
+      ]
+        .filter(Boolean)
+        .join(", ");
 
       const reportData: any = {
         address: fullAddress || streetAddress,
@@ -585,43 +793,56 @@ export default function CreateReportScreen() {
         districtCode,
         wardCode,
         description,
-        wasteItems: wasteItems.map(item => ({
+        wasteItems: wasteItems.map((item) => ({
           wasteType: item.wasteType,
           weightKg: item.weightKg,
         })),
         files: images,
       };
 
+      console.log("[report] submit payload summary:", {
+        imageCount: images.length,
+        imageFiles: images.map((image, index) => ({
+          index,
+          uri: image.uri,
+          name: image.name,
+          mimeType: image.mimeType,
+        })),
+        wasteItemCount: reportData.wasteItems.length,
+      });
+
       const response = await wasteService.createReport(reportData);
       if (response.success) {
         const newReportId = response.data?.id;
         if (newReportId) await saveKnownReportId(Number(newReportId)); // lưu để history hiển thị khi PENDING
-        showAlert(
-          t("common.success"),
-          t("createReport.submitSuccess"),
-          [
-            {
-              text: t("createReport.viewDetail"),
-              onPress: () => {
-                if (newReportId) {
-                  router.replace({ pathname: "/report-detail", params: { id: newReportId } });
-                } else {
-                  router.replace("/(citizen)/history");
-                }
-              },
+        showAlert(t("common.success"), t("createReport.submitSuccess"), [
+          {
+            text: t("createReport.viewDetail"),
+            onPress: () => {
+              if (newReportId) {
+                router.replace({
+                  pathname: "/report-detail",
+                  params: { id: newReportId },
+                });
+              } else {
+                router.replace("/(citizen)/history");
+              }
             },
-            {
-              text: t("createReport.goToList"),
-              onPress: () => router.replace("/(citizen)/history"),
-            },
-          ]
-        );
+          },
+          {
+            text: t("createReport.goToList"),
+            onPress: () => router.replace("/(citizen)/history"),
+          },
+        ]);
         setWasteItems([]);
         setDescription("");
         setImages([]);
         setErrors({});
       } else {
-        showAlert(t("common.error"), response.error || t("createReport.submitError"));
+        showAlert(
+          t("common.error"),
+          response.error || t("createReport.submitError"),
+        );
       }
     } catch (error) {
       console.error("Submit report error:", error);
@@ -634,7 +855,7 @@ export default function CreateReportScreen() {
   const totalWeight = wasteItems.reduce((sum, item) => sum + item.weightKg, 0);
   const estimatedPoints = wasteItems.reduce((sum, item) => {
     const typeInfo = WASTE_TYPES.find((t: any) => t.value === item.wasteType);
-    return sum + (item.weightKg * (typeInfo?.points || 10));
+    return sum + item.weightKg * (typeInfo?.points || 10);
   }, 0);
 
   return (
@@ -648,104 +869,163 @@ export default function CreateReportScreen() {
       <View style={styles.content}>
         {/* Location Section with Enhanced UX */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t("createReport.pickupAddress")}</Text>
+          <Text style={styles.sectionTitle}>
+            {t("createReport.pickupAddress")}
+          </Text>
 
           {loading && (
             <View style={styles.loadingCard}>
               <ActivityIndicator size="small" color={AppColors.primary} />
-              <Text style={styles.loadingText}>{t("createReport.gettingLocation")}</Text>
+              <Text style={styles.loadingText}>
+                {t("createReport.gettingLocation")}
+              </Text>
             </View>
           )}
 
           <MapLocationPicker
             label={t("createReport.selectLocation")}
             onLocationSelect={handleMapLocationSelect}
-            initialLocation={mapLocation ? { latitude: mapLocation.latitude, longitude: mapLocation.longitude } : undefined}
+            initialLocation={
+              mapLocation
+                ? {
+                    latitude: mapLocation.latitude,
+                    longitude: mapLocation.longitude,
+                  }
+                : undefined
+            }
           />
 
-          {mapLocation && (() => {
-            const wardLabel = wardOptions.find((w: any) => w.value === wardCode)?.label;
-            const districtLabel = districtOptions.find((d: any) => d.value === districtCode)?.label;
-            const provinceLabel = provinceOptions.find((p: any) => p.value === provinceCode)?.label;
+          {mapLocation &&
+            (() => {
+              const wardLabel = wardOptions.find(
+                (w: any) => w.value === wardCode,
+              )?.label;
+              const districtLabel = districtOptions.find(
+                (d: any) => d.value === districtCode,
+              )?.label;
+              const provinceLabel = provinceOptions.find(
+                (p: any) => p.value === provinceCode,
+              )?.label;
 
-            console.log('Display card - Codes:', { provinceCode, districtCode, wardCode });
-            console.log('Display card - Labels:', { provinceLabel, districtLabel, wardLabel });
-            console.log('Display card - Options counts:', {
-              provinces: provinceOptions.length,
-              districts: districtOptions.length,
-              wards: wardOptions.length
-            });
+              console.log("Display card - Codes:", {
+                provinceCode,
+                districtCode,
+                wardCode,
+              });
+              console.log("Display card - Labels:", {
+                provinceLabel,
+                districtLabel,
+                wardLabel,
+              });
+              console.log("Display card - Options counts:", {
+                provinces: provinceOptions.length,
+                districts: districtOptions.length,
+                wards: wardOptions.length,
+              });
 
-            const locationText = [wardLabel, districtLabel, provinceLabel]
-              .filter(Boolean)
-              .join(", ") || t("createReport.detectingArea");
+              const locationText =
+                [wardLabel, districtLabel, provinceLabel]
+                  .filter(Boolean)
+                  .join(", ") || t("createReport.detectingArea");
 
-            return (
-              <View style={styles.addressDisplayCard}>
-                <View style={styles.addressRow}>
-                  <Ionicons name="location" size={20} color={AppColors.primary} />
-                  <View style={styles.addressInfo}>
-                    <Text style={styles.addressLabel}>{t("createReport.region")}</Text>
-                    {isAddressLoading ? (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 4 }}>
-                        <ActivityIndicator size="small" color={AppColors.primary} />
-                        <Text style={[styles.fullAddressText, { marginLeft: 8, color: AppColors.gray[500] }]}>
-                          Đang tải khu vực...
-                        </Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.fullAddressText}>
-                        {locationText}
+              return (
+                <View style={styles.addressDisplayCard}>
+                  <View style={styles.addressRow}>
+                    <Ionicons
+                      name="location"
+                      size={20}
+                      color={AppColors.primary}
+                    />
+                    <View style={styles.addressInfo}>
+                      <Text style={styles.addressLabel}>
+                        {t("createReport.region")}
                       </Text>
-                    )}
-
-                    <View style={styles.manualSelection}>
-                      <Picker
-                        label={t("createReport.province")}
-                        placeholder={t("createReport.selectProvince")}
-                        options={provinceOptions}
-                        selectedValue={provinceCode}
-                        onValueChange={handleProvinceChange}
-                        disabled={isFieldAutoFilled.province}
-                        error={errors.province}
-                      />
-                      <Picker
-                        label={t("createReport.district")}
-                        placeholder={t("createReport.selectDistrict")}
-                        options={districtOptions}
-                        selectedValue={districtCode}
-                        onValueChange={handleDistrictChange}
-                        disabled={isFieldAutoFilled.district}
-                        error={errors.district}
-                      />
-                      <Picker
-                        label={t("createReport.ward")}
-                        placeholder={t("createReport.selectWard")}
-                        options={wardOptions}
-                        selectedValue={wardCode}
-                        onValueChange={setWardCode}
-                        disabled={isFieldAutoFilled.ward}
-                        error={errors.ward}
-                      />
-                    </View>
-
-                    {(wardCode && districtCode && provinceCode) ? (
-                      <View style={styles.confirmedBadge}>
-                        <Ionicons name="checkmark-circle" size={14} color={AppColors.success} />
-                        <Text style={styles.confirmedText}>
-                          {t("createReport.locationConfirmed")}
+                      {isAddressLoading ? (
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            marginVertical: 4,
+                          }}
+                        >
+                          <ActivityIndicator
+                            size="small"
+                            color={AppColors.primary}
+                          />
+                          <Text
+                            style={[
+                              styles.fullAddressText,
+                              { marginLeft: 8, color: AppColors.gray[500] },
+                            ]}
+                          >
+                            Đang tải khu vực...
+                          </Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.fullAddressText}>
+                          {locationText}
                         </Text>
+                      )}
+
+                      <View style={styles.manualSelection}>
+                        <Picker
+                          label={t("createReport.province")}
+                          placeholder={t("createReport.selectProvince")}
+                          options={provinceOptions}
+                          selectedValue={provinceCode}
+                          onValueChange={handleProvinceChange}
+                          disabled={isFieldAutoFilled.province}
+                          error={errors.province}
+                        />
+                        <Picker
+                          label={t("createReport.district")}
+                          placeholder={t("createReport.selectDistrict")}
+                          options={districtOptions}
+                          selectedValue={districtCode}
+                          onValueChange={handleDistrictChange}
+                          disabled={isFieldAutoFilled.district}
+                          error={errors.district}
+                        />
+                        <Picker
+                          label={t("createReport.ward")}
+                          placeholder={t("createReport.selectWard")}
+                          options={wardOptions}
+                          selectedValue={wardCode}
+                          onValueChange={setWardCode}
+                          disabled={isFieldAutoFilled.ward}
+                          error={errors.ward}
+                        />
                       </View>
-                    ) : null}
+
+                      {wardCode && districtCode && provinceCode ? (
+                        <View style={styles.confirmedBadge}>
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={14}
+                            color={AppColors.success}
+                          />
+                          <Text style={styles.confirmedText}>
+                            {t("createReport.locationConfirmed")}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
                   </View>
                 </View>
-              </View>
-            );
-          })()}
+              );
+            })()}
 
-          <Text style={styles.sectionTitle}>{t("createReport.detailedAddress")}</Text>
+          <Text style={styles.sectionTitle}>
+            {t("createReport.detailedAddress")}
+          </Text>
           <Card variant="elevated" style={styles.locationCard}>
-            <TouchableOpacity onPress={() => { setTempAddress(streetAddress); setIsAddressModalVisible(true); }} activeOpacity={0.7}>
+            <TouchableOpacity
+              onPress={() => {
+                setTempAddress(streetAddress);
+                setIsAddressModalVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
               <View pointerEvents="none">
                 <Input
                   label={t("createReport.streetPlaceholder")}
@@ -775,7 +1055,9 @@ export default function CreateReportScreen() {
               {(() => {
                 // Group waste items by type and sum weights
                 const grouped = wasteItems.reduce((acc, item) => {
-                  const existing = acc.find(i => i.wasteType === item.wasteType);
+                  const existing = acc.find(
+                    (i) => i.wasteType === item.wasteType,
+                  );
                   if (existing) {
                     existing.weightKg += item.weightKg;
                   } else {
@@ -790,25 +1072,41 @@ export default function CreateReportScreen() {
                       <Text style={styles.itemName}>
                         {getWasteTypeLabel(item.wasteType)}
                       </Text>
-                      <Text style={styles.itemWeight}>{item.weightKg.toFixed(1)} kg</Text>
+                      <Text style={styles.itemWeight}>
+                        {item.weightKg.toFixed(1)} kg
+                      </Text>
                     </View>
-                    <TouchableOpacity onPress={() => {
-                      // Remove all items of this type
-                      setWasteItems(wasteItems.filter(i => i.wasteType !== item.wasteType));
-                    }}>
-                      <Ionicons name="trash-outline" size={20} color={AppColors.error} />
+                    <TouchableOpacity
+                      onPress={() => {
+                        // Remove all items of this type
+                        setWasteItems(
+                          wasteItems.filter(
+                            (i) => i.wasteType !== item.wasteType,
+                          ),
+                        );
+                      }}
+                    >
+                      <Ionicons
+                        name="trash-outline"
+                        size={20}
+                        color={AppColors.error}
+                      />
                     </TouchableOpacity>
                   </View>
                 ));
               })()}
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>{t("createReport.total")}</Text>
-                <Text style={styles.totalValue}>{totalWeight.toFixed(1)} kg</Text>
+                <Text style={styles.totalValue}>
+                  {totalWeight.toFixed(1)} kg
+                </Text>
               </View>
             </View>
           ) : (
             <View style={styles.emptyItems}>
-              <Text style={styles.emptyItemsText}>{t("createReport.noWaste")}</Text>
+              <Text style={styles.emptyItemsText}>
+                {t("createReport.noWaste")}
+              </Text>
             </View>
           )}
           {errors.items && <Text style={styles.errorText}>{errors.items}</Text>}
@@ -848,7 +1146,9 @@ export default function CreateReportScreen() {
               <Text style={styles.addButtonText}>{t("createReport.add")}</Text>
             </TouchableOpacity>
           </View>
-          {errors.weight && <Text style={styles.errorText}>{errors.weight}</Text>}
+          {errors.weight && (
+            <Text style={styles.errorText}>{errors.weight}</Text>
+          )}
         </Card>
 
         {/* {estimatedPoints > 0 && (
@@ -860,7 +1160,9 @@ export default function CreateReportScreen() {
 
         {/* Description */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t("createReport.description")}</Text>
+          <Text style={styles.sectionTitle}>
+            {t("createReport.description")}
+          </Text>
           <Input
             placeholder={t("createReport.descriptionPlaceholder")}
             value={description}
@@ -875,9 +1177,9 @@ export default function CreateReportScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t("createReport.photos")}</Text>
           <View style={styles.imagesContainer}>
-            {images.map((uri, index) => (
+            {images.map((image, index) => (
               <View key={index} style={styles.imageWrapper}>
-                <Image source={{ uri }} style={styles.imagePreview} />
+                <Image source={{ uri: image.uri }} style={styles.imagePreview} />
                 <TouchableOpacity
                   style={styles.removeImageButton}
                   onPress={() => removeImage(index)}
@@ -896,7 +1198,9 @@ export default function CreateReportScreen() {
                 onPress={showImageOptions}
               >
                 <Ionicons name="camera" size={32} color={AppColors.primary} />
-                <Text style={styles.addImageText}>{t("createReport.addPhoto")}</Text>
+                <Text style={styles.addImageText}>
+                  {t("createReport.addPhoto")}
+                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -911,9 +1215,7 @@ export default function CreateReportScreen() {
             <Ionicons name="bulb" size={24} color={AppColors.warning} />
             <View style={styles.infoTextContainer}>
               <Text style={styles.infoTitle}>{t("createReport.note")}</Text>
-              <Text style={styles.infoText}>
-                {t("createReport.noteText")}
-              </Text>
+              <Text style={styles.infoText}>{t("createReport.noteText")}</Text>
             </View>
           </View>
         </Card>
@@ -936,7 +1238,9 @@ export default function CreateReportScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>{t("createReport.detailedAddress")}</Text>
+            <Text style={styles.modalTitle}>
+              {t("createReport.detailedAddress")}
+            </Text>
             <TextInput
               style={styles.modalInput}
               value={tempAddress}
@@ -950,20 +1254,22 @@ export default function CreateReportScreen() {
                 style={[styles.modalButton, styles.modalButtonCancel]}
                 onPress={() => setIsAddressModalVisible(false)}
               >
-                <Text style={styles.modalButtonTextCancel}>{t("common.cancel")}</Text>
+                <Text style={styles.modalButtonTextCancel}>
+                  {t("common.cancel")}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonConfirm]}
                 onPress={handleConfirmAddress}
               >
-                <Text style={styles.modalButtonTextConfirm}>{t("common.confirm")}</Text>
+                <Text style={styles.modalButtonTextConfirm}>
+                  {t("common.confirm")}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-
-
     </ScrollView>
   );
 }
@@ -1291,21 +1597,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   validateBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     marginTop: 10,
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 8,
-    backgroundColor: AppColors.primary + '15',
-    alignSelf: 'flex-end',
+    backgroundColor: AppColors.primary + "15",
+    alignSelf: "flex-end",
   },
   validateBtnText: {
     fontSize: 13,
     color: AppColors.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   modalOverlay: {
     flex: 1,

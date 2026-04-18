@@ -1,4 +1,5 @@
 import { config } from './config';
+import { storage } from './storage';
 
 interface ApiResponse<T = any> {
     success: boolean;
@@ -41,10 +42,20 @@ class ApiClient {
         this.onUnauthorized = callback;
     }
 
+    private async ensureTokenLoaded(): Promise<void> {
+        if (this.token) return;
+        const storedToken = await storage.getToken();
+        if (storedToken) {
+            this.token = storedToken;
+        }
+    }
+
     private async request<T>(
         endpoint: string,
         options: RequestInit = {}
     ): Promise<ApiResponse<T>> {
+        await this.ensureTokenLoaded();
+
         // Allow calling absolute URLs (starting with http/https) without prefixing baseUrl.
         const url = endpoint.startsWith('http://') || endpoint.startsWith('https://')
             ? endpoint
@@ -147,6 +158,8 @@ class ApiClient {
 
     // For multipart/form-data (file uploads)
     private async requestFormData<T>(endpoint: string, formData: FormData, method: 'POST' | 'PATCH' = 'POST'): Promise<ApiResponse<T>> {
+        await this.ensureTokenLoaded();
+
         const url = `${this.baseUrl}${endpoint}`;
 
         const headers: Record<string, string> = {};

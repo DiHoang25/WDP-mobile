@@ -23,7 +23,7 @@ import {
 } from "react-native";
 
 export default function LeaderboardScreen() {
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, isLoading: isAuthLoading, isAuthenticated } = useAuth();
   const { t } = useLanguage();
   const { showAlert } = useAlert();
   const [loading, setLoading] = useState(true);
@@ -37,9 +37,19 @@ export default function LeaderboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      refreshProfile();
-      fetchLeaderboard();
-    }, [selectedCategory, selectedTimeframe]),
+      const run = async () => {
+        if (isAuthLoading) return;
+        if (!isAuthenticated) {
+          setLoading(false);
+          return;
+        }
+
+        await refreshProfile();
+        await fetchLeaderboard();
+      };
+
+      run();
+    }, [selectedCategory, selectedTimeframe, isAuthLoading, isAuthenticated]),
   );
 
   const fetchLeaderboard = async () => {

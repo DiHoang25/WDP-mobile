@@ -14,7 +14,7 @@ export interface CreateReportRequest {
     wardCode?: string;
     description?: string;
     wasteItems: WasteItem[];
-    files?: any[]; // Array of image files/uris
+    files?: Array<string | { uri: string; name?: string; mimeType?: string }>; // Image URIs or picker assets
 }
 
 export const wasteService = {
@@ -37,18 +37,35 @@ export const wasteService = {
         formData.append('wasteItems', JSON.stringify(data.wasteItems));
 
         if (data.files && data.files.length > 0) {
-            data.files.forEach((fileUri, index) => {
-                const filename = fileUri.split('/').pop();
+            console.log('[wasteService] preparing files for upload:', data.files.length);
+            data.files.forEach((file, index) => {
+                const fileUri = typeof file === 'string' ? file : file.uri;
+                const fallbackName = `image_${index}.jpg`;
+                const filename = typeof file === 'string'
+                    ? fileUri.split('/').pop() || fallbackName
+                    : file.name || fileUri.split('/').pop() || fallbackName;
+                const mimeType = typeof file === 'string'
+                    ? undefined
+                    : file.mimeType;
                 const match = /\.(\w+)$/.exec(filename || '');
-                const type = match ? `image/${match[1]}` : `image`;
+                const type = mimeType || (match ? `image/${match[1]}` : 'image/jpeg');
+
+                console.log('[wasteService] append file:', {
+                    index,
+                    uri: fileUri,
+                    filename,
+                    type,
+                });
 
                 // For React Native FormData
                 formData.append('files', {
                     uri: fileUri,
-                    name: filename || `image_${index}.jpg`,
+                    name: filename,
                     type,
                 } as any);
             });
+        } else {
+            console.log('[wasteService] no files to upload');
         }
 
         console.log('📦 FormData wasteItems:', formData.get('wasteItems'));
